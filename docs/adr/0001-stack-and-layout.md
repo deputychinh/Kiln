@@ -1,32 +1,33 @@
-# ADR 0001: Stack và layout repo
+# ADR 0001: Stack and repository layout
 
-- Trạng thái: chấp nhận · 2026-11-03
+- Status: accepted · 2026-11-03
 
-## Bối cảnh
+## Context
 
-Kiln là hub review asset sáng tạo cho studio nhỏ (5–50 người): artist publish ảnh, texture, model 3D; lead so sánh phiên bản và duyệt; AI gắn tag và bắt lỗi đặt tên. Dự án cũng là portfolio cho vị trí full-stack (React/TS, Node tooling, Python pipeline, DCC), nên mỗi phần phải đủ thật để demo, và phát hành mỗi tuần.
+Kiln is a review hub for small studios (5–50 people): artists publish images, textures and 3D models; leads compare versions and approve; AI tags assets and catches naming mistakes. It is also a portfolio piece for a full-stack role (React/TypeScript, Node tooling, Python pipelines, DCC integration), so every part must be real enough to demo, and it ships weekly.
 
-## Quyết định
+## Decision
 
-1. **Một repo, hai workspace.** npm workspaces cho `apps/web`, `packages/ui`, `packages/cli`; uv workspace cho `services/api`, `services/worker` và phần lõi của add-on Blender. Tooling repo (Prettier, husky, commitlint) ở gốc. _npm thay vì pnpm_: Node 26 không còn kèm corepack và hai repo tham chiếu đều dùng npm; đổi sau chỉ tốn một commit.
-2. **Monolith mô-đun trước** (`references/backend-architecture.md`): một API FastAPI với các bounded context `assets` (core: asset, phiên bản, file), `review` (ghi chú, comment, trạng thái duyệt), `catalog` (tag, tìm kiếm, luật đặt tên). Worker là tiến trình riêng vì việc nặng (render, gọi AI) không được chặn request.
-3. **Phân tầng**: routes → services → domain; I/O sau port (`AssetRepository`, `ObjectStorage`, `JobQueue`, `AiTagger`, `Clock`). Domain thuần, test không cần DB.
-4. **Dữ liệu**: Postgres 17 (SQLAlchemy 2 + Alembic) cho metadata; file nằm ở object storage S3-compatible (MinIO local). Upload/download qua **presigned URL** nên API không chuyển byte asset.
-5. **Hàng đợi việc trên Postgres** (`SELECT … FOR UPDATE SKIP LOCKED`), ghi job trong cùng transaction với thay đổi asset (tương đương outbox, `references/data-and-reliability.md`). Không thêm Redis/Kafka cho đến khi một ADR chỉ ra nhu cầu. Worker idempotent theo `job_id`, retry có backoff, quá 5 lần thì `failed` và hiện trên UI.
-6. **API** theo `references/api-design.md`: OpenAPI 3.1 xuất bằng `make openapi`, web sinh type bằng `openapi-typescript`; lỗi RFC 9457 + `code`; phân trang cursor; `Idempotency-Key` cho `POST /assets`; `/health`, `/ready`; `X-Request-Id`.
-7. **Web**: React 19 + Vite (SPA, không cần SSR vì là công cụ nội bộ sau đăng nhập), TanStack Router (route có type, state trên URL) + TanStack Query (server state). Viewer 3D: react-three-fiber. Style: CSS thuần + token của `packages/ui`, BEM; không Tailwind để bám house convention.
-8. **Design system riêng** (`packages/ui`) với Storybook: đây là bằng chứng cho "visual consistency" và là nơi duy nhất định nghĩa token.
-9. **CLI Node** (`packages/cli`, Commander) và **add-on Blender** dùng chung API công khai với web, xác thực bằng personal access token.
-10. **Cổng chất lượng**: ruff + mypy strict + pytest ≥ 90 %; ESLint 0 cảnh báo + tsc + Vitest ≥ 80 % + Playwright + axe; Conventional Commits do husky và CI ép.
+1. **One repository, two workspaces.** npm workspaces for `apps/web`, `packages/ui`, `packages/cli`; a uv workspace for `services/api` and `services/worker`. Repo tooling (Prettier, husky, commitlint, ESLint, Stylelint) lives at the root. _npm rather than pnpm_: Node 26 no longer ships corepack and both reference repos use npm; switching later is one commit.
+2. **Modular monolith first** (`references/backend-architecture.md`): one FastAPI API with bounded contexts `assets` (core: asset, version, file), `review` (annotations, comments, approval) and `catalog` (tags, search, naming rules). The worker is a separate process because heavy work (rendering, AI calls) must never block a request.
+3. **Layers**: routes → services → domain; I/O behind ports (`AssetRepository`, `ObjectStorage`, `JobQueue`, `AiTagger`, `Clock`). The domain is pure and tested without a database.
+4. **Data**: Postgres 17 (SQLAlchemy 2 + Alembic) for metadata; files in S3-compatible object storage (MinIO locally). Uploads and downloads use **presigned URLs**, so asset bytes never pass through the API.
+5. **Job queue on Postgres** (`SELECT … FOR UPDATE SKIP LOCKED`), with the job written in the same transaction as the asset change (an outbox in effect, `references/data-and-reliability.md`). No Redis/Kafka until an ADR shows the need. Workers are idempotent per `job_id`, retry with backoff, and after 5 attempts mark the job `failed`, which the UI shows.
+6. **API** per `references/api-design.md`: OpenAPI 3.1 exported by `make openapi`, web types generated with `openapi-typescript`; RFC 9457 errors with `code`; cursor pagination; `Idempotency-Key` on `POST /assets`; `/health`, `/ready`; `X-Request-Id`.
+7. **Web**: React 19 + Vite as an SPA (no SSR: it is a signed-in tool), TanStack Router (typed routes, state in the URL) and TanStack Query (server state). 3D viewer: react-three-fiber. Styling: plain CSS with `packages/ui` tokens and BEM; no Tailwind, to match the house conventions.
+8. **Own design system** (`packages/ui`) with Storybook: the evidence for "visual consistency" and the only place tokens are defined.
+9. **Node CLI** (`packages/cli`, Commander) and **Blender add-on** use the same public API as the web app, authenticated with personal access tokens.
+10. **Quality gates**: ruff + mypy strict + pytest ≥ 90 %; ESLint 0 warnings + Stylelint + tsc + Vitest ≥ 80 % + Playwright + axe; Conventional Commits enforced by husky and CI.
 
-## Hệ quả
+## Consequences
 
-- Một lệnh `make ci` kiểm cả hai hệ sinh thái; CI có hai job (`python`, `node`).
-- Postgres làm hàng đợi giới hạn ở vài chục job/giây; đủ cho studio nhỏ, cần ADR mới nếu vượt.
-- Presigned URL buộc cấu hình CORS trên bucket và giới hạn kích thước/kiểu file khi ký (A10, `docs/security.md`).
-- Xác thực: v0.1 chạy chế độ demo một người dùng; v0.2 thêm đăng nhập email + mật khẩu (Argon2id, cookie phiên HttpOnly) và personal access token cho CLI/Blender (KILN-19).
-- Không SSR nên trang công khai (nếu có) phải làm riêng; chấp nhận vì sản phẩm nằm sau đăng nhập.
+- One `make ci` checks both ecosystems; CI has two jobs (`python`, `node`).
+- Postgres as a queue tops out at tens of jobs per second; enough for a small studio, a new ADR if exceeded.
+- Presigned URLs require bucket CORS and size/type limits at signing time (A10, `docs/security.md`).
+- Authentication: v0.1 runs in single-user demo mode; v0.2 adds email + password sign-in (Argon2id, HttpOnly session cookie) and personal access tokens for the CLI and Blender (KILN-12).
+- No SSR, so any public marketing page is built separately; acceptable because the product sits behind sign-in.
+- A UI library inside an npm workspace can pull a second React copy if versions drift; versions are pinned identically and `npm ls react` must show one.
 
-## Nguồn
+## Sources
 
-`references/backend-architecture.md` (Clean Architecture, monolith-first), `references/api-design.md` (Zalando, RFC 9457), `references/data-and-reliability.md` (DDIA ch. 11, Release It! timeouts/backoff), `references/frontend-and-ux.md`, `references/delivery.md`.
+`references/backend-architecture.md` (Clean Architecture, monolith first), `references/api-design.md` (Zalando guidelines, RFC 9457), `references/data-and-reliability.md` (DDIA ch. 11, Release It! timeouts and backoff), `references/frontend-and-ux.md`, `references/delivery.md`.

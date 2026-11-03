@@ -1,24 +1,26 @@
 # Backlog
 
-Id `KILN-<n>`; khi liên kết Jira, id Jira trùng với id ở đây.
+Ids are `KILN-<n>`; once Jira is linked, the Jira key matches the id here.
 
-| Id      | Release | Việc                                                               | Trạng thái |
-| ------- | ------- | ------------------------------------------------------------------ | ---------- |
-| KILN-1  | –       | Khởi tạo repo, quy ước, CI                                         | done       |
-| KILN-2  | v0.1    | Model `Asset`/`AssetVersion`, migration đầu, repository            | todo       |
-| KILN-3  | v0.1    | Upload qua presigned URL (MinIO) + xác nhận upload                 | todo       |
-| KILN-4  | v0.1    | Job queue trên Postgres (`SKIP LOCKED`) + worker tạo thumbnail ảnh | todo       |
-| KILN-5  | v0.1    | Thumbnail cho `.glb` (render offscreen)                            | todo       |
-| KILN-6  | v0.1    | Gallery + chi tiết asset, 4 trạng thái, phân trang cursor          | todo       |
-| KILN-7  | v0.2    | Phiên bản asset + so sánh side-by-side                             | todo       |
-| KILN-8  | v0.2    | Viewer 3D (react-three-fiber)                                      | todo       |
-| KILN-9  | v0.2    | Ghi chú vùng trên ảnh + comment                                    | todo       |
-| KILN-10 | v0.2    | Trạng thái duyệt và lịch sử                                        | todo       |
-| KILN-11 | v0.3    | AI tag + mô tả qua Claude vision, người dùng duyệt                 | todo       |
-| KILN-12 | v0.3    | Lint quy ước đặt tên (luật cấu hình theo project)                  | todo       |
-| KILN-13 | v0.3    | Tìm kiếm ngôn ngữ tự nhiên → bộ lọc (tool use)                     | todo       |
-| KILN-14 | v0.3    | Add-on Blender "Publish to Kiln"                                   | todo       |
-| KILN-15 | v0.3    | CLI `kiln publish` / `kiln validate`                               | todo       |
-| KILN-16 | v0.3    | Eval chất lượng tag                                                | todo       |
-| KILN-17 | v0.4    | Audit nhất quán UI + a11y + Core Web Vitals                        | todo       |
-| KILN-18 | v0.4    | Storybook public, video demo, case study                           | todo       |
+| Id      | Release | Item                                                                        | Status |
+| ------- | ------- | --------------------------------------------------------------------------- | ------ |
+| KILN-1  | –       | Repo bootstrap, conventions, CI, walking skeleton                           | done   |
+| KILN-2  | v0.1    | `Asset` / `AssetVersion` model, first migration, repository                 | todo   |
+| KILN-3  | v0.1    | Upload through presigned URLs (MinIO) + upload completion                   | todo   |
+| KILN-4  | v0.1    | Postgres job queue (`SKIP LOCKED`) + worker image thumbnails                | todo   |
+| KILN-5  | v0.1    | Thumbnails for `.glb` (offscreen render)                                    | todo   |
+| KILN-6  | v0.1    | Gallery + asset detail, four states, cursor pagination, adaptive navigation | todo   |
+| KILN-7  | v0.1    | Storybook for the design system                                             | todo   |
+| KILN-8  | v0.2    | Asset versions + side-by-side compare                                       | todo   |
+| KILN-9  | v0.2    | 3D viewer (react-three-fiber)                                               | todo   |
+| KILN-10 | v0.2    | Region annotations on images + comments                                     | todo   |
+| KILN-11 | v0.2    | Approval states and history                                                 | todo   |
+| KILN-12 | v0.2    | Sign-in (Argon2id, session cookie) + personal access tokens                 | todo   |
+| KILN-13 | v0.3    | Claude vision tags + descriptions, accepted by a person                     | todo   |
+| KILN-14 | v0.3    | Naming-convention lint (rules configured per project)                       | todo   |
+| KILN-15 | v0.3    | Natural-language search → filters (tool use)                                | todo   |
+| KILN-16 | v0.3    | Blender add-on "Publish to Kiln"                                            | todo   |
+| KILN-17 | v0.3    | CLI `kiln publish` / `kiln validate`                                        | todo   |
+| KILN-18 | v0.3    | Tag quality eval                                                            | todo   |
+| KILN-19 | v0.4    | UI consistency audit + a11y + Core Web Vitals                               | todo   |
+| KILN-20 | v0.4    | Public Storybook, demo video, case study                                    | todo   |

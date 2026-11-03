@@ -1,4 +1,4 @@
-# Kiến trúc
+# Architecture
 
 ```mermaid
 flowchart LR
@@ -9,43 +9,43 @@ flowchart LR
   end
   web & cli & blender -->|HTTPS /api/v1 JSON| api[API<br/>FastAPI]
   api --> db[(Postgres<br/>metadata + jobs)]
-  api -.->|ký presigned URL| s3[(Object storage<br/>MinIO / S3)]
-  web & cli & blender -->|PUT/GET file| s3
+  api -.->|signs presigned URLs| s3[(Object storage<br/>MinIO / S3)]
+  web & cli & blender -->|PUT/GET files| s3
   worker[Worker<br/>Python] -->|SKIP LOCKED| db
   worker --> s3
   worker -->|vision, tool use| claude[Claude API]
 ```
 
-## Luồng upload (v0.1)
+## Upload flow (v0.1)
 
-1. Client `POST /api/v1/assets` (có `Idempotency-Key`) → API tạo `Asset` + `AssetVersion(pending_upload)`, trả presigned PUT URL (hết hạn 15 phút, giới hạn kiểu và kích thước).
-2. Client PUT file lên storage, rồi `POST /api/v1/asset-versions/{id}/completions`.
-3. API kiểm object tồn tại, chuyển `processing`, ghi job `thumbnail` (cùng transaction).
-4. Worker lấy job, tạo thumbnail, (v0.3) gọi AI tag, chuyển `ready`. Web poll hoặc nghe SSE `/api/v1/events`.
+1. The client calls `POST /api/v1/assets` (with `Idempotency-Key`); the API creates `Asset` + `AssetVersion(pending_upload)` and returns a presigned PUT URL (15-minute expiry, type and size limits).
+2. The client PUTs the file to storage, then calls `POST /api/v1/asset-versions/{id}/completions`.
+3. The API checks the object exists, moves the version to `processing` and writes a `thumbnail` job in the same transaction.
+4. The worker takes the job, renders the thumbnail, (v0.3) asks for AI tags, and marks the version `ready`. The web app polls or listens on SSE `/api/v1/events`.
 
-## Bounded context
+## Bounded contexts
 
-| Context  | Loại       | Thực thể chính                        |
+| Context  | Kind       | Main entities                         |
 | -------- | ---------- | ------------------------------------- |
 | assets   | core       | Asset, AssetVersion, StoredFile       |
 | review   | core       | Review, Annotation, Comment, Decision |
 | catalog  | supporting | Tag, NamingRule, SearchPlan           |
 | identity | generic    | User, Session, AccessToken (v0.2)     |
 
-## Biên
+## Boundaries
 
-| Biên            | Hợp đồng                                                                | Chủ    |
-| --------------- | ----------------------------------------------------------------------- | ------ |
-| clients → api   | OpenAPI (`services/api/openapi.json`, type TS sinh ra)                  | api    |
-| api ↔ worker    | bảng `jobs` (`kind`, `payload` JSON có schema, `attempts`, `run_after`) | api    |
-| worker → Claude | port `AiTagger`, schema tool trong `kiln_worker/ai/schemas.py`          | worker |
-| web ↔ ui        | export của `@kiln/ui` (component + token CSS)                           | ui     |
+| Boundary        | Contract                                                                        | Owner  |
+| --------------- | ------------------------------------------------------------------------------- | ------ |
+| clients → api   | OpenAPI (`services/api/openapi.json`, generated TS types in `apps/web/src/api`) | api    |
+| api ↔ worker    | `jobs` table (`kind`, schema-checked JSON `payload`, `attempts`, `run_after`)   | api    |
+| worker → Claude | `AiTagger` port, tool schemas in `kiln_worker/ai/schemas.py`                    | worker |
+| web ↔ ui        | exports of `@kiln/ui` (components + `tokens.css`)                               | ui     |
 
-## Xuyên suốt
+## Cross-cutting
 
-- Cấu hình từ env `KILN_*`, kiểm khi khởi động (pydantic-settings); `.env.example` đủ khóa.
-- Lỗi: RFC 9457 + `code`; web hiển thị theo `code`, không theo chuỗi.
-- Quan sát: log JSON có `request_id`/`job_id`; `/health`, `/ready`; số liệu job (đang chờ, thất bại).
-- Timeout: gọi storage 10 s, Claude 30 s; mọi vòng retry có backoff và giới hạn.
+- Configuration from `KILN_*` env, validated at start-up (pydantic-settings); `.env.example` lists every key.
+- Errors: RFC 9457 + `code`; the web app reacts to `code`, never to message text.
+- Observability: JSON logs with `request_id` / `job_id`; `/health`, `/ready`; job metrics (queued, failed).
+- Timeouts: storage 10 s, Claude 30 s; every retry loop has backoff and a cap.
 
-Cập nhật cùng mỗi ADR trong `docs/adr/`.
+Updated with every ADR in `docs/adr/`.

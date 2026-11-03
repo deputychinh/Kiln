@@ -1,42 +1,43 @@
 # Design system
 
-Nguồn duy nhất: `packages/ui` (`@kiln/ui`). Web chỉ dùng token và component từ đây. Theo `references/frontend-and-ux.md`.
+Single source: `packages/ui` (`@kiln/ui`). The web app uses only its tokens and components. Follows `references/frontend-and-ux.md`.
 
-## Định hướng
+## Direction
 
-Công cụ cho artist: **asset là nhân vật chính**, giao diện lùi lại. Mặc định nền tối trung tính (không ám màu để không làm lệch cảm nhận màu của texture), có chế độ sáng. Mật độ cao trên desktop, thoáng hơn trên điện thoại.
+A tool for artists: **the asset is the hero**, the interface steps back. Neutral dark surfaces by default (no tint, so texture colours are judged correctly), with a light theme. Dense on desktop, roomier on phones.
 
-## Token (`--kiln-*`)
+## Tokens (`--kiln-*`)
 
-| Nhóm        | Ví dụ                                                                                                                                                             |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Màu         | `--kiln-color-surface`, `-surface-raised`, `-on-surface`, `-on-surface-muted`, `-primary`, `-on-primary`, `-outline`, `-success`, `-warning`, `-danger`, `-focus` |
-| Khoảng cách | thang 4 px: `--kiln-space-1` (4) … `--kiln-space-8` (48)                                                                                                          |
-| Chữ         | `--kiln-font-sans`, `--kiln-font-mono`; cỡ `--kiln-text-xs` … `--kiln-text-2xl`                                                                                   |
-| Bo góc      | `--kiln-radius-sm/md/lg/full`                                                                                                                                     |
-| Bóng        | `--kiln-shadow-1/2`                                                                                                                                               |
-| Chuyển động | `--kiln-duration-fast/base`, `--kiln-ease-standard`; tôn trọng `prefers-reduced-motion`                                                                           |
-| Lớp         | `--kiln-z-header/drawer/dialog/toast`                                                                                                                             |
+| Group   | Examples                                                                                                                                                          |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Colour  | `--kiln-color-surface`, `-surface-raised`, `-on-surface`, `-on-surface-muted`, `-primary`, `-on-primary`, `-outline`, `-success`, `-warning`, `-danger`, `-focus` |
+| Spacing | 4 px scale: `--kiln-space-1` (4) … `--kiln-space-8` (48)                                                                                                          |
+| Type    | `--kiln-font-sans`, `--kiln-font-mono`; sizes `--kiln-text-xs` … `--kiln-text-2xl`; weights; leading                                                              |
+| Radius  | `--kiln-radius-sm/md/lg/full`                                                                                                                                     |
+| Shadow  | `--kiln-shadow-1/2`                                                                                                                                               |
+| Motion  | `--kiln-duration-fast/base`, `--kiln-ease-standard`; zero under `prefers-reduced-motion`                                                                          |
+| Layers  | `--kiln-z-header/drawer/dialog/toast`                                                                                                                             |
+| Targets | `--kiln-target-min` (24 px), `--kiln-target-primary` (44 px)                                                                                                      |
 
-Độ tương phản: chữ thường ≥ 4.5:1, chữ lớn và viền điều khiển ≥ 3:1, ở cả hai theme.
+Contrast: body text ≥ 4.5:1, large text and control borders ≥ 3:1, in both themes.
 
-## Bố cục theo cỡ cửa sổ (Material 3)
+## Layout per window size class (Material 3)
 
-| Cỡ       | Rộng       | Điều hướng      | Gallery                        |
-| -------- | ---------- | --------------- | ------------------------------ |
-| compact  | < 600 px   | thanh dưới      | 2 cột                          |
-| medium   | 600–839 px | navigation rail | 3–4 cột                        |
-| expanded | ≥ 840 px   | rail mở rộng    | lưới + panel chi tiết bên phải |
+| Class    | Width      | Navigation      | Gallery                         |
+| -------- | ---------- | --------------- | ------------------------------- |
+| compact  | < 600 px   | bottom bar      | 2 columns                       |
+| medium   | 600–839 px | navigation rail | 3–4 columns                     |
+| expanded | ≥ 840 px   | expanded rail   | grid + detail pane on the right |
 
-## Component (thứ tự xây)
+## Components (build order)
 
-v0.1: `Button`, `IconButton`, `TextField`, `Badge`, `Card`, `AssetThumb`, `EmptyState`, `ErrorState`, `Skeleton`, `Dropzone`, `ProgressBar`, `AppShell`.
-v0.2: `Tabs`, `Dialog`, `Drawer`, `Avatar`, `CommentThread`, `AnnotationLayer`, `CompareSlider`, `StatusPill`.
-v0.3: `TagChip` (suggested/accepted), `SearchBar` (câu tự nhiên → chip bộ lọc), `RuleViolation`.
+- v0.1: `Button` (done), `IconButton`, `TextField`, `Badge`, `Card`, `AssetThumb`, `EmptyState`, `ErrorState`, `Skeleton`, `Dropzone`, `ProgressBar`, `AppShell` navigation.
+- v0.2: `Tabs`, `Dialog`, `Drawer`, `Avatar`, `CommentThread`, `AnnotationLayer`, `CompareSlider`, `StatusPill`.
+- v0.3: `TagChip` (suggested/accepted), `SearchBar` (natural language → filter chips), `RuleViolation`.
 
-Mỗi component: story cho mọi trạng thái, test theo role, không chuỗi viết cứng (nhận qua props).
+Every component has a story for each state, role-based tests, and no hard-coded strings (copy comes in through props).
 
-## Ngân sách
+## Budgets
 
-- Accessibility: WCAG 2.2 AA; target ≥ 24 px (2.5.8), focus không bị che (2.4.11), có thay thế cho kéo thả (2.5.7: nút chọn file cạnh dropzone, nút chỉnh cho CompareSlider).
-- Hiệu năng: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1; thumbnail có kích thước cố định để không nhảy layout; viewer 3D tải lười.
+- Accessibility: WCAG 2.2 AA; targets ≥ 24 px (2.5.8); focus not obscured (2.4.11); an alternative to every drag (2.5.7: a file button beside the dropzone, buttons for the compare slider).
+- Performance: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1; thumbnails have fixed dimensions to avoid layout shift; the 3D viewer loads lazily.

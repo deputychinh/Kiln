@@ -1,28 +1,28 @@
-# ADR 0002: AI trong sản phẩm
+# ADR 0002: AI in the product
 
-- Trạng thái: chấp nhận · 2026-11-03
+- Status: accepted · 2026-11-03
 
-## Bối cảnh
+## Context
 
-Ba tính năng dùng mô hình ngôn ngữ: (1) gắn tag và viết mô tả từ thumbnail, (2) giải thích lỗi đặt tên và gợi ý tên đúng, (3) chuyển câu tìm kiếm tự nhiên ("rock textures approved last week") thành bộ lọc có cấu trúc. Rủi ro: model trả sai, chi phí tăng, rò dữ liệu khách, test phụ thuộc mạng.
+Three features use a language model: (1) tags and a description from a thumbnail, (2) explaining naming-convention violations and suggesting the correct name, (3) turning a natural-language search ("rock textures approved last week") into structured filters. Risks: wrong output, growing cost, leaking client data, tests that depend on the network.
 
-## Quyết định
+## Decision
 
-1. **Claude qua Anthropic API**, model id và giá nằm trong `constants.py`/env. Mặc định model Sonnet cho vision (tag), Haiku cho chuyển câu tìm kiếm (rẻ, nhanh). Đổi model là đổi cấu hình, không đổi code.
-2. **Chỉ qua port** `AiTagger` và `AiSearchPlanner`; có adapter Claude và adapter offline tất định (dùng tên file + màu chủ đạo) để chạy khi không có key và trong test.
-3. **Output có cấu trúc**: tool use với JSON schema; parse bằng pydantic; sai schema thì job thất bại có lý do, không đoán.
-4. **Người duyệt cuối cùng**: tag AI lưu ở trạng thái `suggested`; chỉ thành `accepted` khi người dùng bấm nhận. Luật đặt tên là code tất định; AI chỉ giải thích và gợi ý.
-5. **Tìm kiếm**: model chỉ được trả bộ lọc trong whitelist (tag, loại, trạng thái, khoảng ngày, người tạo); API tự dựng query có tham số, không bao giờ chạy SQL do model sinh (A05).
-6. **Chi phí và giới hạn**: chỉ gọi khi có phiên bản mới; cache theo hash file; ngân sách tháng `KILN_AI_MONTHLY_BUDGET_USD`, vượt thì chuyển sang adapter offline và hiện thông báo.
-7. **Dữ liệu**: chỉ gửi thumbnail 512 px và tên file, không gửi metadata người dùng; ghi log số token và độ trễ, không log nội dung.
-8. **Đo chất lượng**: `services/worker/evals/` có ~50 asset gắn nhãn tay; báo precision/recall tag mỗi release trong CHANGELOG.
+1. **Claude through the Anthropic API**; model ids and prices live in `constants.py` / env. Defaults: a Sonnet model for vision tagging, a Haiku model for search planning (cheap, fast). Changing models is configuration, not code.
+2. **Ports only**: `AiTagger` and `AiSearchPlanner`, each with a Claude adapter and a deterministic offline adapter (file name + dominant colours) used without a key and in tests.
+3. **Structured output**: tool use with a JSON schema, parsed with pydantic; a schema mismatch fails the job with a reason instead of guessing.
+4. **A person decides**: AI tags are stored as `suggested` and become `accepted` only when someone accepts them. Naming rules are deterministic code; AI only explains and suggests.
+5. **Search**: the model may only return filters from an allow-list (tag, type, status, date range, author); the API builds a parameterised query itself and never runs model-generated SQL (A05).
+6. **Cost and limits**: call only for a new version; cache by file hash; monthly budget `KILN_AI_MONTHLY_BUDGET_USD`, after which the offline adapter takes over and the UI says so.
+7. **Data**: send only a 512 px thumbnail and the file name, never user metadata; log token counts and latency, never content.
+8. **Measure quality**: `services/worker/evals/` holds about 50 hand-labelled assets; precision/recall of tags is reported in every release's changelog.
 
-## Hệ quả
+## Consequences
 
-- Không có key thì sản phẩm vẫn chạy đầy đủ (chất lượng tag thấp hơn); CI không cần secret.
-- Thêm một bảng `ai_usage` để theo dõi ngân sách.
-- Mỗi lần đổi prompt hay model phải chạy lại eval và ghi kết quả.
+- Without a key the product still works end to end (with weaker tags); CI needs no secret.
+- An `ai_usage` table tracks spend against the budget.
+- Every prompt or model change reruns the eval and records the result.
 
-## Nguồn
+## Sources
 
-`references/security.md` (A05, A10), `references/data-and-reliability.md` (timeouts, cache), tài liệu Anthropic về tool use và vision.
+`references/security.md` (A05, A10), `references/data-and-reliability.md` (timeouts, caching), Anthropic documentation on tool use and vision.

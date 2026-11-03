@@ -1,31 +1,31 @@
-# Kiểm thử
+# Testing
 
-## Các tầng
+## Layers
 
-| Tầng                            | Ở đâu                                  | Chạy                                | Ngưỡng                               |
-| ------------------------------- | -------------------------------------- | ----------------------------------- | ------------------------------------ |
-| Domain Python (logic thuần)     | `services/*/tests/unit`                | `uv run pytest`                     | tổng ≥ 90 %                          |
-| API (FastAPI + fake cho port)   | `services/api/tests/api`               | `uv run pytest`                     | như trên                             |
-| Worker (processor với file mẫu) | `services/worker/tests`                | `uv run pytest`                     | như trên                             |
-| Blender core (không `bpy`)      | `dcc/blender-addon/tests`              | `uv run pytest`                     | như trên                             |
-| Component UI                    | `packages/ui/src/**/*.test.tsx`        | `npm test --workspace packages/ui`  | dòng ≥ 80 %                          |
-| Web unit/component              | `apps/web/src/**/*.test.ts(x)`         | `npm test --workspace apps/web`     | dòng ≥ 80 %                          |
-| CLI                             | `packages/cli/src/**/*.test.ts`        | `npm test --workspace packages/cli` | dòng ≥ 80 %                          |
-| Luồng trình duyệt               | `apps/web/e2e` (Playwright)            | `make e2e` sau khi build            | smoke + luồng chính mỗi feature      |
-| Accessibility                   | `apps/web/e2e/a11y.spec.ts` (axe-core) | `make e2e`                          | serious/critical = 0                 |
-| Hiệu năng                       | Lighthouse trên bản build              | thủ công mỗi release                | LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1 |
+| Layer                               | Where                                         | Run                                                             | Threshold                                |
+| ----------------------------------- | --------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
+| Python domain (pure logic)          | `services/*/tests/unit`                       | `uv run pytest`                                                 | total ≥ 90 %                             |
+| API (FastAPI + fakes for ports)     | `services/api/tests/api`                      | `uv run pytest`                                                 | as above                                 |
+| Worker (processors on sample files) | `services/worker/tests`                       | `uv run pytest`                                                 | as above                                 |
+| Blender core without `bpy` (v0.3)   | `dcc/blender-addon/tests`                     | `uv run pytest`                                                 | as above                                 |
+| UI components                       | `packages/ui/src/**/*.test.tsx`               | `npm test -w @kiln/ui`                                          | lines ≥ 80 %                             |
+| Web units/components                | `apps/web/src/**/*.test.ts(x)`                | `npm test -w @kiln/web`                                         | lines ≥ 80 %                             |
+| CLI                                 | `packages/cli/src/**/*.test.ts`               | `npm test -w @kiln/cli`                                         | lines ≥ 80 %                             |
+| Browser journeys                    | `apps/web/e2e` (Playwright, desktop + mobile) | `make e2e` (builds, serves with `vite preview`, starts the API) | smoke + the main journey of each feature |
+| Accessibility                       | axe in `apps/web/e2e`                         | `make e2e`                                                      | serious/critical = 0 (WCAG 2.2 AA tags)  |
+| Performance                         | Lighthouse on the production build            | manual, every release                                           | LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1     |
 
-`make ci` = lint + typecheck + test + build; giống `.github/workflows/ci.yml`.
+`make ci` = lint + typecheck + test + build, identical to `.github/workflows/ci.yml`.
 
-## Nguyên tắc
+## Principles
 
-- Test hành vi, mỗi test một hành vi, Arrange–Act–Assert; tên test là câu (`test_upload_is_rejected_when_file_type_is_unknown`).
-- Fake cho port (DB, storage, đồng hồ, Claude) trong `tests/fakes.py`; test không gọi mạng; warning là lỗi.
-- File mẫu nhỏ trong `samples/` (CC0 hoặc tự làm), không dùng asset thật của studio.
-- E2E chạy trên bản build production, không chạy trên dev server.
+- Test behaviour, one behaviour per test, Arrange–Act–Assert; test names are sentences (`test_upload_is_rejected_when_the_file_type_is_unknown`).
+- Fakes for ports (database, storage, clock, Claude) in `tests/fakes.py`; no network in tests; warnings are errors.
+- Small sample files in `samples/` (CC0 or self-made), never real studio assets.
+- E2E runs against the production build, never the dev server.
 
-## Những gì test không chứng minh
+## What the tests do not prove
 
-- Chất lượng tag của Claude: đo riêng bằng bộ eval nhỏ (`services/worker/evals/`) với nhãn tay, báo cáo precision mỗi release.
-- Add-on chạy đúng trong Blender thật: kiểm thủ công trên Blender 4.2 LTS trước mỗi release có đổi add-on.
-- Hiệu năng với hàng nghìn asset: chỉ đo khi có seed lớn (v0.4).
+- Tag quality from Claude: measured separately with a small hand-labelled eval set (`services/worker/evals/`), precision/recall reported in each release's changelog.
+- That the add-on works inside a real Blender: checked by hand on Blender 4.2 LTS before every release that changes it.
+- Performance with thousands of assets: measured only once a large seed exists (v0.4).
