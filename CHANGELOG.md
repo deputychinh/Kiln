@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Added
 
+- Local S3 storage on SeaweedFS (ADR 0003) because MinIO images are no longer published.
 - Repository bootstrap: Prettier, EditorConfig, husky + commitlint, Makefile, CI, docs (conventions, testing, ADR 0001–0002, architecture, security, design system, plan, backlog).
 - API skeleton: `/health` and `/ready`, RFC 9457 problem details with stable codes, request ids, OpenAPI export.
 - Worker skeleton with typed settings.

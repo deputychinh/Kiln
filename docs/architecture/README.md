@@ -9,7 +9,7 @@ flowchart LR
   end
   web & cli & blender -->|HTTPS /api/v1 JSON| api[API<br/>FastAPI]
   api --> db[(Postgres<br/>metadata + jobs)]
-  api -.->|signs presigned URLs| s3[(Object storage<br/>MinIO / S3)]
+  api -.->|signs presigned URLs| s3[(Object storage<br/>S3 (SeaweedFS locally))]
   web & cli & blender -->|PUT/GET files| s3
   worker[Worker<br/>Python] -->|SKIP LOCKED| db
   worker --> s3

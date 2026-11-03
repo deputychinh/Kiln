@@ -12,7 +12,7 @@ Requires Python 3.12 + [uv](https://docs.astral.sh/uv/), Node ≥ 24 and Docker.
 
 ```sh
 make install   # npm workspaces + uv workspace
-make up        # Postgres + MinIO
+make up        # Postgres + SeaweedFS
 make api       # API on :8000
 make web       # web app on :5173
 ```
@@ -36,7 +36,7 @@ flowchart LR
   cli[kiln CLI] -->|HTTP| api
   web[Web app<br/>React + Vite] -->|HTTP /api/v1| api[API<br/>FastAPI]
   api --> db[(Postgres)]
-  api -->|presigned URLs| s3[(MinIO / S3)]
+  api -->|presigned URLs| s3[(S3 (SeaweedFS locally))]
   api -->|jobs table| worker[Worker<br/>Python]
   worker --> s3
   worker -->|vision| claude[Claude API]

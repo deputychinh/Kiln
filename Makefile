@@ -14,7 +14,7 @@ install: ## Install Node workspaces (npm) and Python workspace (uv)
 	uv sync --all-packages
 
 # --- run ---------------------------------------------------------------------
-up: ## Start Postgres and MinIO (docker compose)
+up: ## Start Postgres and SeaweedFS S3 (docker compose)
 	docker compose up -d --wait
 
 down: ## Stop local infrastructure

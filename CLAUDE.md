@@ -2,7 +2,7 @@
 
 AI-assisted review and publishing hub for creative studios: artists publish images, textures and 3D models from Blender or a CLI, leads compare versions and approve, and Claude tags assets and flags naming-convention mistakes.
 
-Stack: npm workspaces (React 19 + Vite + TypeScript web app, design system, Node CLI) + uv workspace (FastAPI API, Python worker) + Blender add-on; Postgres + MinIO. Docs language: English. Everything below is binding for every session in this repo.
+Stack: npm workspaces (React 19 + Vite + TypeScript web app, design system, Node CLI) + uv workspace (FastAPI API, Python worker) + Blender add-on; Postgres + SeaweedFS. Docs language: English. Everything below is binding for every session in this repo.
 
 ## Repo map
 
@@ -11,7 +11,7 @@ Stack: npm workspaces (React 19 + Vite + TypeScript web app, design system, Node
 | `apps/web`          | React 19 + Vite + TanStack Router/Query                 | `web`          |
 | `packages/ui`       | design system: tokens, components (Storybook from v0.1) | `ui`           |
 | `packages/cli`      | Node CLI `kiln` (publish, validate)                     | `cli`          |
-| `services/api`      | FastAPI, Postgres, MinIO                                | `api`, `db`    |
+| `services/api`      | FastAPI, Postgres, SeaweedFS                            | `api`, `db`    |
 | `services/worker`   | Python: thumbnails, validation, AI tagging              | `worker`, `ai` |
 | `dcc/blender-addon` | Blender add-on "Publish to Kiln" (v0.3)                 | `blender`      |
 

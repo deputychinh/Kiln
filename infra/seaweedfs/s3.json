@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "kiln-local",
+      "credentials": [{ "accessKey": "kiln", "secretKey": "kiln-local-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
