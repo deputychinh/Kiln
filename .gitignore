@@ -1,0 +1,36 @@
+# env and secrets
+.env
+.env.*
+!.env.example
+
+# node
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+test-results/
+playwright-report/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+
+# data and local state (never commit datasets, models, databases)
+data/
+
+# os / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# storybook / vite / blender
+storybook-static/
+*.blend1
