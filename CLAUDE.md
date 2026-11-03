@@ -64,6 +64,14 @@ Every turn that changes files ends with a commit:
 5. Push to `origin main` after committing (the owner asked for every commit to be pushed). Never force-push or rewrite history on `main`.
 6. End the report with the hash and message of each new commit.
 
+## Delivery loop (how work happens here)
+
+Work the backlog with the `/deliver-loop` skill, without waiting for the owner between items:
+BA story in `docs/stories/KILN-<n>.md` (Given/When/Then ACs, cited references) → design → tests first, then code →
+QA (`make ci`, `make e2e`, screenshots at 390 and 1280 px, AC → test traceability) → independent reviewer scores the
+change on the 10-point rubric (`~/.claude/skills/deliver-loop/rubric.md`) → improve until ≥ 9/10 → commit with
+`Score: x/10` in the body, push → one-line retro → next item. Stop only for blockers only the owner can solve.
+
 ## Jira and releases
 
 - Every task has an id `KILN-<n>` in `docs/backlog.md` (and in Jira once linked); branches are `feat/KILN-12-short-name` when not committing straight to `main`.
