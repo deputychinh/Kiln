@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     env: Environment = Environment.LOCAL
     log_level: str = "INFO"
-    cors_origins: list[str] = ["http://127.0.0.1:5173"]
+    cors_origins: list[str] = ["http://127.0.0.1:5173", "http://127.0.0.1:4173"]
 
 
 @lru_cache

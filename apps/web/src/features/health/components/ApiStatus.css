@@ -1,0 +1,23 @@
+.api-status {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.api-status__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  background-color: var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-full);
+}
+
+.api-status--ok .api-status__dot {
+  background-color: var(--kiln-color-success);
+}
+
+.api-status--down .api-status__dot {
+  background-color: var(--kiln-color-danger);
+}
