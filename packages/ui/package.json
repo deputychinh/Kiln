@@ -1,0 +1,22 @@
+{
+  "name": "@kiln/ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Kiln design system: tokens and React components.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens/tokens.css"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0 && stylelint \"src/**/*.css\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "imports": {
+    "#ui/*": "./src/*"
+  }
+}

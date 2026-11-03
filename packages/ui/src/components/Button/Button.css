@@ -1,0 +1,42 @@
+.button {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--kiln-target-min);
+  padding: var(--kiln-space-2) var(--kiln-space-4);
+  font-family: var(--kiln-font-sans);
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+  background: transparent;
+  border: 1px solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+  transition: background-color var(--kiln-duration-fast) var(--kiln-ease-standard);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--kiln-color-focus);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  min-block-size: var(--kiln-target-primary);
+  color: var(--kiln-color-on-primary);
+  background-color: var(--kiln-color-primary);
+  border-color: var(--kiln-color-primary);
+}
+
+.button--secondary {
+  background-color: var(--kiln-color-surface-raised);
+}
+
+.button--ghost {
+  border-color: transparent;
+}

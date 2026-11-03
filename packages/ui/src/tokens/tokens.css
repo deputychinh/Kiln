@@ -1,0 +1,94 @@
+/* Kiln design tokens: the only place raw values live (docs/design-system.md). Dark is the default. */
+:root {
+  color-scheme: dark;
+
+  --kiln-color-surface: #16171a;
+  --kiln-color-surface-raised: #1f2125;
+  --kiln-color-on-surface: #eceef2;
+  --kiln-color-on-surface-muted: #a3a8b3;
+  --kiln-color-primary: #f08a4b;
+  --kiln-color-on-primary: #1b0f07;
+  --kiln-color-outline: #4a4f59;
+  --kiln-color-success: #5fc28a;
+  --kiln-color-warning: #e8b84a;
+  --kiln-color-danger: #ef6f6c;
+  --kiln-color-focus: #8ab4ff;
+
+  --kiln-space-1: 4px;
+  --kiln-space-2: 8px;
+  --kiln-space-3: 12px;
+  --kiln-space-4: 16px;
+  --kiln-space-5: 24px;
+  --kiln-space-6: 32px;
+  --kiln-space-7: 40px;
+  --kiln-space-8: 48px;
+
+  --kiln-font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kiln-font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
+  --kiln-text-xs: 0.75rem;
+  --kiln-text-sm: 0.875rem;
+  --kiln-text-md: 1rem;
+  --kiln-text-lg: 1.25rem;
+  --kiln-text-xl: 1.5rem;
+  --kiln-text-2xl: 2rem;
+  --kiln-weight-regular: 400;
+  --kiln-weight-medium: 500;
+  --kiln-weight-bold: 650;
+  --kiln-leading-tight: 1.2;
+  --kiln-leading-normal: 1.5;
+
+  --kiln-radius-sm: 4px;
+  --kiln-radius-md: 8px;
+  --kiln-radius-lg: 16px;
+  --kiln-radius-full: 999px;
+
+  --kiln-shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --kiln-shadow-2: 0 8px 24px rgb(0 0 0 / 45%);
+
+  --kiln-duration-fast: 120ms;
+  --kiln-duration-base: 200ms;
+  --kiln-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  --kiln-z-header: 10;
+  --kiln-z-drawer: 20;
+  --kiln-z-dialog: 30;
+  --kiln-z-toast: 40;
+
+  --kiln-target-min: 24px;
+  --kiln-target-primary: 44px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+
+    --kiln-color-surface: #f6f6f4;
+    --kiln-color-surface-raised: #fff;
+    --kiln-color-on-surface: #17181b;
+    --kiln-color-on-surface-muted: #5a5f6a;
+    --kiln-color-primary: #b4501a;
+    --kiln-color-on-primary: #fff;
+    --kiln-color-outline: #b9bcc4;
+    --kiln-color-focus: #1f5fd1;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --kiln-color-surface: #f6f6f4;
+  --kiln-color-surface-raised: #fff;
+  --kiln-color-on-surface: #17181b;
+  --kiln-color-on-surface-muted: #5a5f6a;
+  --kiln-color-primary: #b4501a;
+  --kiln-color-on-primary: #fff;
+  --kiln-color-outline: #b9bcc4;
+  --kiln-color-focus: #1f5fd1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --kiln-duration-fast: 0ms;
+    --kiln-duration-base: 0ms;
+  }
+}

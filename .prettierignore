@@ -9,3 +9,8 @@ coverage
 package-lock.json
 storybook-static
 uv.lock
+services/api/openapi.json
+apps/web/src/api/*.schema.ts
+**/routeTree.gen.ts
+test-results
+playwright-report
