@@ -1,0 +1,60 @@
+[project]
+name = "kiln-workspace"
+version = "0.0.0"
+requires-python = ">=3.12"
+description = "uv workspace root: shared dev tooling for the Python services."
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["services/api", "services/worker"]
+
+[tool.uv.sources]
+kiln-api = { workspace = true }
+kiln-worker = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "kiln-api",
+    "kiln-worker",
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["dcc"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "RUF", "ANN", "D", "PL", "PT", "S", "C4", "RET", "ARG", "C90", "PTH", "TRY", "ERA", "ASYNC"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.isort]
+known-first-party = ["kiln_api", "kiln_worker"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "D", "ANN", "PLR2004", "TRY003"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["services/api/src", "services/api/tests", "services/worker/src", "services/worker/tests"]
+plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+mypy_path = ["services/api/src", "services/worker/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["services/api/tests", "services/worker/tests"]
+addopts = "--import-mode=importlib --strict-markers --cov=kiln_api --cov=kiln_worker --cov-report=term-missing --cov-fail-under=90"
+filterwarnings = ["error"]
