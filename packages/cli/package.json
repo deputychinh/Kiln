@@ -1,0 +1,19 @@
+{
+  "name": "@kiln/cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "kiln command line: publish and validate assets.",
+  "bin": {
+    "kiln": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "commander": "15.0.0"
+  }
+}
