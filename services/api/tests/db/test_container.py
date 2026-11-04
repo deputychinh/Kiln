@@ -24,3 +24,12 @@ def test_the_storage_client_has_bounded_timeouts_and_attempts() -> None:
     assert (config.connect_timeout, config.read_timeout) == (3, 10)
     assert config.retries == {"total_max_attempts": 2, "mode": "standard"}
     assert config.signature_version == "s3v4"
+
+
+def test_readiness_uses_a_one_second_single_attempt_probe_client() -> None:
+    storage = build_storage(Settings(env=Environment.TEST))
+    probe: Any = storage._probe.meta.config  # asserting the wiring itself
+
+    assert storage._probe is not storage._client
+    assert (probe.connect_timeout, probe.read_timeout) == (1, 1)
+    assert probe.retries == {"total_max_attempts": 1, "mode": "standard"}

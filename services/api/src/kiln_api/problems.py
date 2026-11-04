@@ -56,17 +56,12 @@ def _problem(
 async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, DomainError)  # noqa: S101 - registered only for DomainError
     if exc.status >= HTTPStatus.INTERNAL_SERVER_ERROR:
-        cause = exc.__cause__
-        cause_code = (
-            getattr(cause, "response", {}).get("Error", {}).get("Code", "") if cause else ""
-        )
         logger.error(
-            "%s on %s (request %s, cause %s %s)",
+            "%s on %s (request %s, cause %s)",
             exc.code.value,
             request.url.path,
             getattr(request.state, "request_id", "-"),
-            type(cause).__name__ if cause else "-",
-            cause_code,
+            exc.cause_code or "-",
         )
     return _problem(request, exc.status, exc.code, exc.detail)
 

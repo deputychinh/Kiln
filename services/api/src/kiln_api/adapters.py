@@ -17,7 +17,13 @@ _PRECONDITION_FAILED = {str(HTTPStatus.PRECONDITION_FAILED.value), "Precondition
 
 
 def _code(error: ClientError) -> str:
-    return error.response.get("Error", {}).get("Code", "")
+    return (error.response or {}).get("Error", {}).get("Code", "")
+
+
+def _unavailable(error: BotoCoreError | ClientError) -> StorageUnavailableError:
+    """Wrap a storage failure, keeping its code (S3 code or botocore class) for the logs."""
+    cause = _code(error) if isinstance(error, ClientError) else ""
+    return StorageUnavailableError(cause_code=cause or type(error).__name__)
 
 
 class S3ObjectStorage:
@@ -32,21 +38,21 @@ class S3ObjectStorage:
         self._bucket = bucket
 
     def ensure_bucket(self) -> None:
-        """Create the bucket when `HeadBucket` says it does not exist."""
+        """Create the bucket when a fast `HeadBucket` (probe client) says it does not exist."""
         try:
-            self._client.head_bucket(Bucket=self._bucket)
+            self._probe.head_bucket(Bucket=self._bucket)
         except ClientError as error:
             if _code(error) not in _MISSING:
-                raise StorageUnavailableError from error
+                raise _unavailable(error) from error
             self._create_bucket()
         except BotoCoreError as error:
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
 
     def _create_bucket(self) -> None:
         try:
             self._client.create_bucket(Bucket=self._bucket)
         except (BotoCoreError, ClientError) as error:
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
 
     def presign_upload(
         self, *, key: str, content_type: str, size_bytes: int, ttl_seconds: int
@@ -73,9 +79,9 @@ class S3ObjectStorage:
         except ClientError as error:
             if _code(error) in _MISSING:
                 return None
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
         except BotoCoreError as error:
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
         return StoredObject(
             size_bytes=response["ContentLength"],
             content_type=response.get("ContentType", ""),
@@ -87,7 +93,7 @@ class S3ObjectStorage:
         try:
             self._probe.head_bucket(Bucket=self._bucket)
         except (BotoCoreError, ClientError) as error:
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
 
     def promote(self, *, source_key: str, target_key: str, etag: str) -> PromotionResult:
         """Server-side conditional copy; 412 when the source changed, 404 when it is gone."""
@@ -103,9 +109,9 @@ class S3ObjectStorage:
                 return PromotionResult.CHANGED
             if _code(error) in _MISSING:
                 return PromotionResult.SOURCE_GONE
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
         except BotoCoreError as error:
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error
         return PromotionResult.PROMOTED
 
     def delete(self, key: str) -> None:
@@ -113,4 +119,4 @@ class S3ObjectStorage:
         try:
             self._client.delete_object(Bucket=self._bucket, Key=key)
         except (BotoCoreError, ClientError) as error:
-            raise StorageUnavailableError from error
+            raise _unavailable(error) from error

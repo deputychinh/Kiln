@@ -18,9 +18,12 @@ class FakeStorage:
         self.bucket_ready = False
         self.on_head: Callable[[], None] | None = None
         self.promote_succeeds = True
+        self.force_source_gone = False
+        self.ensure_calls = 0
         self.delete_available = True
 
     def ensure_bucket(self) -> None:
+        self.ensure_calls += 1
         self._check()
         self.bucket_ready = True
 
@@ -44,7 +47,7 @@ class FakeStorage:
     def promote(self, *, source_key: str, target_key: str, etag: str) -> PromotionResult:
         self._check()
         source = self.objects.get(source_key)
-        if source is None:
+        if source is None or self.force_source_gone:
             return PromotionResult.SOURCE_GONE
         if not self.promote_succeeds or source.etag != etag:
             return PromotionResult.CHANGED

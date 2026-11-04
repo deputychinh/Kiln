@@ -293,3 +293,22 @@ def test_a_500_keeps_cors_and_the_request_id_and_logs_it(
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
     assert response.headers["X-Request-Id"] == "req-42"
     assert "request req-42" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("final_size", "code"), [(None, "UPLOAD_NOT_FOUND"), (9, "UPLOAD_MISMATCH")]
+)
+def test_a_source_gone_during_promotion_still_checks_the_final_file(
+    client: TestClient, storage: FakeStorage, engine: Engine, final_size: int | None, code: str
+) -> None:
+    created = _create(client)
+    version_id = created["version"]["id"]
+    storage.put(created["upload"]["fields"]["key"], 2048, "image/png")
+    storage.force_source_gone = True
+    if final_size is not None:
+        storage.put(_final_key(engine, version_id), final_size, "image/png")
+
+    response = client.post(f"/api/v1/asset-versions/{version_id}/completions")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == code

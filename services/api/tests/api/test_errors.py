@@ -1,7 +1,6 @@
 import logging
 
 import pytest
-from botocore.exceptions import ClientError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -95,12 +94,14 @@ def test_server_side_domain_errors_are_logged_with_their_cause(
 
     @app.get("/storage")
     def storage() -> None:
-        cause = ClientError({"Error": {"Code": "SlowDown"}}, "HeadObject")
-        raise StorageUnavailableError from cause
+        raise StorageUnavailableError(cause_code="ReadTimeoutError")
 
     with caplog.at_level(logging.ERROR, logger="kiln_api"):
         response = TestClient(app).get("/storage")
 
     assert response.status_code == 503
+    assert response.json()["code"] == "STORAGE_UNAVAILABLE"
+    assert response.headers["Retry-After"] == "1"
     assert "STORAGE_UNAVAILABLE" in caplog.text
-    assert "ClientError SlowDown" in caplog.text
+    assert "cause ReadTimeoutError" in caplog.text
+    assert "ReadTimeoutError" not in response.text

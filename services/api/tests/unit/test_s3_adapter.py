@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import boto3
 import pytest
+from botocore.exceptions import ReadTimeoutError
 from botocore.stub import Stubber
 
 from kiln_api.adapters import S3ObjectStorage
@@ -84,7 +85,7 @@ def test_promotion_copies_only_if_the_source_etag_still_matches(
     assert result is PromotionResult.PROMOTED
 
 
-def test_a_changed_source_makes_promotion_return_false(
+def test_a_changed_source_makes_promotion_return_changed(
     stubbed: tuple[S3ObjectStorage, Stubber],
 ) -> None:
     storage, stubber = stubbed
@@ -172,3 +173,29 @@ def test_a_signed_post_pins_key_type_and_exact_size(
     assert {"Content-Type": "image/png"} in policy["conditions"]
     expiration = datetime.fromisoformat(policy["expiration"].replace("Z", "+00:00"))
     assert timedelta(minutes=14) < expiration - datetime.now(UTC) <= timedelta(minutes=15)
+
+
+class _HangingClient:
+    """Stands in for a boto3 client whose calls time out (botocore sets `response=None`)."""
+
+    def head_object(self, **_: object) -> None:
+        raise ReadTimeoutError(endpoint_url="http://storage.test")
+
+
+def test_a_read_timeout_becomes_unavailable_with_its_class_as_the_cause() -> None:
+    storage = S3ObjectStorage(_HangingClient(), "kiln-assets")  # type: ignore[arg-type]
+
+    with pytest.raises(StorageUnavailableError) as raised:
+        storage.head("uploads/a")
+
+    assert raised.value.cause_code == "ReadTimeoutError"
+
+
+def test_an_s3_error_keeps_its_code_as_the_cause(stubbed: tuple[S3ObjectStorage, Stubber]) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error("head_object", service_error_code="SlowDown", http_status_code=503)
+
+    with pytest.raises(StorageUnavailableError) as raised:
+        storage.head("uploads/a")
+
+    assert raised.value.cause_code == "SlowDown"

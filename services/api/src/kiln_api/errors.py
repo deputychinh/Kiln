@@ -19,9 +19,13 @@ class DomainError(Exception):
     code = ErrorCode.INTERNAL
     default_detail = "The request could not be processed."
 
-    def __init__(self, detail: str | None = None) -> None:
-        """Use the class's default detail unless a more specific one is given."""
+    def __init__(self, detail: str | None = None, *, cause_code: str = "") -> None:
+        """Use the class's default detail unless a more specific one is given.
+
+        `cause_code` names the infrastructure failure (for logs only, never shown to clients).
+        """
         self.detail = detail or self.default_detail
+        self.cause_code = cause_code
         super().__init__(self.detail)
 
 

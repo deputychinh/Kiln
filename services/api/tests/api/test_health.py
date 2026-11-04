@@ -41,3 +41,15 @@ def test_request_id_is_generated_when_missing(client: TestClient) -> None:
     response = client.get("/health")
 
     assert len(response.headers["X-Request-Id"]) == 36
+
+
+def test_ready_only_probes_and_never_creates_the_bucket(
+    client: TestClient, storage: FakeStorage
+) -> None:
+    calls_at_start_up = storage.ensure_calls
+
+    client.get("/ready")
+    client.get("/ready")
+
+    assert calls_at_start_up == 1
+    assert storage.ensure_calls == 1

@@ -1,6 +1,8 @@
 """Against the real SeaweedFS from `make up` (ADR 0003): the signed POST policy and HEAD."""
 
+import socket
 import threading
+import time
 import uuid
 from collections.abc import Iterator
 
@@ -230,3 +232,48 @@ def test_concurrent_completions_all_succeed_against_real_storage(real_client: Te
         outcomes.extend(_race(real_client, url, callers=6))
 
     assert outcomes == [(200, "processing")] * 30
+
+
+@pytest.fixture
+def blackhole() -> Iterator[str]:
+    """A TCP endpoint that accepts connections and never answers (a hung storage server)."""
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(16)
+    held: list[socket.socket] = []
+    stop = threading.Event()
+
+    def accept() -> None:
+        server.settimeout(0.2)
+        while not stop.is_set():
+            try:
+                connection, _ = server.accept()
+                held.append(connection)
+            except TimeoutError:
+                continue
+
+    thread = threading.Thread(target=accept, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.getsockname()[1]}"
+    stop.set()
+    thread.join()
+    for connection in held:
+        connection.close()
+    server.close()
+
+
+def test_a_hung_storage_makes_ready_answer_503_within_seconds(
+    settings: Settings, engine: Engine, blackhole: str
+) -> None:
+    hung = settings.model_copy(update={"s3_endpoint": blackhole})
+    container = build_container(hung, engine=engine)
+
+    started = time.monotonic()
+    with TestClient(create_app(hung, container=container)) as client:
+        response = client.get("/ready")
+    elapsed = time.monotonic() - started
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "STORAGE_UNAVAILABLE"
+    assert response.headers["Retry-After"] == "1"
+    assert elapsed < 5  # start-up probe (1 s) + readiness probe (1 s), not the 26 s work budget
