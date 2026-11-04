@@ -1,8 +1,13 @@
+import logging
+
+import pytest
+from botocore.exceptions import ClientError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from sqlalchemy import create_engine, text
 
-from kiln_api.errors import NotFoundError
+from kiln_api.errors import NotFoundError, StorageUnavailableError
 from kiln_api.problems import install_error_handlers
 
 
@@ -61,3 +66,41 @@ def test_a_wrong_method_has_its_own_code() -> None:
 
     assert response.status_code == 405
     assert response.json()["code"] == "METHOD_NOT_ALLOWED"
+    assert response.headers["Allow"] == "GET"
+
+
+def test_a_statement_timeout_is_a_busy_database_with_retry_after(database_url: str) -> None:
+    engine = create_engine(database_url, connect_args={"options": "-c statement_timeout=100"})
+    app = FastAPI()
+    install_error_handlers(app)
+
+    @app.get("/slow")
+    def slow() -> None:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT pg_sleep(1)"))
+
+    response = TestClient(app).get("/slow")
+    engine.dispose()
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "DATABASE_BUSY"
+    assert response.headers["Retry-After"] == "1"
+
+
+def test_server_side_domain_errors_are_logged_with_their_cause(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = FastAPI()
+    install_error_handlers(app)
+
+    @app.get("/storage")
+    def storage() -> None:
+        cause = ClientError({"Error": {"Code": "SlowDown"}}, "HeadObject")
+        raise StorageUnavailableError from cause
+
+    with caplog.at_level(logging.ERROR, logger="kiln_api"):
+        response = TestClient(app).get("/storage")
+
+    assert response.status_code == 503
+    assert "STORAGE_UNAVAILABLE" in caplog.text
+    assert "ClientError SlowDown" in caplog.text

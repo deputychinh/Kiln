@@ -1,6 +1,7 @@
 """Composition root: builds adapters from settings and wires the services."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import boto3
 from botocore.config import Config
@@ -12,6 +13,7 @@ from kiln_api.clock import SystemClock
 from kiln_api.config import Settings
 from kiln_api.constants import (
     STORAGE_CONNECT_TIMEOUT_SECONDS,
+    STORAGE_PROBE_TIMEOUT_SECONDS,
     STORAGE_READ_TIMEOUT_SECONDS,
     STORAGE_TOTAL_ATTEMPTS,
 )
@@ -20,6 +22,9 @@ from kiln_api.errors import DatabaseUnavailableError
 from kiln_api.ports import Clock, ObjectStorage
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.services.assets import AssetService
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,9 +55,8 @@ def build_engine(settings: Settings) -> Engine:
     )
 
 
-def build_storage(settings: Settings) -> S3ObjectStorage:
-    """An S3 client with SigV4, path-style addressing, timeouts and bounded retries."""
-    client = boto3.client(
+def _s3_client(settings: Settings, *, connect: float, read: float, attempts: int) -> "S3Client":
+    client: S3Client = boto3.client(
         "s3",
         endpoint_url=settings.s3_endpoint,
         region_name=settings.s3_region,
@@ -61,12 +65,29 @@ def build_storage(settings: Settings) -> S3ObjectStorage:
         config=Config(
             signature_version="s3v4",
             s3={"addressing_style": "path"},
-            connect_timeout=STORAGE_CONNECT_TIMEOUT_SECONDS,
-            read_timeout=STORAGE_READ_TIMEOUT_SECONDS,
-            retries={"total_max_attempts": STORAGE_TOTAL_ATTEMPTS, "mode": "standard"},
+            connect_timeout=connect,
+            read_timeout=read,
+            retries={"total_max_attempts": attempts, "mode": "standard"},
         ),
     )
-    return S3ObjectStorage(client, settings.s3_bucket)
+    return client
+
+
+def build_storage(settings: Settings) -> S3ObjectStorage:
+    """S3 clients with SigV4 and path-style addressing: one for work, one fast for readiness."""
+    work = _s3_client(
+        settings,
+        connect=STORAGE_CONNECT_TIMEOUT_SECONDS,
+        read=STORAGE_READ_TIMEOUT_SECONDS,
+        attempts=STORAGE_TOTAL_ATTEMPTS,
+    )
+    probe = _s3_client(
+        settings,
+        connect=STORAGE_PROBE_TIMEOUT_SECONDS,
+        read=STORAGE_PROBE_TIMEOUT_SECONDS,
+        attempts=1,
+    )
+    return S3ObjectStorage(work, settings.s3_bucket, probe_client=probe)
 
 
 def build_container(

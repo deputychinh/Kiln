@@ -15,7 +15,7 @@ from kiln_api.domain.assets import (
     transition,
     upload_key,
 )
-from kiln_api.enums import VersionStatus
+from kiln_api.enums import PromotionResult, VersionStatus
 from kiln_api.errors import InvalidStatusTransitionError, UploadMismatchError, UploadNotFoundError
 from kiln_api.ports import AssetRepository, Clock, ObjectStorage, Page, StoredObject
 
@@ -91,18 +91,22 @@ class AssetService:
             return version
         staging = upload_key(version)
         stored = self._storage.head(staging)
+        result = PromotionResult.SOURCE_GONE
         if stored is not None:
             self._check_declared(version, stored)
-            if not self._storage.promote(
+            result = self._storage.promote(
                 source_key=staging, target_key=version.object_key, etag=stored.etag
-            ):
+            )
+            if result is PromotionResult.CHANGED:
                 raise UploadMismatchError  # replaced between the check and the copy
+        if result is PromotionResult.PROMOTED:
             self._storage.delete(staging)
         else:
+            # No staging object: an earlier or concurrent completion already promoted it.
             promoted = self._storage.head(version.object_key)
             if promoted is None:
                 raise UploadNotFoundError
-            self._check_declared(version, promoted)  # resumed after an earlier promotion
+            self._check_declared(version, promoted)
         processing = transition(version, VersionStatus.PROCESSING, now=self._clock.now())
         try:
             self._repository.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)

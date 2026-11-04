@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.ports import SignedPost, StoredObject
 
@@ -40,13 +41,18 @@ class FakeStorage:
             self.on_head()  # lets a test interleave another request (race simulation)
         return self.objects.get(key)
 
-    def promote(self, *, source_key: str, target_key: str, etag: str) -> bool:
+    def promote(self, *, source_key: str, target_key: str, etag: str) -> PromotionResult:
         self._check()
         source = self.objects.get(source_key)
-        if not self.promote_succeeds or source is None or source.etag != etag:
-            return False
+        if source is None:
+            return PromotionResult.SOURCE_GONE
+        if not self.promote_succeeds or source.etag != etag:
+            return PromotionResult.CHANGED
         self.objects[target_key] = source
-        return True
+        return PromotionResult.PROMOTED
+
+    def ping(self) -> None:
+        self._check()
 
     def delete(self, key: str) -> None:
         self._check()

@@ -2,6 +2,7 @@
 
 import logging
 from http import HTTPStatus
+from typing import Any, TypedDict, Unpack
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,6 +19,7 @@ from kiln_api.constants import (
 )
 from kiln_api.enums import ErrorCode
 from kiln_api.errors import DatabaseUnavailableError, DomainError
+from kiln_api.schemas.problems import Problem
 
 logger = logging.getLogger("kiln_api")
 
@@ -28,12 +30,13 @@ _HTTP_CODES = {
 }
 
 
+class _Options(TypedDict, total=False):
+    extra: dict[str, object]
+    headers: dict[str, str]
+
+
 def _problem(
-    request: Request,
-    status: HTTPStatus,
-    code: ErrorCode,
-    detail: str,
-    extra: dict[str, object] | None = None,
+    request: Request, status: HTTPStatus, code: ErrorCode, detail: str, **options: Unpack[_Options]
 ) -> JSONResponse:
     body: dict[str, object] = {
         "type": "about:blank",
@@ -42,25 +45,42 @@ def _problem(
         "detail": detail,
         "instance": request.url.path,
         "code": code.value,
-        **(extra or {}),
+        **options.get("extra", {}),
     }
-    headers = (
-        {"Retry-After": str(RETRY_AFTER_SECONDS)}
-        if status == HTTPStatus.SERVICE_UNAVAILABLE
-        else None
-    )
-    return JSONResponse(body, status_code=status.value, media_type=PROBLEM_JSON, headers=headers)
+    merged = dict(options.get("headers", {}))
+    if status == HTTPStatus.SERVICE_UNAVAILABLE:
+        merged["Retry-After"] = str(RETRY_AFTER_SECONDS)
+    return JSONResponse(body, status_code=status.value, media_type=PROBLEM_JSON, headers=merged)
 
 
 async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, DomainError)  # noqa: S101 - registered only for DomainError
+    if exc.status >= HTTPStatus.INTERNAL_SERVER_ERROR:
+        cause = exc.__cause__
+        cause_code = (
+            getattr(cause, "response", {}).get("Error", {}).get("Code", "") if cause else ""
+        )
+        logger.error(
+            "%s on %s (request %s, cause %s %s)",
+            exc.code.value,
+            request.url.path,
+            getattr(request.state, "request_id", "-"),
+            type(cause).__name__ if cause else "-",
+            cause_code,
+        )
     return _problem(request, exc.status, exc.code, exc.detail)
 
 
 async def _http_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)  # noqa: S101 - registered only for it
     status = HTTPStatus(exc.status_code)
-    return _problem(request, status, _HTTP_CODES.get(status, ErrorCode.INTERNAL), str(exc.detail))
+    return _problem(
+        request,
+        status,
+        _HTTP_CODES.get(status, ErrorCode.INTERNAL),
+        str(exc.detail),
+        headers=dict(exc.headers or {}),
+    )
 
 
 async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -71,7 +91,7 @@ async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
         HTTPStatus.UNPROCESSABLE_ENTITY,
         ErrorCode.VALIDATION_FAILED,
         "The request is not valid.",
-        {"errors": errors},
+        extra={"errors": errors},
     )
 
 
@@ -184,3 +204,21 @@ def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, _http_handler)
     app.add_exception_handler(RequestValidationError, _validation_handler)
     app.add_exception_handler(SQLAlchemyError, _database_handler)
+
+
+def install_problem_schema(app: FastAPI) -> None:
+    """Publish the `Problem` schema that every error response references."""
+    build = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is not None:
+            return app.openapi_schema
+        schema = build()
+        problem = Problem.model_json_schema(ref_template="#/components/schemas/{model}")
+        components = schema.setdefault("components", {}).setdefault("schemas", {})
+        components.update(problem.pop("$defs", {}))
+        components["Problem"] = problem
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]

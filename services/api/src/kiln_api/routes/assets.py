@@ -20,7 +20,7 @@ from kiln_api.schemas.assets import (
     UploadDeclaration,
     VersionOut,
 )
-from kiln_api.schemas.problems import problem_responses
+from kiln_api.schemas.problems import LOCATION_HEADER, problem_responses
 from kiln_api.services.assets import AssetService
 
 router = APIRouter(prefix=API_PREFIX, tags=["assets"], responses=problem_responses(413, 422, 503))
@@ -34,7 +34,11 @@ def _service(request: Request) -> AssetService:
 Service = Annotated[AssetService, Depends(_service)]
 
 
-@router.post("/assets", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/assets",
+    status_code=status.HTTP_201_CREATED,
+    responses={201: {"description": "Created.", "headers": LOCATION_HEADER}},
+)
 def create_asset(
     body: CreateAssetRequest, service: Service, response: Response
 ) -> PendingUploadOut:
@@ -64,7 +68,10 @@ def get_asset(asset_id: UUID, service: Service) -> AssetDetailOut:
 @router.post(
     "/assets/{asset_id}/versions",
     status_code=status.HTTP_201_CREATED,
-    responses=problem_responses(404),
+    responses={
+        201: {"description": "Created.", "headers": LOCATION_HEADER},
+        **problem_responses(404),
+    },
 )
 def add_version(
     asset_id: UUID, body: UploadDeclaration, service: Service, response: Response

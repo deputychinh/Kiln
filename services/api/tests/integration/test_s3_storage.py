@@ -1,5 +1,6 @@
 """Against the real SeaweedFS from `make up` (ADR 0003): the signed POST policy and HEAD."""
 
+import threading
 import uuid
 from collections.abc import Iterator
 
@@ -11,7 +12,7 @@ from sqlalchemy import Engine
 from kiln_api.adapters import S3ObjectStorage
 from kiln_api.config import Settings
 from kiln_api.container import build_container, build_storage
-from kiln_api.enums import Environment
+from kiln_api.enums import Environment, PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.main import create_app
 
@@ -20,6 +21,16 @@ from kiln_api.main import create_app
 def settings(database_url: str) -> Settings:
     # One shared bucket: every SeaweedFS bucket reserves its own volumes (ADR 0003).
     return Settings(env=Environment.TEST, database_url=database_url, s3_bucket="kiln-test")
+
+
+@pytest.fixture(autouse=True)
+def _empty_test_bucket(settings: Settings) -> Iterator[None]:
+    """Leave `kiln-test` empty after each test (it is used only by tests)."""
+    yield
+    client = build_storage(settings)._client
+    for page in client.get_paginator("list_objects_v2").paginate(Bucket=settings.s3_bucket):
+        for item in page.get("Contents", []):
+            client.delete_object(Bucket=settings.s3_bucket, Key=item["Key"])
 
 
 @pytest.fixture
@@ -180,6 +191,42 @@ def test_promotion_with_a_stale_etag_is_refused_by_the_real_server(settings: Set
 
     promoted = storage.promote(source_key=staging, target_key=final, etag=checked.etag)
 
-    assert promoted is False
+    assert promoted is PromotionResult.CHANGED
     assert storage.head(final) is None
     storage.delete(staging)
+
+
+def _race(client: TestClient, url: str, callers: int) -> list[tuple[int, str]]:
+    barrier = threading.Barrier(callers)
+    results: list[tuple[int, str]] = []
+
+    def complete() -> None:
+        barrier.wait()
+        response = client.post(url)
+        results.append((response.status_code, response.json().get("status", "")))
+
+    threads = [threading.Thread(target=complete) for _ in range(callers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    return results
+
+
+def test_concurrent_completions_all_succeed_against_real_storage(real_client: TestClient) -> None:
+    outcomes: list[tuple[int, str]] = []
+    for _ in range(5):
+        created = real_client.post(
+            "/api/v1/assets",
+            json={
+                "name": "Rock",
+                "file_name": "rock.png",
+                "content_type": "image/png",
+                "size_bytes": 4,
+            },
+        ).json()
+        _post_file(created["upload"], b"GOOD", "image/png")
+        url = f"/api/v1/asset-versions/{created['version']['id']}/completions"
+        outcomes.extend(_race(real_client, url, callers=6))
+
+    assert outcomes == [(200, "processing")] * 30

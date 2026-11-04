@@ -273,22 +273,6 @@ export interface components {
             name: string;
         };
         /**
-         * ErrorCode
-         * @description Stable error codes returned in the `code` field of problem details.
-         * @enum {string}
-         */
-        ErrorCode: "NOT_FOUND" | "VALIDATION_FAILED" | "INTERNAL" | "ASSET_NOT_FOUND" | "ASSET_VERSION_NOT_FOUND" | "INVALID_ASSET_NAME" | "INVALID_FILE_NAME" | "INVALID_FILE_SIZE" | "UNSUPPORTED_MEDIA_TYPE" | "ASSET_KIND_MISMATCH" | "INVALID_STATUS_TRANSITION" | "INVALID_CURSOR" | "UPLOAD_NOT_FOUND" | "UPLOAD_MISMATCH" | "STORAGE_UNAVAILABLE" | "DATABASE_UNAVAILABLE" | "DATABASE_BUSY" | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE";
-        /**
-         * FieldError
-         * @description One invalid field of a request.
-         */
-        FieldError: {
-            /** Loc */
-            loc: (string | number)[];
-            /** Msg */
-            msg: string;
-        };
-        /**
          * HealthResponse
          * @description Probe result.
          */
@@ -311,28 +295,6 @@ export interface components {
             asset: components["schemas"]["AssetOut"];
             version: components["schemas"]["VersionOut"];
             upload: components["schemas"]["UploadOut"];
-        };
-        /**
-         * Problem
-         * @description Every error response: `code` is stable, the rest is for people.
-         */
-        Problem: {
-            /**
-             * Type
-             * @default about:blank
-             */
-            type: string;
-            /** Title */
-            title: string;
-            /** Status */
-            status: number;
-            /** Detail */
-            detail: string;
-            /** Instance */
-            instance: string;
-            code: components["schemas"]["ErrorCode"];
-            /** Errors */
-            errors?: components["schemas"]["FieldError"][] | null;
         };
         /**
          * UploadDeclaration
@@ -404,6 +366,47 @@ export interface components {
          * @enum {string}
          */
         VersionStatus: "pending_upload" | "processing" | "ready" | "failed";
+        /**
+         * ErrorCode
+         * @description Stable error codes returned in the `code` field of problem details.
+         * @enum {string}
+         */
+        ErrorCode: "NOT_FOUND" | "VALIDATION_FAILED" | "INTERNAL" | "ASSET_NOT_FOUND" | "ASSET_VERSION_NOT_FOUND" | "INVALID_ASSET_NAME" | "INVALID_FILE_NAME" | "INVALID_FILE_SIZE" | "UNSUPPORTED_MEDIA_TYPE" | "ASSET_KIND_MISMATCH" | "INVALID_STATUS_TRANSITION" | "INVALID_CURSOR" | "UPLOAD_NOT_FOUND" | "UPLOAD_MISMATCH" | "STORAGE_UNAVAILABLE" | "DATABASE_UNAVAILABLE" | "DATABASE_BUSY" | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE";
+        /**
+         * FieldError
+         * @description One invalid field of a request.
+         */
+        FieldError: {
+            /** Loc */
+            loc: (string | number)[];
+            /** Msg */
+            msg: string;
+        };
+        /**
+         * Problem
+         * @description Every error response: `code` is stable, the rest is for people.
+         */
+        Problem: {
+            /**
+             * Type
+             * @default about:blank
+             */
+            type: string;
+            /** Title */
+            title: string;
+            /** Status */
+            status: number;
+            /** Detail */
+            detail: string;
+            /** Instance */
+            instance: string;
+            code: components["schemas"]["ErrorCode"];
+            /**
+             * Errors
+             * @default null
+             */
+            errors: components["schemas"]["FieldError"][] | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -454,11 +457,12 @@ export interface operations {
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -504,11 +508,12 @@ export interface operations {
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -540,8 +545,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Request body larger than 1 MB. */
@@ -550,8 +554,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed: a field or a domain rule (see `code`). */
@@ -560,18 +563,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -589,9 +592,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Created. */
             201: {
                 headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -604,8 +609,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed: a field or a domain rule (see `code`). */
@@ -614,18 +618,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -656,8 +660,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Request body larger than 1 MB. */
@@ -666,8 +669,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed: a field or a domain rule (see `code`). */
@@ -676,18 +678,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -707,9 +709,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Created. */
             201: {
                 headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -722,8 +726,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Request body larger than 1 MB. */
@@ -732,8 +735,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed: a field or a domain rule (see `code`). */
@@ -742,18 +744,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -784,8 +786,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Request body larger than 1 MB. */
@@ -794,8 +795,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed: a field or a domain rule (see `code`). */
@@ -804,18 +804,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -846,8 +846,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Conflict with the current state (upload missing or different). */
@@ -856,8 +855,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Request body larger than 1 MB. */
@@ -866,8 +864,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed: a field or a domain rule (see `code`). */
@@ -876,18 +873,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
             503: {
                 headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
-                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

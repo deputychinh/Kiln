@@ -12,7 +12,12 @@ from kiln_api.config import Settings, get_settings
 from kiln_api.constants import API_PREFIX, API_TITLE, API_VERSION, REQUEST_ID_HEADER
 from kiln_api.container import Container, build_container
 from kiln_api.errors import StorageUnavailableError
-from kiln_api.problems import BodySizeLimit, install_error_handlers, unexpected_problem
+from kiln_api.problems import (
+    BodySizeLimit,
+    install_error_handlers,
+    install_problem_schema,
+    unexpected_problem,
+)
 from kiln_api.routes import assets, health
 
 logger = logging.getLogger("kiln_api")
@@ -59,6 +64,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         expose_headers=["Location", REQUEST_ID_HEADER],
     )
     install_error_handlers(app)
+    install_problem_schema(app)
     app.include_router(health.router)
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(assets.router)

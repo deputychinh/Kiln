@@ -7,7 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from kiln_api.domain.assets import Asset, AssetVersion
-from kiln_api.enums import VersionStatus
+from kiln_api.enums import PromotionResult, VersionStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,8 +52,12 @@ class ObjectStorage(Protocol):
         """Describe the object at `key`, or return None when it does not exist."""
         ...
 
-    def promote(self, *, source_key: str, target_key: str, etag: str) -> bool:
-        """Copy `source_key` to `target_key` only if its ETag is still `etag`; False otherwise."""
+    def promote(self, *, source_key: str, target_key: str, etag: str) -> PromotionResult:
+        """Copy `source_key` to `target_key` only if its ETag is still `etag`."""
+        ...
+
+    def ping(self) -> None:
+        """Fast readiness check (about 1 s, one attempt); raise `StorageUnavailableError`."""
         ...
 
     def delete(self, key: str) -> None:

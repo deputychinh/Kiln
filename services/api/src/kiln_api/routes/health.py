@@ -31,5 +31,5 @@ def ready(request: Request) -> HealthResponse:
     """Report that the database and storage answer (503 problem details otherwise)."""
     container = request.app.state.container
     container.check_database()
-    container.storage.ensure_bucket()
+    container.storage.ping()
     return HealthResponse(status=HealthStatus.OK, version=API_VERSION)

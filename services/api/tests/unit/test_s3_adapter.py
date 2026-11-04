@@ -8,6 +8,7 @@ import pytest
 from botocore.stub import Stubber
 
 from kiln_api.adapters import S3ObjectStorage
+from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
 
 
@@ -78,7 +79,9 @@ def test_promotion_copies_only_if_the_source_etag_still_matches(
         },
     )
 
-    assert storage.promote(source_key="uploads/a", target_key="assets/a", etag='"checked-etag"')
+    result = storage.promote(source_key="uploads/a", target_key="assets/a", etag='"checked-etag"')
+
+    assert result is PromotionResult.PROMOTED
 
 
 def test_a_changed_source_makes_promotion_return_false(
@@ -89,7 +92,30 @@ def test_a_changed_source_makes_promotion_return_false(
         "copy_object", service_error_code="PreconditionFailed", http_status_code=412
     )
 
-    assert storage.promote(source_key="uploads/a", target_key="assets/a", etag='"x"') is False
+    result = storage.promote(source_key="uploads/a", target_key="assets/a", etag='"x"')
+
+    assert result is PromotionResult.CHANGED
+
+
+def test_a_source_deleted_by_a_concurrent_completion_is_reported_as_gone(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error("copy_object", service_error_code="NoSuchKey", http_status_code=404)
+
+    result = storage.promote(source_key="uploads/a", target_key="assets/a", etag='"x"')
+
+    assert result is PromotionResult.SOURCE_GONE
+
+
+def test_ping_uses_head_bucket_and_maps_failures(stubbed: tuple[S3ObjectStorage, Stubber]) -> None:
+    storage, stubber = stubbed
+    stubber.add_response("head_bucket", {}, {"Bucket": "kiln-assets"})
+    stubber.add_client_error("head_bucket", service_error_code="404", http_status_code=404)
+
+    storage.ping()
+    with pytest.raises(StorageUnavailableError):
+        storage.ping()
 
 
 def test_other_copy_errors_are_reported_as_unavailable(

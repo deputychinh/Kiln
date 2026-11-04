@@ -25,15 +25,15 @@ flowchart LR
 
 ## Endpoints (v0.1)
 
-| Method and path                                        | Result                                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `POST /api/v1/assets`                                  | `201` asset + version 1 + signed upload, `Location: /api/v1/assets/{id}`             |
-| `GET /api/v1/assets?limit=&cursor=`                    | newest-first page `{items, next_cursor}`                                             |
-| `GET /api/v1/assets/{asset_id}`                        | asset with `versions`                                                                |
-| `POST /api/v1/assets/{asset_id}/versions`              | `201` next version + signed upload, `Location: /api/v1/asset-versions/{id}`          |
-| `GET /api/v1/asset-versions/{version_id}`              | one version                                                                          |
-| `POST /api/v1/asset-versions/{version_id}/completions` | `200` version in `processing` (idempotent); `409 UPLOAD_NOT_FOUND / UPLOAD_MISMATCH` |
-| `GET /health`, `GET /ready`                            | liveness; readiness of Postgres and storage (`503` problem details otherwise)        |
+| Method and path                                        | Result                                                                                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/assets`                                  | `201` asset + version 1 + signed upload, `Location: /api/v1/assets/{id}`                                                   |
+| `GET /api/v1/assets?limit=&cursor=`                    | newest-first page `{items, next_cursor}`                                                                                   |
+| `GET /api/v1/assets/{asset_id}`                        | asset with `versions`                                                                                                      |
+| `POST /api/v1/assets/{asset_id}/versions`              | `201` next version + signed upload, `Location: /api/v1/asset-versions/{id}`                                                |
+| `GET /api/v1/asset-versions/{version_id}`              | one version                                                                                                                |
+| `POST /api/v1/asset-versions/{version_id}/completions` | `200` version in `processing` (idempotent); `409 UPLOAD_NOT_FOUND / UPLOAD_MISMATCH`                                       |
+| `GET /health`, `GET /ready`                            | liveness; readiness of Postgres (`SELECT 1`) and storage (1 s `HeadBucket`, one attempt) (`503` problem details otherwise) |
 
 ## Bounded contexts
 

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.ports import SignedPost, StoredObject
 
@@ -22,9 +23,12 @@ def _code(error: ClientError) -> str:
 class S3ObjectStorage:
     """`ObjectStorage` over any S3 API (SeaweedFS locally, ADR 0003)."""
 
-    def __init__(self, client: "S3Client", bucket: str) -> None:
-        """Use `client` (configured with timeouts and retries) for `bucket`."""
+    def __init__(
+        self, client: "S3Client", bucket: str, probe_client: "S3Client | None" = None
+    ) -> None:
+        """Use `client` for work and a fast `probe_client` (1 s, one attempt) for readiness."""
         self._client = client
+        self._probe = probe_client or client
         self._bucket = bucket
 
     def ensure_bucket(self) -> None:
@@ -78,8 +82,15 @@ class S3ObjectStorage:
             etag=response["ETag"],
         )
 
-    def promote(self, *, source_key: str, target_key: str, etag: str) -> bool:
-        """Server-side conditional copy; S3 answers 412 when the source changed."""
+    def ping(self) -> None:
+        """`HeadBucket` with the probe client; never creates anything."""
+        try:
+            self._probe.head_bucket(Bucket=self._bucket)
+        except (BotoCoreError, ClientError) as error:
+            raise StorageUnavailableError from error
+
+    def promote(self, *, source_key: str, target_key: str, etag: str) -> PromotionResult:
+        """Server-side conditional copy; 412 when the source changed, 404 when it is gone."""
         try:
             self._client.copy_object(
                 Bucket=self._bucket,
@@ -89,11 +100,13 @@ class S3ObjectStorage:
             )
         except ClientError as error:
             if _code(error) in _PRECONDITION_FAILED:
-                return False
+                return PromotionResult.CHANGED
+            if _code(error) in _MISSING:
+                return PromotionResult.SOURCE_GONE
             raise StorageUnavailableError from error
         except BotoCoreError as error:
             raise StorageUnavailableError from error
-        return True
+        return PromotionResult.PROMOTED
 
     def delete(self, key: str) -> None:
         """Delete `key` (S3 deletes are idempotent)."""

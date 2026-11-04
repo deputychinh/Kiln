@@ -55,3 +55,11 @@ class VersionStatus(StrEnum):
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
+
+
+class PromotionResult(StrEnum):
+    """Outcome of copying a staged upload to its final key."""
+
+    PROMOTED = "promoted"
+    CHANGED = "changed"  # the staging object is not the one that was checked (412)
+    SOURCE_GONE = "source_gone"  # a concurrent completion already promoted and deleted it

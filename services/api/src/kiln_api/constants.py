@@ -35,6 +35,8 @@ UPLOAD_URL_TTL_SECONDS = 15 * 60
 STORAGE_CONNECT_TIMEOUT_SECONDS = 3
 STORAGE_READ_TIMEOUT_SECONDS = 10
 STORAGE_TOTAL_ATTEMPTS = 2
+# Readiness must answer fast: one attempt, 1 s to connect and to read.
+STORAGE_PROBE_TIMEOUT_SECONDS = 1
 DB_LOCK_TIMEOUT_MS = 5_000
 DB_STATEMENT_TIMEOUT_MS = 15_000
 # SQLSTATEs for lock_timeout and statement_timeout: the database is busy, retry later.
