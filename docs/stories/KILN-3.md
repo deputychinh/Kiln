@@ -1,6 +1,6 @@
 # KILN-3: Upload through presigned POST and confirm the upload
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -104,4 +104,20 @@ Gates: `make ci` green — Python 242 passed, coverage 99 %; ruff and mypy stric
 
 ## Review score
 
-_Pending independent review._
+Final gate by a fresh independent reviewer (subagent) at `0bf894d`, with 28 mutants re-run (all killed, `PYTHONDONTWRITEBYTECODE=1`), live attacks and a 25 × 8 race against SeaweedFS, and blackhole timing.
+
+| #   | Criterion             | Score     | Evidence                                                                                                     |
+| --- | --------------------- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| 1   | Requirements fit      | 1         | AC1–AC10 traced; `/ready` on a hung storage → 503 in 1.0 s with `Retry-After`                                |
+| 2   | Test depth            | 1         | 28 of 28 mutants killed                                                                                      |
+| 3   | Reliability           | 1         | race 200/200 `processing`; completion on a hung storage → 503 in 20.8 s (inside the 26 s budget)             |
+| 4   | Security              | 1         | other key/type, tampered policy and ±1 byte refused; form reuse cannot change the final file; 413 for > 1 MB |
+| 5   | Maintainability       | 1         | botocore stays in `adapters.py`; ruff and mypy strict clean                                                  |
+| 6   | API ergonomics        | 1         | `Allow` on 405; problem+json only; `Retry-After` and `Location` documented                                   |
+| 7   | Accessibility         | 1         | not applicable: API only                                                                                     |
+| 8   | Performance           | 1         | no file bytes through the API; bounded pages; `/ready` about 1 s                                             |
+| 9   | Docs and traceability | 1         | QA, mutation notes and counts match the run; ADR 0005; CHANGELOG; `Refs:`                                    |
+| 10  | Delivery              | 1         | 242 passed, coverage 99.7 %, pushed, tree clean                                                              |
+|     | **Total**             | **10/10** | rounds: 7.0 → 9.0 → fresh reviewer 8.5 → 8.5 (regression) → 10                                               |
+
+Advisory, not blocking: a hung storage holds a sync worker for up to ~20 s, so a burst during an outage could exhaust the threadpool — a circuit breaker / bulkhead is filed under KILN-4; `create_bucket` at start-up still runs on the work budget (only reached when the probe says the bucket is missing).
