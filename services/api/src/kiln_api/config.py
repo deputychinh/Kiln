@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     env: Environment = Environment.LOCAL
     log_level: str = "INFO"
+    database_url: str = "postgresql+psycopg://kiln:kiln@127.0.0.1:5432/kiln"
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://127.0.0.1:4173"]
 
 

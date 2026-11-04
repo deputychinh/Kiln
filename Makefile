@@ -58,7 +58,7 @@ format: ## Format everything
 	uv run ruff format . && uv run ruff check --fix .
 	npx prettier --write .
 
-test: ## Unit and API/component tests with coverage
+test: ## Unit, database and component tests with coverage (needs `make up`)
 	uv run pytest
 	npm test --workspaces --if-present
 

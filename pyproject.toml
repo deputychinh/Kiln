@@ -49,7 +49,7 @@ known-first-party = ["kiln_api", "kiln_worker"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["services/api/src", "services/api/tests", "services/worker/src", "services/worker/tests"]
+files = ["services/api/src", "services/api/tests", "services/api/migrations", "services/worker/src", "services/worker/tests"]
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
 mypy_path = ["services/api/src", "services/worker/src"]
