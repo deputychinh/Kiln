@@ -1,15 +1,32 @@
 """The single mapping from errors to RFC 9457 problem details, at the HTTP boundary."""
 
+import logging
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from kiln_api.constants import PROBLEM_JSON
+from kiln_api.constants import (
+    DB_BUSY_SQLSTATES,
+    MAX_JSON_BODY_BYTES,
+    PROBLEM_JSON,
+    REQUEST_ID_HEADER,
+    RETRY_AFTER_SECONDS,
+)
 from kiln_api.enums import ErrorCode
-from kiln_api.errors import DomainError
+from kiln_api.errors import DatabaseUnavailableError, DomainError
+
+logger = logging.getLogger("kiln_api")
+
+_HTTP_CODES = {
+    HTTPStatus.NOT_FOUND: ErrorCode.NOT_FOUND,
+    HTTPStatus.METHOD_NOT_ALLOWED: ErrorCode.METHOD_NOT_ALLOWED,
+    HTTPStatus.REQUEST_ENTITY_TOO_LARGE: ErrorCode.PAYLOAD_TOO_LARGE,
+}
 
 
 def _problem(
@@ -28,7 +45,12 @@ def _problem(
         "code": code.value,
         **(extra or {}),
     }
-    return JSONResponse(body, status_code=status.value, media_type=PROBLEM_JSON)
+    headers = (
+        {"Retry-After": str(RETRY_AFTER_SECONDS)}
+        if status == HTTPStatus.SERVICE_UNAVAILABLE
+        else None
+    )
+    return JSONResponse(body, status_code=status.value, media_type=PROBLEM_JSON, headers=headers)
 
 
 async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -39,8 +61,7 @@ async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
 async def _http_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)  # noqa: S101 - registered only for it
     status = HTTPStatus(exc.status_code)
-    code = ErrorCode.NOT_FOUND if status == HTTPStatus.NOT_FOUND else ErrorCode.INTERNAL
-    return _problem(request, status, code, str(exc.detail))
+    return _problem(request, status, _HTTP_CODES.get(status, ErrorCode.INTERNAL), str(exc.detail))
 
 
 async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -55,8 +76,109 @@ async def _validation_handler(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+async def _database_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, SQLAlchemyError)  # noqa: S101 - registered only for it
+    sqlstate = (
+        getattr(getattr(exc, "orig", None), "sqlstate", None)
+        if isinstance(exc, DBAPIError)
+        else None
+    )
+    if sqlstate in DB_BUSY_SQLSTATES:
+        logger.warning("database busy (%s) on %s", sqlstate, request.url.path)
+        return _problem(
+            request,
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            ErrorCode.DATABASE_BUSY,
+            "The database is busy; retry shortly.",
+        )
+    logger.error("database error on %s: %s", request.url.path, type(exc).__name__)
+    unavailable = DatabaseUnavailableError()
+    return _problem(request, unavailable.status, unavailable.code, unavailable.detail)
+
+
+async def _unexpected_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception(
+        "unexpected error on %s (request %s)",
+        request.url.path,
+        request.headers.get(REQUEST_ID_HEADER, "-"),
+        exc_info=exc,
+    )
+    return _problem(
+        request,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        ErrorCode.INTERNAL,
+        "Something went wrong on our side.",
+    )
+
+
+async def _read_limited(receive: Receive) -> bytes | None:
+    """Buffer a chunked body; None as soon as it passes `MAX_JSON_BODY_BYTES`."""
+    chunks: list[bytes] = []
+    size = 0
+    more = True
+    while more:
+        message = await receive()
+        if message["type"] != "http.request":
+            break
+        chunk = message.get("body", b"")
+        size += len(chunk)
+        if size > MAX_JSON_BODY_BYTES:
+            return None
+        chunks.append(chunk)
+        more = message.get("more_body", False)
+    return b"".join(chunks)
+
+
+class BodySizeLimit:
+    """Reject request bodies over `MAX_JSON_BODY_BYTES` with 413 before they are parsed."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        """Wrap `app`."""
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Check `Content-Length`, then count streamed bytes for chunked bodies."""
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        declared = dict(scope["headers"]).get(b"content-length")
+        if declared is not None and declared.isdigit() and int(declared) > MAX_JSON_BODY_BYTES:
+            await self._reject(scope, receive, send)
+            return
+        if declared is not None:
+            await self._app(scope, receive, send)
+            return
+        body = await _read_limited(receive)
+        if body is None:
+            await self._reject(scope, receive, send)
+            return
+        replayed = False
+
+        async def replay() -> Message:
+            nonlocal replayed
+            if replayed:
+                return await receive()
+            replayed = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        await self._app(scope, replay, send)
+
+    @staticmethod
+    async def _reject(scope: Scope, receive: Receive, send: Send) -> None:
+        response = _problem(
+            Request(scope, receive),
+            HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            ErrorCode.PAYLOAD_TOO_LARGE,
+            "Request body over 1 MB.",
+        )
+        await response(scope, receive, send)
+
+
 def install_error_handlers(app: FastAPI) -> None:
-    """Map every handled error to problem details exactly once, at the boundary."""
+    """Map every error to problem details exactly once, at the boundary."""
     app.add_exception_handler(DomainError, _domain_handler)
     app.add_exception_handler(StarletteHTTPException, _http_handler)
     app.add_exception_handler(RequestValidationError, _validation_handler)
+    app.add_exception_handler(SQLAlchemyError, _database_handler)
+    app.add_exception_handler(Exception, _unexpected_handler)
+    app.add_middleware(BodySizeLimit)

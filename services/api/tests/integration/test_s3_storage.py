@@ -126,3 +126,38 @@ def test_an_unreachable_endpoint_raises_storage_unavailable(settings: Settings) 
         storage.ensure_bucket()
     with pytest.raises(StorageUnavailableError):
         storage.head("anything")
+    with pytest.raises(StorageUnavailableError):
+        storage.promote(source_key="a", target_key="b", etag='"x"')
+    with pytest.raises(StorageUnavailableError):
+        storage.delete("anything")
+
+
+def test_reusing_a_signed_form_after_completion_cannot_change_the_file(
+    real_client: TestClient, settings: Settings
+) -> None:
+    created = real_client.post(
+        "/api/v1/assets",
+        json={
+            "name": "Rock",
+            "file_name": "rock.png",
+            "content_type": "image/png",
+            "size_bytes": 4,
+        },
+    ).json()
+    _post_file(created["upload"], b"GOOD", "image/png")
+    real_client.post(f"/api/v1/asset-versions/{created['version']['id']}/completions")
+
+    replay = _post_file(created["upload"], b"EVIL", "image/png")
+    detail = real_client.get(f"/api/v1/assets/{created['asset']['id']}").json()
+    client = build_storage(settings)._client
+    final_key = next(
+        obj["Key"]
+        for obj in client.list_objects_v2(
+            Bucket=settings.s3_bucket, Prefix=f"assets/{created['asset']['id']}/"
+        )["Contents"]
+    )
+    content = client.get_object(Bucket=settings.s3_bucket, Key=final_key)["Body"].read()
+
+    assert replay.status_code in {200, 201, 204}  # the staging key accepts it ...
+    assert content == b"GOOD"  # ... but the final file never changes
+    assert detail["versions"][0]["status"] == "processing"

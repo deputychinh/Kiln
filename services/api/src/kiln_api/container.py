@@ -11,10 +11,9 @@ from kiln_api.adapters import S3ObjectStorage
 from kiln_api.clock import SystemClock
 from kiln_api.config import Settings
 from kiln_api.constants import (
-    DB_LOCK_TIMEOUT_MS,
-    DB_STATEMENT_TIMEOUT_MS,
-    STORAGE_MAX_ATTEMPTS,
-    STORAGE_TIMEOUT_SECONDS,
+    STORAGE_CONNECT_TIMEOUT_SECONDS,
+    STORAGE_READ_TIMEOUT_SECONDS,
+    STORAGE_TOTAL_ATTEMPTS,
 )
 from kiln_api.domain.ids import uuid7
 from kiln_api.errors import DatabaseUnavailableError
@@ -40,10 +39,15 @@ class Container:
             raise DatabaseUnavailableError from error
 
 
-def build_engine(database_url: str) -> Engine:
+def build_engine(settings: Settings) -> Engine:
     """An engine whose sessions cannot wait forever on a lock or a query."""
-    options = f"-c lock_timeout={DB_LOCK_TIMEOUT_MS} -c statement_timeout={DB_STATEMENT_TIMEOUT_MS}"
-    return create_engine(database_url, pool_pre_ping=True, connect_args={"options": options})
+    options = (
+        f"-c lock_timeout={settings.db_lock_timeout_ms}"
+        f" -c statement_timeout={settings.db_statement_timeout_ms}"
+    )
+    return create_engine(
+        settings.database_url, pool_pre_ping=True, connect_args={"options": options}
+    )
 
 
 def build_storage(settings: Settings) -> S3ObjectStorage:
@@ -57,9 +61,9 @@ def build_storage(settings: Settings) -> S3ObjectStorage:
         config=Config(
             signature_version="s3v4",
             s3={"addressing_style": "path"},
-            connect_timeout=STORAGE_TIMEOUT_SECONDS,
-            read_timeout=STORAGE_TIMEOUT_SECONDS,
-            retries={"max_attempts": STORAGE_MAX_ATTEMPTS, "mode": "standard"},
+            connect_timeout=STORAGE_CONNECT_TIMEOUT_SECONDS,
+            read_timeout=STORAGE_READ_TIMEOUT_SECONDS,
+            retries={"total_max_attempts": STORAGE_TOTAL_ATTEMPTS, "mode": "standard"},
         ),
     )
     return S3ObjectStorage(client, settings.s3_bucket)
@@ -73,7 +77,7 @@ def build_container(
     clock: Clock | None = None,
 ) -> Container:
     """Wire real adapters; tests pass their engine and fakes for storage and the clock."""
-    engine = engine or build_engine(settings.database_url)
+    engine = engine or build_engine(settings)
     resolved_storage = storage or build_storage(settings)
     service = AssetService(
         SqlAssetRepository(engine), resolved_storage, clock or SystemClock(), uuid7

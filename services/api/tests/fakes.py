@@ -16,6 +16,8 @@ class FakeStorage:
         self.available = True
         self.bucket_ready = False
         self.on_head: Callable[[], None] | None = None
+        self.promote_succeeds = True
+        self.delete_available = True
 
     def ensure_bucket(self) -> None:
         self._check()
@@ -38,8 +40,25 @@ class FakeStorage:
             self.on_head()  # lets a test interleave another request (race simulation)
         return self.objects.get(key)
 
+    def promote(self, *, source_key: str, target_key: str, etag: str) -> bool:
+        self._check()
+        source = self.objects.get(source_key)
+        if not self.promote_succeeds or source is None or source.etag != etag:
+            return False
+        self.objects[target_key] = source
+        return True
+
+    def delete(self, key: str) -> None:
+        self._check()
+        if not self.delete_available:
+            raise StorageUnavailableError
+        self.objects.pop(key, None)
+
     def put(self, key: str, size_bytes: int, content_type: str) -> None:
-        self.objects[key] = StoredObject(size_bytes=size_bytes, content_type=content_type)
+        etag = f'"{len(self.objects)}-{size_bytes}"'
+        self.objects[key] = StoredObject(
+            size_bytes=size_bytes, content_type=content_type, etag=etag
+        )
 
     def _check(self) -> None:
         if not self.available:

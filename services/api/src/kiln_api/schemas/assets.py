@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from kiln_api.constants import (
     MAX_CONTENT_TYPE_FIELD_LENGTH,
@@ -22,7 +22,7 @@ class UploadDeclaration(BaseModel):
 
     file_name: str = Field(max_length=MAX_FILE_NAME_FIELD_LENGTH)
     content_type: str = Field(max_length=MAX_CONTENT_TYPE_FIELD_LENGTH)
-    size_bytes: int
+    size_bytes: StrictInt
 
     def to_spec(self) -> UploadSpec:
         """Convert to the domain value."""

@@ -12,10 +12,11 @@ if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
 _MISSING = {str(HTTPStatus.NOT_FOUND.value), "NoSuchKey", "NoSuchBucket", "NotFound"}
+_PRECONDITION_FAILED = {str(HTTPStatus.PRECONDITION_FAILED.value), "PreconditionFailed"}
 
 
-def _is_missing(error: ClientError) -> bool:
-    return error.response.get("Error", {}).get("Code", "") in _MISSING
+def _code(error: ClientError) -> str:
+    return error.response.get("Error", {}).get("Code", "")
 
 
 class S3ObjectStorage:
@@ -31,7 +32,7 @@ class S3ObjectStorage:
         try:
             self._client.head_bucket(Bucket=self._bucket)
         except ClientError as error:
-            if not _is_missing(error):
+            if _code(error) not in _MISSING:
                 raise StorageUnavailableError from error
             self._create_bucket()
         except BotoCoreError as error:
@@ -66,11 +67,37 @@ class S3ObjectStorage:
         try:
             response = self._client.head_object(Bucket=self._bucket, Key=key)
         except ClientError as error:
-            if _is_missing(error):
+            if _code(error) in _MISSING:
                 return None
             raise StorageUnavailableError from error
         except BotoCoreError as error:
             raise StorageUnavailableError from error
         return StoredObject(
-            size_bytes=response["ContentLength"], content_type=response.get("ContentType", "")
+            size_bytes=response["ContentLength"],
+            content_type=response.get("ContentType", ""),
+            etag=response["ETag"],
         )
+
+    def promote(self, *, source_key: str, target_key: str, etag: str) -> bool:
+        """Server-side conditional copy; S3 answers 412 when the source changed."""
+        try:
+            self._client.copy_object(
+                Bucket=self._bucket,
+                Key=target_key,
+                CopySource={"Bucket": self._bucket, "Key": source_key},
+                CopySourceIfMatch=etag,
+            )
+        except ClientError as error:
+            if _code(error) in _PRECONDITION_FAILED:
+                return False
+            raise StorageUnavailableError from error
+        except BotoCoreError as error:
+            raise StorageUnavailableError from error
+        return True
+
+    def delete(self, key: str) -> None:
+        """Delete `key` (S3 deletes are idempotent)."""
+        try:
+            self._client.delete_object(Bucket=self._bucket, Key=key)
+        except (BotoCoreError, ClientError) as error:
+            raise StorageUnavailableError from error

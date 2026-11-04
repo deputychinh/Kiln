@@ -14,6 +14,7 @@ from kiln_api.constants import (
     MAX_UPLOAD_BYTES,
     MEDIA_TYPES,
     OBJECT_KEY_PREFIX,
+    UPLOAD_KEY_PREFIX,
 )
 from kiln_api.enums import AssetKind, VersionStatus
 from kiln_api.errors import (
@@ -187,3 +188,8 @@ def transition(version: AssetVersion, status: VersionStatus, *, now: datetime) -
     if status not in ALLOWED_TRANSITIONS[version.status]:
         raise InvalidStatusTransitionError(version.status, status)
     return replace(version, status=status, updated_at=now)
+
+
+def upload_key(version: AssetVersion) -> str:
+    """The staging key a signed form may write; never the final `object_key`."""
+    return f"{UPLOAD_KEY_PREFIX}/{version.asset_id}/{version.id}"

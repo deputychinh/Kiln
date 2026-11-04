@@ -45,6 +45,17 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -89,6 +100,17 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -122,12 +144,35 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request body larger than 1 MB.",
             "content": {
+              "application/problem+json": {},
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -139,7 +184,7 @@
           "assets"
         ],
         "summary": "List Assets",
-        "description": "List assets newest first; `limit` is clamped to 1 to 100.",
+        "description": "List assets newest first; `limit` is 1 to 100.",
         "operationId": "list_assets_api_v1_assets_get",
         "parameters": [
           {
@@ -165,6 +210,8 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
               "default": 24,
               "title": "Limit"
             }
@@ -181,12 +228,46 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request body larger than 1 MB.",
             "content": {
+              "application/problem+json": {},
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request, for example an invalid cursor.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -200,7 +281,7 @@
           "assets"
         ],
         "summary": "Get Asset",
-        "description": "Return an asset with its versions.",
+        "description": "Return an asset with its first 500 versions by number.",
         "operationId": "get_asset_api_v1_assets__asset_id__get",
         "parameters": [
           {
@@ -225,12 +306,46 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request body larger than 1 MB.",
             "content": {
+              "application/problem+json": {},
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -279,12 +394,46 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request body larger than 1 MB.",
             "content": {
+              "application/problem+json": {},
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -323,12 +472,46 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request body larger than 1 MB.",
             "content": {
+              "application/problem+json": {},
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -367,12 +550,57 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request body larger than 1 MB.",
             "content": {
+              "application/problem+json": {},
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (upload missing or different).",
+            "content": {
+              "application/problem+json": {},
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -534,18 +762,60 @@
         "title": "CreateAssetRequest",
         "description": "A new asset and its first file."
       },
-      "HTTPValidationError": {
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "NOT_FOUND",
+          "VALIDATION_FAILED",
+          "INTERNAL",
+          "ASSET_NOT_FOUND",
+          "ASSET_VERSION_NOT_FOUND",
+          "INVALID_ASSET_NAME",
+          "INVALID_FILE_NAME",
+          "INVALID_FILE_SIZE",
+          "UNSUPPORTED_MEDIA_TYPE",
+          "ASSET_KIND_MISMATCH",
+          "INVALID_STATUS_TRANSITION",
+          "INVALID_CURSOR",
+          "UPLOAD_NOT_FOUND",
+          "UPLOAD_MISMATCH",
+          "STORAGE_UNAVAILABLE",
+          "DATABASE_UNAVAILABLE",
+          "DATABASE_BUSY",
+          "METHOD_NOT_ALLOWED",
+          "PAYLOAD_TOO_LARGE"
+        ],
+        "title": "ErrorCode",
+        "description": "Stable error codes returned in the `code` field of problem details."
+      },
+      "FieldError": {
         "properties": {
-          "detail": {
+          "loc": {
             "items": {
-              "$ref": "#/components/schemas/ValidationError"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
             },
             "type": "array",
-            "title": "Detail"
+            "title": "Loc"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Msg"
           }
         },
         "type": "object",
-        "title": "HTTPValidationError"
+        "required": [
+          "loc",
+          "msg"
+        ],
+        "title": "FieldError",
+        "description": "One invalid field of a request."
       },
       "HealthResponse": {
         "properties": {
@@ -593,6 +863,58 @@
         ],
         "title": "PendingUploadOut",
         "description": "A created asset or version waiting for its file."
+      },
+      "Problem": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "instance": {
+            "type": "string",
+            "title": "Instance"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FieldError"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "status",
+          "detail",
+          "instance",
+          "code"
+        ],
+        "title": "Problem",
+        "description": "Every error response: `code` is stable, the rest is for people."
       },
       "UploadDeclaration": {
         "properties": {
@@ -648,46 +970,6 @@
         ],
         "title": "UploadOut",
         "description": "POST the file as multipart form data: every field, then `file`, to `url`."
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
       },
       "VersionOut": {
         "properties": {

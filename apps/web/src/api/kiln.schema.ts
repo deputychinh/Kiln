@@ -93,7 +93,7 @@ export interface paths {
         };
         /**
          * List Assets
-         * @description List assets newest first; `limit` is clamped to 1 to 100.
+         * @description List assets newest first; `limit` is 1 to 100.
          */
         get: operations["list_assets_api_v1_assets_get"];
         put?: never;
@@ -117,7 +117,7 @@ export interface paths {
         };
         /**
          * Get Asset
-         * @description Return an asset with its versions.
+         * @description Return an asset with its first 500 versions by number.
          */
         get: operations["get_asset_api_v1_assets__asset_id__get"];
         put?: never;
@@ -272,10 +272,21 @@ export interface components {
             /** Name */
             name: string;
         };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
+        /**
+         * ErrorCode
+         * @description Stable error codes returned in the `code` field of problem details.
+         * @enum {string}
+         */
+        ErrorCode: "NOT_FOUND" | "VALIDATION_FAILED" | "INTERNAL" | "ASSET_NOT_FOUND" | "ASSET_VERSION_NOT_FOUND" | "INVALID_ASSET_NAME" | "INVALID_FILE_NAME" | "INVALID_FILE_SIZE" | "UNSUPPORTED_MEDIA_TYPE" | "ASSET_KIND_MISMATCH" | "INVALID_STATUS_TRANSITION" | "INVALID_CURSOR" | "UPLOAD_NOT_FOUND" | "UPLOAD_MISMATCH" | "STORAGE_UNAVAILABLE" | "DATABASE_UNAVAILABLE" | "DATABASE_BUSY" | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE";
+        /**
+         * FieldError
+         * @description One invalid field of a request.
+         */
+        FieldError: {
+            /** Loc */
+            loc: (string | number)[];
+            /** Msg */
+            msg: string;
         };
         /**
          * HealthResponse
@@ -300,6 +311,28 @@ export interface components {
             asset: components["schemas"]["AssetOut"];
             version: components["schemas"]["VersionOut"];
             upload: components["schemas"]["UploadOut"];
+        };
+        /**
+         * Problem
+         * @description Every error response: `code` is stable, the rest is for people.
+         */
+        Problem: {
+            /**
+             * Type
+             * @default about:blank
+             */
+            type: string;
+            /** Title */
+            title: string;
+            /** Status */
+            status: number;
+            /** Detail */
+            detail: string;
+            /** Instance */
+            instance: string;
+            code: components["schemas"]["ErrorCode"];
+            /** Errors */
+            errors?: components["schemas"]["FieldError"][] | null;
         };
         /**
          * UploadDeclaration
@@ -329,19 +362,6 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
         /**
          * VersionOut
@@ -431,6 +451,16 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     health_api_v1_health_get: {
@@ -471,6 +501,16 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     list_assets_api_v1_assets_get: {
@@ -494,13 +534,44 @@ export interface operations {
                     "application/json": components["schemas"]["AssetPageOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Malformed request, for example an invalid cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -527,13 +598,34 @@ export interface operations {
                     "application/json": components["schemas"]["PendingUploadOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -558,13 +650,44 @@ export interface operations {
                     "application/json": components["schemas"]["AssetDetailOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -593,13 +716,44 @@ export interface operations {
                     "application/json": components["schemas"]["PendingUploadOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -624,13 +778,44 @@ export interface operations {
                     "application/json": components["schemas"]["VersionOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -655,13 +840,54 @@ export interface operations {
                     "application/json": components["schemas"]["VersionOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state (upload missing or different). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

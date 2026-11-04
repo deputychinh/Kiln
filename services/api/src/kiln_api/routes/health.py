@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from kiln_api.constants import API_VERSION
 from kiln_api.enums import HealthStatus
+from kiln_api.schemas.problems import problem_responses
 
 router = APIRouter(tags=["health"])
 logger = logging.getLogger("kiln_api")
@@ -25,7 +26,7 @@ def health() -> HealthResponse:
     return HealthResponse(status=HealthStatus.OK, version=API_VERSION)
 
 
-@router.get("/ready")
+@router.get("/ready", responses=problem_responses(503))
 def ready(request: Request) -> HealthResponse:
     """Report that the database and storage answer (503 problem details otherwise)."""
     container = request.app.state.container

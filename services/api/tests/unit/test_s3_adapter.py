@@ -1,6 +1,7 @@
 import base64
 import json
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import boto3
 import pytest
@@ -62,6 +63,41 @@ def test_a_failed_bucket_creation_is_reported_as_unavailable(
         storage.ensure_bucket()
 
 
+def test_a_changed_source_makes_promotion_return_false(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error(
+        "copy_object", service_error_code="PreconditionFailed", http_status_code=412
+    )
+
+    assert storage.promote(source_key="uploads/a", target_key="assets/a", etag='"x"') is False
+
+
+def test_other_copy_errors_are_reported_as_unavailable(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error(
+        "copy_object", service_error_code="InternalError", http_status_code=500
+    )
+
+    with pytest.raises(StorageUnavailableError):
+        storage.promote(source_key="uploads/a", target_key="assets/a", etag='"x"')
+
+
+def test_delete_errors_are_reported_as_unavailable(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error(
+        "delete_object", service_error_code="InternalError", http_status_code=500
+    )
+
+    with pytest.raises(StorageUnavailableError):
+        storage.delete("uploads/a")
+
+
 def test_a_server_error_on_head_object_is_reported_as_unavailable(
     stubbed: tuple[S3ObjectStorage, Stubber],
 ) -> None:
@@ -90,3 +126,5 @@ def test_a_signed_post_pins_key_type_and_exact_size(
     policy = json.loads(base64.b64decode(post.fields["policy"]))
     assert ["content-length-range", 42, 42] in policy["conditions"]
     assert {"Content-Type": "image/png"} in policy["conditions"]
+    expiration = datetime.fromisoformat(policy["expiration"].replace("Z", "+00:00"))
+    assert timedelta(minutes=14) < expiration - datetime.now(UTC) <= timedelta(minutes=15)

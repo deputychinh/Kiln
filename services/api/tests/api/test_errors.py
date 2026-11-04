@@ -56,8 +56,8 @@ def test_validation_errors_list_the_failing_fields() -> None:
     assert body["errors"][0]["loc"] == ["body", "name"]
 
 
-def test_other_http_errors_map_to_the_internal_code() -> None:
+def test_a_wrong_method_has_its_own_code() -> None:
     response = TestClient(_app()).delete("/missing")
 
     assert response.status_code == 405
-    assert response.json()["code"] == "INTERNAL"
+    assert response.json()["code"] == "METHOD_NOT_ALLOWED"

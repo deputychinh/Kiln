@@ -28,11 +28,19 @@ PAGE_LIMIT_MIN = 1
 PAGE_LIMIT_MAX = 100
 PAGE_LIMIT_DEFAULT = 24
 OBJECT_KEY_PREFIX = "assets"
+# Signed forms write only to a staging key; completion copies to the final key (immutable).
+UPLOAD_KEY_PREFIX = "uploads"
 UPLOAD_URL_TTL_SECONDS = 15 * 60
-STORAGE_TIMEOUT_SECONDS = 10
-STORAGE_MAX_ATTEMPTS = 2
+# Worst case per storage call: 2 attempts x (3 s connect + 10 s read) = 26 s.
+STORAGE_CONNECT_TIMEOUT_SECONDS = 3
+STORAGE_READ_TIMEOUT_SECONDS = 10
+STORAGE_TOTAL_ATTEMPTS = 2
 DB_LOCK_TIMEOUT_MS = 5_000
 DB_STATEMENT_TIMEOUT_MS = 15_000
+# SQLSTATEs for lock_timeout and statement_timeout: the database is busy, retry later.
+DB_BUSY_SQLSTATES = frozenset({"55P03", "57014"})
+RETRY_AFTER_SECONDS = 1
+MAX_JSON_BODY_BYTES = 1024 * 1024
 # Edge limits on JSON fields; generous so the domain reports the precise rule that failed.
 MAX_NAME_FIELD_LENGTH = 1_000
 MAX_FILE_NAME_FIELD_LENGTH = 2_000

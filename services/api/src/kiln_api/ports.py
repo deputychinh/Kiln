@@ -32,6 +32,7 @@ class StoredObject:
 
     size_bytes: int
     content_type: str
+    etag: str
 
 
 class ObjectStorage(Protocol):
@@ -49,6 +50,14 @@ class ObjectStorage(Protocol):
 
     def head(self, key: str) -> StoredObject | None:
         """Describe the object at `key`, or return None when it does not exist."""
+        ...
+
+    def promote(self, *, source_key: str, target_key: str, etag: str) -> bool:
+        """Copy `source_key` to `target_key` only if its ETag is still `etag`; False otherwise."""
+        ...
+
+    def delete(self, key: str) -> None:
+        """Remove `key`; a missing key is not an error."""
         ...
 
 
