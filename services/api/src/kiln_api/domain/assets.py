@@ -25,12 +25,13 @@ from kiln_api.errors import (
     UnsupportedMediaTypeError,
 )
 
-# Characters that hide or reorder text (Trojan Source, CVE-2021-42574). ZWNJ/ZWJ (U+200C/D)
-# stay allowed: Persian, Indic scripts and emoji sequences need them.
-_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
-_HIDDEN_CHARACTERS = frozenset(
-    "\u00ad\u200b\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\ufeff"
-)
+# Invisible or text-reordering characters (Trojan Source, CVE-2021-42574; tag characters used to
+# smuggle text into AI prompts). All format characters (Cf) are rejected except ZWNJ/ZWJ, which
+# Persian, Indic scripts and emoji sequences need; lone surrogates (Cs) cannot be stored at all.
+_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+_ALLOWED_FORMAT_CHARACTERS = frozenset("\u200c\u200d")
+# Not Cf but render as nothing: combining grapheme joiner, Hangul and Braille fillers.
+_INVISIBLE_CHARACTERS = frozenset("\u034f\u115f\u1160\u2800\u3164\uffa0")
 _EXTENSIONS = {
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -79,7 +80,11 @@ class AssetVersion:
 
 def _has_hidden_characters(text: str) -> bool:
     return any(
-        char in _HIDDEN_CHARACTERS or unicodedata.category(char) in _FORBIDDEN_CATEGORIES
+        char in _INVISIBLE_CHARACTERS
+        or (
+            unicodedata.category(char) in _FORBIDDEN_CATEGORIES
+            and char not in _ALLOWED_FORMAT_CHARACTERS
+        )
         for char in text
     )
 

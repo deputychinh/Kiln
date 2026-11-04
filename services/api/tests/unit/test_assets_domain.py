@@ -66,6 +66,16 @@ def test_a_glb_upload_makes_a_model_asset() -> None:
         "\u202egnp.exe",
         "a\u200bb",
         "a\u2028b",
+        "\ufeffbom",
+        "soft\u00adhyphen",
+        "iso\u2066late",
+        "a\ud800b",  # lone surrogate
+        "a\U000e0041b",  # tag character
+        "a\u2060b",  # word joiner
+        "a\u180eb",  # Mongolian vowel separator
+        "a\u034fb",  # combining grapheme joiner
+        "\u3164",  # Hangul filler
+        "a\u2800b",  # Braille blank
     ],
 )
 def test_invalid_asset_names_are_rejected(name: str) -> None:
