@@ -151,3 +151,29 @@ class DatabaseUnavailableError(DomainError):
     status = HTTPStatus.SERVICE_UNAVAILABLE
     code = ErrorCode.DATABASE_UNAVAILABLE
     default_detail = "The database is unavailable; try again shortly."
+
+
+class InvalidIdempotencyKeyError(DomainError):
+    """The `Idempotency-Key` header is not a valid key."""
+
+    code = ErrorCode.INVALID_IDEMPOTENCY_KEY
+    default_detail = (
+        "Idempotency-Key must be a quoted string (or a token) of 1 to 255 printable ASCII"
+        " characters, for example a UUID."
+    )
+
+
+class IdempotencyKeyReusedError(DomainError):
+    """The key was already used for a different request."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.IDEMPOTENCY_KEY_REUSED
+    default_detail = "This Idempotency-Key was already used for a different request."
+
+
+class IdempotencyKeyInUseError(DomainError):
+    """A request with the same key is still being processed."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.IDEMPOTENCY_KEY_IN_USE
+    default_detail = "A request with this Idempotency-Key is still in progress; retry unchanged."

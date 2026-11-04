@@ -1,6 +1,7 @@
 """Abstract ports the services depend on; adapters live in `repositories/` and `adapters/`."""
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -108,4 +109,48 @@ class AssetRepository(Protocol):
         Raises `AssetVersionNotFoundError`, or `InvalidStatusTransitionError` when another
         writer changed the status first.
         """
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class IdempotentResult:
+    """What a completed idempotent request created."""
+
+    asset_id: UUID | None
+    version_id: UUID | None
+
+
+class IdempotencyStore(Protocol):
+    """Idempotency keys stored in the caller's transaction."""
+
+    def claim(
+        self, *, key: str, operation: str, request_hash: bytes, now: datetime
+    ) -> IdempotentResult | None:
+        """Claim `key` (None) or return the earlier result; raise on reuse or a long wait."""
+        ...
+
+    def complete(self, *, key: str, asset_id: UUID, version_id: UUID) -> None:
+        """Record the created ids for `key`."""
+        ...
+
+
+class Transaction(Protocol):
+    """Repositories that share one database transaction."""
+
+    @property
+    def assets(self) -> AssetRepository:
+        """Assets and versions in this transaction."""
+        ...
+
+    @property
+    def idempotency(self) -> IdempotencyStore:
+        """Idempotency keys in this transaction."""
+        ...
+
+
+class UnitOfWork(Protocol):
+    """Opens a transaction; commits when the block ends, rolls back on an exception."""
+
+    def __call__(self) -> AbstractContextManager[Transaction]:
+        """Start a transaction."""
         ...

@@ -1,10 +1,11 @@
 """Postgres adapter for the `AssetRepository` port."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Engine, Row, func, insert, select, tuple_, update
+from sqlalchemy import Connection, Engine, Row, func, insert, select, tuple_, update
 
 from kiln_api.constants import (
     ALLOWED_TRANSITIONS,
@@ -65,15 +66,35 @@ def _version_values(version: AssetVersion) -> dict[str, object]:
 
 
 class SqlAssetRepository:
-    """Stores assets in Postgres; each method is one transaction."""
+    """Stores assets in Postgres.
 
-    def __init__(self, engine: Engine) -> None:
-        """Use `engine` for every transaction."""
-        self._engine = engine
+    Bound to an `Engine`, each method is its own transaction; bound to a `Connection` (inside a
+    unit of work), every method joins the caller's transaction.
+    """
+
+    def __init__(self, bind: Engine | Connection) -> None:
+        """Use `bind` for every statement."""
+        self._bind = bind
+
+    @contextmanager
+    def _write(self) -> Iterator[Connection]:
+        if isinstance(self._bind, Connection):
+            yield self._bind
+        else:
+            with self._bind.begin() as connection:
+                yield connection
+
+    @contextmanager
+    def _read(self) -> Iterator[Connection]:
+        if isinstance(self._bind, Connection):
+            yield self._bind
+        else:
+            with self._bind.connect() as connection:
+                yield connection
 
     def add(self, asset: Asset, first_version: AssetVersion) -> None:
         """Insert the asset and its first version together."""
-        with self._engine.begin() as connection:
+        with self._write() as connection:
             connection.execute(
                 insert(assets).values(
                     id=asset.id,
@@ -87,7 +108,7 @@ class SqlAssetRepository:
 
     def get(self, asset_id: UUID) -> Asset:
         """Return the asset with `asset_id`."""
-        with self._engine.connect() as connection:
+        with self._read() as connection:
             row = connection.execute(select(assets).where(assets.c.id == asset_id)).one_or_none()
         if row is None:
             raise AssetNotFoundError(asset_id)
@@ -100,7 +121,7 @@ class SqlAssetRepository:
         if cursor is not None:
             created_at, asset_id = decode_cursor(cursor)
             query = query.where(tuple_(assets.c.created_at, assets.c.id) < (created_at, asset_id))
-        with self._engine.connect() as connection:
+        with self._read() as connection:
             rows = connection.execute(query.limit(size + 1)).all()
         items = tuple(_asset(row) for row in rows[:size])
         has_more = len(rows) > size
@@ -111,7 +132,7 @@ class SqlAssetRepository:
         self, asset_id: UUID, build: Callable[[Asset, int], AssetVersion]
     ) -> AssetVersion:
         """Serialise writers on the asset row so numbers never repeat."""
-        with self._engine.begin() as connection:
+        with self._write() as connection:
             row = connection.execute(
                 select(assets).where(assets.c.id == asset_id).with_for_update()
             ).one_or_none()
@@ -133,7 +154,7 @@ class SqlAssetRepository:
 
     def get_version(self, version_id: UUID) -> AssetVersion:
         """Return the version with `version_id`."""
-        with self._engine.connect() as connection:
+        with self._read() as connection:
             row = connection.execute(
                 select(asset_versions).where(asset_versions.c.id == version_id)
             ).one_or_none()
@@ -143,7 +164,7 @@ class SqlAssetRepository:
 
     def versions_of(self, asset_id: UUID) -> list[AssetVersion]:
         """Return the versions of `asset_id` in number order, at most `MAX_VERSIONS_PER_READ`."""
-        with self._engine.connect() as connection:
+        with self._read() as connection:
             rows = connection.execute(
                 select(asset_versions)
                 .where(asset_versions.c.asset_id == asset_id)
@@ -156,7 +177,7 @@ class SqlAssetRepository:
         """Write the new status only if the stored one is still `expected` (compare-and-set)."""
         if version.status not in ALLOWED_TRANSITIONS[expected]:
             raise InvalidStatusTransitionError(expected, version.status)
-        with self._engine.begin() as connection:
+        with self._write() as connection:
             result = connection.execute(
                 update(asset_versions)
                 .where(asset_versions.c.id == version.id, asset_versions.c.status == expected.value)

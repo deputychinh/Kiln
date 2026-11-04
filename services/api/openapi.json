@@ -137,6 +137,26 @@
         "summary": "Create Asset",
         "description": "Create an asset with version 1 and return the signed upload form.",
         "operationId": "create_asset_api_v1_assets_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422."
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -406,6 +426,24 @@
               "format": "uuid",
               "title": "Asset Id"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422."
           }
         ],
         "requestBody": {
@@ -1007,7 +1045,10 @@
           "DATABASE_UNAVAILABLE",
           "DATABASE_BUSY",
           "METHOD_NOT_ALLOWED",
-          "PAYLOAD_TOO_LARGE"
+          "PAYLOAD_TOO_LARGE",
+          "INVALID_IDEMPOTENCY_KEY",
+          "IDEMPOTENCY_KEY_REUSED",
+          "IDEMPOTENCY_KEY_IN_USE"
         ],
         "title": "ErrorCode",
         "type": "string"

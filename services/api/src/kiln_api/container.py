@@ -21,6 +21,7 @@ from kiln_api.domain.ids import uuid7
 from kiln_api.errors import DatabaseUnavailableError
 from kiln_api.ports import Clock, ObjectStorage
 from kiln_api.repositories.assets import SqlAssetRepository
+from kiln_api.repositories.unit_of_work import SqlUnitOfWork
 from kiln_api.services.assets import AssetService
 
 if TYPE_CHECKING:
@@ -101,6 +102,10 @@ def build_container(
     engine = engine or build_engine(settings)
     resolved_storage = storage or build_storage(settings)
     service = AssetService(
-        SqlAssetRepository(engine), resolved_storage, clock or SystemClock(), uuid7
+        SqlAssetRepository(engine),
+        resolved_storage,
+        clock or SystemClock(),
+        uuid7,
+        SqlUnitOfWork(engine),
     )
     return Container(engine=engine, storage=resolved_storage, assets=service)

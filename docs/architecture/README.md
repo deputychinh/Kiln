@@ -18,7 +18,7 @@ flowchart LR
 
 ## Upload flow (v0.1)
 
-1. The client calls `POST /api/v1/assets` (an `Idempotency-Key` arrives with KILN-21); the API creates `Asset` + `AssetVersion(pending_upload)` and returns a presigned POST (ADR 0004: 15-minute expiry; the policy pins the key, content type and exact size).
+1. The client calls `POST /api/v1/assets` (optional `Idempotency-Key`; the key row and the asset are written in one transaction, so a retry replays the first result — KILN-21); the API creates `Asset` + `AssetVersion(pending_upload)` and returns a presigned POST (ADR 0004: 15-minute expiry; the policy pins the key, content type and exact size).
 2. The client POSTs the file as multipart form data to its **staging key** `uploads/<asset_id>/<version_id>`, then calls `POST /api/v1/asset-versions/{id}/completions`.
 3. The API `HEAD`s the staging object, checks size and type, copies it to the final key with `CopySourceIfMatch` (ADR 0005), deletes the staging object, moves the version to `processing` (from KILN-4 the same transaction also writes a `thumbnail` job).
 4. The worker takes the job, renders the thumbnail, (v0.3) asks for AI tags, and marks the version `ready`. The web app polls or listens on SSE `/api/v1/events`.

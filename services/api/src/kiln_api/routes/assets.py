@@ -3,14 +3,17 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 
 from kiln_api.constants import (
     API_PREFIX,
+    IDEMPOTENCY_KEY_HEADER,
+    IDEMPOTENT_REPLAYED_HEADER,
     PAGE_LIMIT_DEFAULT,
     PAGE_LIMIT_MAX,
     PAGE_LIMIT_MIN,
 )
+from kiln_api.domain.idempotency import parse_idempotency_key
 from kiln_api.schemas.assets import (
     AssetDetailOut,
     AssetOut,
@@ -21,7 +24,7 @@ from kiln_api.schemas.assets import (
     VersionOut,
 )
 from kiln_api.schemas.problems import LOCATION_HEADER, problem_responses
-from kiln_api.services.assets import AssetService
+from kiln_api.services.assets import AssetService, PendingUpload
 
 router = APIRouter(prefix=API_PREFIX, tags=["assets"], responses=problem_responses(413, 422, 503))
 
@@ -34,18 +37,42 @@ def _service(request: Request) -> AssetService:
 Service = Annotated[AssetService, Depends(_service)]
 
 
+def _idempotency_key(
+    header: Annotated[
+        str | None,
+        Header(
+            alias=IDEMPOTENCY_KEY_HEADER,
+            description=(
+                "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the"
+                " first result with `Idempotent-Replayed: true`; another body gives 422."
+            ),
+        ),
+    ] = None,
+) -> str | None:
+    return None if header is None else parse_idempotency_key(header)
+
+
+IdempotencyKey = Annotated[str | None, Depends(_idempotency_key)]
+
+
+def _created(response: Response, pending: PendingUpload, location: str) -> PendingUploadOut:
+    response.headers["Location"] = location
+    if pending.replayed:
+        response.headers[IDEMPOTENT_REPLAYED_HEADER] = "true"
+    return PendingUploadOut.of(pending)
+
+
 @router.post(
     "/assets",
     status_code=status.HTTP_201_CREATED,
     responses={201: {"description": "Created.", "headers": LOCATION_HEADER}},
 )
 def create_asset(
-    body: CreateAssetRequest, service: Service, response: Response
+    body: CreateAssetRequest, service: Service, response: Response, key: IdempotencyKey
 ) -> PendingUploadOut:
     """Create an asset with version 1 and return the signed upload form."""
-    pending = service.create(body.name, body.to_spec())
-    response.headers["Location"] = f"{API_PREFIX}/assets/{pending.asset.id}"
-    return PendingUploadOut.of(pending)
+    pending = service.create(body.name, body.to_spec(), idempotency_key=key)
+    return _created(response, pending, f"{API_PREFIX}/assets/{pending.asset.id}")
 
 
 @router.get("/assets", responses=problem_responses(400))
@@ -74,12 +101,15 @@ def get_asset(asset_id: UUID, service: Service) -> AssetDetailOut:
     },
 )
 def add_version(
-    asset_id: UUID, body: UploadDeclaration, service: Service, response: Response
+    asset_id: UUID,
+    body: UploadDeclaration,
+    service: Service,
+    response: Response,
+    key: IdempotencyKey,
 ) -> PendingUploadOut:
     """Add the next version of an asset and return its signed upload form."""
-    pending = service.add_version(asset_id, body.to_spec())
-    response.headers["Location"] = f"{API_PREFIX}/asset-versions/{pending.version.id}"
-    return PendingUploadOut.of(pending)
+    pending = service.add_version(asset_id, body.to_spec(), idempotency_key=key)
+    return _created(response, pending, f"{API_PREFIX}/asset-versions/{pending.version.id}")
 
 
 @router.get("/asset-versions/{version_id}", responses=problem_responses(404))

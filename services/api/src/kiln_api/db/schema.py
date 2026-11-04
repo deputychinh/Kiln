@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     Table,
     Text,
@@ -15,7 +16,12 @@ from sqlalchemy import (
     Uuid,
 )
 
-from kiln_api.constants import ASSET_NAME_MAX_LENGTH, FILE_NAME_MAX_LENGTH, MAX_UPLOAD_BYTES
+from kiln_api.constants import (
+    ASSET_NAME_MAX_LENGTH,
+    FILE_NAME_MAX_LENGTH,
+    IDEMPOTENCY_KEY_MAX_LENGTH,
+    MAX_UPLOAD_BYTES,
+)
 from kiln_api.enums import AssetKind, VersionStatus
 
 metadata = MetaData(
@@ -24,7 +30,7 @@ metadata = MetaData(
         "fk": "fk_%(table_name)s_%(column_0_name)s",
         "uq": "uq_%(table_name)s_%(column_0_N_name)s",
         "ck": "ck_%(table_name)s_%(constraint_name)s",
-        "ix": "ix_%(table_name)s_%(column_0_name)s_%(column_1_name)s",
+        "ix": "ix_%(table_name)s_%(column_0_N_name)s",
     }
 )
 
@@ -68,4 +74,21 @@ asset_versions = Table(
         f"char_length(file_name) BETWEEN 1 AND {FILE_NAME_MAX_LENGTH}", name="file_name_length"
     ),
     CheckConstraint(f"size_bytes BETWEEN 1 AND {MAX_UPLOAD_BYTES}", name="size_range"),
+)
+
+
+idempotency_keys = Table(
+    "idempotency_keys",
+    metadata,
+    Column("key", Text, primary_key=True),
+    Column("operation", Text, nullable=False),
+    Column("request_hash", LargeBinary, nullable=False),
+    Column("asset_id", Uuid, nullable=True),
+    Column("version_id", Uuid, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        f"char_length(key) BETWEEN 1 AND {IDEMPOTENCY_KEY_MAX_LENGTH}", name="key_length"
+    ),
+    CheckConstraint("octet_length(request_hash) = 32", name="request_hash_length"),
+    Index(None, "created_at"),
 )

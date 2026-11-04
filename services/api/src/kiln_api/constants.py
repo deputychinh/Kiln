@@ -43,6 +43,12 @@ DB_STATEMENT_TIMEOUT_MS = 15_000
 DB_BUSY_SQLSTATES = frozenset({"55P03", "57014"})
 RETRY_AFTER_SECONDS = 1
 MAX_JSON_BODY_BYTES = 1024 * 1024
+# Idempotency-Key (IETF draft-ietf-httpapi-idempotency-key-header-08): sf-string, 24 h window.
+IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+IDEMPOTENT_REPLAYED_HEADER = "Idempotent-Replayed"
+IDEMPOTENCY_KEY_MAX_LENGTH = 255
+IDEMPOTENCY_WINDOW_HOURS = 24
+LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
 # Edge limits on JSON fields; generous so the domain reports the precise rule that failed.
 MAX_NAME_FIELD_LENGTH = 1_000
 MAX_FILE_NAME_FIELD_LENGTH = 2_000
