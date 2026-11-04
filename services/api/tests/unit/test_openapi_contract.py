@@ -42,3 +42,14 @@ def test_creations_document_the_location_header() -> None:
 
     for path in ("/api/v1/assets", "/api/v1/assets/{asset_id}/versions"):
         assert "Location" in paths[path]["post"]["responses"]["201"]["headers"]
+
+
+def test_creations_document_idempotency_errors_and_the_replay_header() -> None:
+    paths = json.loads(CONTRACT.read_text())["paths"]
+
+    for path in ("/api/v1/assets", "/api/v1/assets/{asset_id}/versions"):
+        responses = paths[path]["post"]["responses"]
+        assert {"400", "409"} <= set(responses)
+        assert "Idempotent-Replayed" in responses["201"]["headers"]
+        parameters = {p["name"] for p in paths[path]["post"]["parameters"]}
+        assert "Idempotency-Key" in parameters

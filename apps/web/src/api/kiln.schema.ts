@@ -294,7 +294,8 @@ export interface components {
         PendingUploadOut: {
             asset: components["schemas"]["AssetOut"];
             version: components["schemas"]["VersionOut"];
-            upload: components["schemas"]["UploadOut"];
+            /** @description Signed form for the file; null on a replay once the version left pending_upload. */
+            upload: components["schemas"]["UploadOut"] | null;
         };
         /**
          * UploadDeclaration
@@ -539,7 +540,7 @@ export interface operations {
                     "application/json": components["schemas"]["AssetPageOut"];
                 };
             };
-            /** @description Malformed request, for example an invalid cursor. */
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -583,7 +584,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422. */
+                /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
                 "Idempotency-Key"?: string | null;
             };
             path?: never;
@@ -600,10 +601,30 @@ export interface operations {
                 headers: {
                     /** @description URL of the created resource. */
                     Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["PendingUploadOut"];
+                };
+            };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Request body larger than 1 MB. */
@@ -701,7 +722,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422. */
+                /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
                 "Idempotency-Key"?: string | null;
             };
             path: {
@@ -720,14 +741,34 @@ export interface operations {
                 headers: {
                     /** @description URL of the created resource. */
                     Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["PendingUploadOut"];
                 };
             };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description The resource does not exist. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -855,7 +896,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state (upload missing or different). */
+            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
             409: {
                 headers: {
                     [name: string]: unknown;

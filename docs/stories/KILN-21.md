@@ -75,7 +75,15 @@ Mutation checks (`PYTHONDONTWRITEBYTECODE=1`, code restored each time), all kill
 
 Counts from `pytest --collect-only`: `test_idempotency_key.py` 18, `test_idempotency_api.py` 15, `test_idempotency_store.py` 1, `test_idempotency_guards.py` 3; total suite 279.
 
-Gates: `make ci` green — Python 279 passed, coverage 99 %; ruff and mypy strict clean.
+Gates: `make ci` green — Python 286 passed, coverage 99 %; ruff and mypy strict clean.
+
+### Review round 1 changes (8.0/10)
+
+- OpenAPI: both creation endpoints document `400` and `409` problems and the `Idempotent-Replayed` header; the key parameter describes its limits.
+- A key header sent twice is `400` (several lines form an sf-list, not one key).
+- A replay after the version left `pending_upload` returns `upload: null` instead of a form that can no longer be used.
+- New tests: the same key and body on two assets (`422`), crash between the asset insert and completing the key (both tables empty, retry creates), the exact 24 h boundary for claims and purges, the replay without a form, the duplicated header. The four surviving mutants of the review (no asset in the scope, repository on its own transaction, `<=` in claim and purge) are killed.
+- ADR 0006 records waiting instead of an immediate `409` and the unit-of-work change; the purge is scheduled by KILN-22 (backlog).
 
 ## Review score
 

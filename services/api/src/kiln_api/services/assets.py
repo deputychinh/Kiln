@@ -50,7 +50,7 @@ class PendingUpload:
 
     asset: Asset
     version: AssetVersion
-    upload: PresignedUpload
+    upload: PresignedUpload | None  # None when a replayed version no longer takes an upload
     replayed: bool = False
 
 
@@ -137,11 +137,9 @@ class AssetService:
         if replay.asset_id is None or replay.version_id is None:
             raise IdempotencyKeyInUseError  # cannot happen after commit; never replay half a result
         version = tx.assets.get_version(replay.version_id)
+        upload = self._sign(version) if version.status is VersionStatus.PENDING_UPLOAD else None
         return PendingUpload(
-            asset=tx.assets.get(replay.asset_id),
-            version=version,
-            upload=self._sign(version),
-            replayed=True,
+            asset=tx.assets.get(replay.asset_id), version=version, upload=upload, replayed=True
         )
 
     def complete_upload(self, version_id: UUID) -> AssetVersion:

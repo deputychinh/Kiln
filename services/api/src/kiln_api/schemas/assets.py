@@ -100,7 +100,11 @@ class PendingUploadOut(BaseModel):
 
     asset: AssetOut
     version: VersionOut
-    upload: UploadOut
+    upload: UploadOut | None = Field(
+        description=(
+            "Signed form for the file; null on a replay once the version left pending_upload."
+        )
+    )
 
     @classmethod
     def of(cls, pending: PendingUpload) -> "PendingUploadOut":
@@ -108,7 +112,9 @@ class PendingUploadOut(BaseModel):
         return cls(
             asset=AssetOut.of(pending.asset),
             version=VersionOut.of(pending.version),
-            upload=UploadOut(
+            upload=None
+            if pending.upload is None
+            else UploadOut(
                 url=pending.upload.url,
                 fields=pending.upload.fields,
                 expires_at=pending.upload.expires_at,

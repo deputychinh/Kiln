@@ -151,10 +151,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422.",
+              "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once.",
               "title": "Idempotency-Key"
             },
-            "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422."
+            "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once."
           }
         ],
         "requestBody": {
@@ -182,6 +182,15 @@
                 "description": "URL of the created resource.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
                 }
               }
             }
@@ -220,6 +229,26 @@
                 "description": "Seconds to wait before retrying.",
                 "schema": {
                   "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -314,7 +343,7 @@
             }
           },
           "400": {
-            "description": "Malformed request, for example an invalid cursor.",
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -440,10 +469,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422.",
+              "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once.",
               "title": "Idempotency-Key"
             },
-            "description": "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body gives 422."
+            "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once."
           }
         ],
         "requestBody": {
@@ -471,6 +500,15 @@
                 "description": "URL of the created resource.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
                 }
               }
             }
@@ -513,8 +551,28 @@
               }
             }
           },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "404": {
             "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -688,7 +746,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state (upload missing or different).",
+            "description": "Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -889,7 +947,15 @@
             "$ref": "#/components/schemas/VersionOut"
           },
           "upload": {
-            "$ref": "#/components/schemas/UploadOut"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UploadOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Signed form for the file; null on a replay once the version left pending_upload."
           }
         },
         "type": "object",

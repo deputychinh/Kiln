@@ -11,6 +11,7 @@ from kiln_api.config import Settings
 from kiln_api.container import build_container
 from kiln_api.enums import Environment
 from kiln_api.main import create_app
+from kiln_api.repositories.idempotency import SqlIdempotencyStore
 
 ROCK = {"name": "Rock", "file_name": "rock.png", "content_type": "image/png", "size_bytes": 2048}
 V2 = {"file_name": "rock_v2.png", "content_type": "image/png", "size_bytes": 10}
@@ -177,3 +178,78 @@ def test_an_expired_key_is_treated_as_new(
     assert second.json()["asset"]["id"] != first["asset"]["id"]
     assert _count(engine, "assets") == 2
     assert _count(engine, "idempotency_keys") == 1
+
+
+def test_the_same_key_and_body_on_two_assets_is_a_reuse(client: TestClient, engine: Engine) -> None:
+    first = _post(client, "/api/v1/assets", ROCK, key=None).json()["asset"]["id"]
+    second = _post(client, "/api/v1/assets", ROCK, key=None).json()["asset"]["id"]
+
+    accepted = _post(client, f"/api/v1/assets/{first}/versions", V2)
+    reused = _post(client, f"/api/v1/assets/{second}/versions", V2)
+
+    assert accepted.status_code == 201
+    assert reused.status_code == 422
+    assert reused.json()["code"] == "IDEMPOTENCY_KEY_REUSED"
+    assert _count(engine, "asset_versions") == 3
+
+
+def test_the_key_and_the_asset_commit_or_roll_back_together(
+    client: TestClient, engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_after_insert(*_: object, **__: object) -> None:
+        message = "crash between the asset insert and completing the key"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(SqlIdempotencyStore, "complete", fail_after_insert)
+    crashed = TestClient(client.app, raise_server_exceptions=False).post(
+        "/api/v1/assets", json=ROCK, headers={"Idempotency-Key": KEY}
+    )
+    assert crashed.status_code == 500
+    assert (_count(engine, "assets"), _count(engine, "idempotency_keys")) == (0, 0)
+
+    monkeypatch.undo()
+    retried = _post(client, "/api/v1/assets", ROCK)
+
+    assert retried.status_code == 201
+    assert "Idempotent-Replayed" not in retried.headers
+    assert (_count(engine, "assets"), _count(engine, "idempotency_keys")) == (1, 1)
+
+
+def test_a_key_is_still_live_at_exactly_24_hours_and_expired_just_after(
+    client: TestClient, engine: Engine, clock: FixedClock
+) -> None:
+    _post(client, "/api/v1/assets", ROCK)
+    clock.advance(timedelta(hours=24).total_seconds())
+    at_boundary = _post(client, "/api/v1/assets", ROCK)
+    clock.advance(timedelta(microseconds=1).total_seconds())
+    after = _post(client, "/api/v1/assets", ROCK)
+
+    assert at_boundary.headers["Idempotent-Replayed"] == "true"
+    assert "Idempotent-Replayed" not in after.headers
+    assert _count(engine, "assets") == 2
+
+
+def test_a_replay_after_the_upload_was_confirmed_has_no_upload_form(
+    client: TestClient, storage: FakeStorage
+) -> None:
+    first = _post(client, "/api/v1/assets", ROCK).json()
+    storage.put(first["upload"]["fields"]["key"], 2048, "image/png")
+    client.post(f"/api/v1/asset-versions/{first['version']['id']}/completions")
+
+    replay = _post(client, "/api/v1/assets", ROCK)
+
+    assert replay.status_code == 201
+    assert replay.json()["version"]["status"] == "processing"
+    assert replay.json()["upload"] is None
+
+
+def test_the_key_header_sent_twice_is_a_400(client: TestClient, engine: Engine) -> None:
+    response = client.post(
+        "/api/v1/assets",
+        json=ROCK,
+        headers=[("Idempotency-Key", KEY), ("Idempotency-Key", '"other"')],
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_IDEMPOTENCY_KEY"
+    assert _count(engine, "assets") == 0

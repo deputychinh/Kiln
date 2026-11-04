@@ -29,9 +29,12 @@ class Problem(BaseModel):
 
 
 _DESCRIPTIONS = {
-    400: "Malformed request, for example an invalid cursor.",
+    400: "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
     404: "The resource does not exist.",
-    409: "Conflict with the current state (upload missing or different).",
+    409: (
+        "Conflict with the current state: upload missing or different, or the Idempotency-Key"
+        " is still in use."
+    ),
     413: "Request body larger than 1 MB.",
     422: "Validation failed: a field or a domain rule (see `code`).",
     503: "Database or storage unavailable or busy; retry after `Retry-After`.",
@@ -47,6 +50,13 @@ RETRY_AFTER_HEADER = {
 }
 LOCATION_HEADER = {
     "Location": {"description": "URL of the created resource.", "schema": {"type": "string"}}
+}
+CREATED_HEADERS = {
+    **LOCATION_HEADER,
+    "Idempotent-Replayed": {
+        "description": "`true` when this response replays an earlier request with the same key.",
+        "schema": {"type": "string", "enum": ["true"]},
+    },
 }
 
 

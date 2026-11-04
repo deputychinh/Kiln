@@ -24,3 +24,19 @@ def test_purging_removes_only_keys_older_than_the_window(engine: Engine) -> None
         left = connection.execute(text("SELECT key FROM idempotency_keys")).scalars().all()
     assert removed == 1
     assert left == ["fresh"]
+
+
+def test_purging_keeps_a_key_of_exactly_24_hours(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO idempotency_keys (key, operation, request_hash, created_at)"
+                " VALUES ('edge', 'create_asset', :hash, :at)"
+            ),
+            {"hash": b"\x00" * 32, "at": T0 - timedelta(hours=24)},
+        )
+
+    kept = purge_expired_keys(engine, now=T0)
+    removed = purge_expired_keys(engine, now=T0 + timedelta(microseconds=1))
+
+    assert (kept, removed) == (0, 1)

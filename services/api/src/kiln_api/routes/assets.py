@@ -14,6 +14,7 @@ from kiln_api.constants import (
     PAGE_LIMIT_MIN,
 )
 from kiln_api.domain.idempotency import parse_idempotency_key
+from kiln_api.errors import InvalidIdempotencyKeyError
 from kiln_api.schemas.assets import (
     AssetDetailOut,
     AssetOut,
@@ -23,7 +24,7 @@ from kiln_api.schemas.assets import (
     UploadDeclaration,
     VersionOut,
 )
-from kiln_api.schemas.problems import LOCATION_HEADER, problem_responses
+from kiln_api.schemas.problems import CREATED_HEADERS, problem_responses
 from kiln_api.services.assets import AssetService, PendingUpload
 
 router = APIRouter(prefix=API_PREFIX, tags=["assets"], responses=problem_responses(413, 422, 503))
@@ -38,17 +39,21 @@ Service = Annotated[AssetService, Depends(_service)]
 
 
 def _idempotency_key(
+    request: Request,
     header: Annotated[
         str | None,
         Header(
             alias=IDEMPOTENCY_KEY_HEADER,
             description=(
-                "Optional sf-string, e.g. a quoted UUID. A repeat within 24 hours replays the"
-                " first result with `Idempotent-Replayed: true`; another body gives 422."
+                "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID."
+                " A repeat within 24 hours replays the first result with `Idempotent-Replayed:"
+                " true`; another body or endpoint gives 422; send the header once."
             ),
         ),
     ] = None,
 ) -> str | None:
+    if len(request.headers.getlist(IDEMPOTENCY_KEY_HEADER)) > 1:
+        raise InvalidIdempotencyKeyError  # several lines form an sf-list, not one key
     return None if header is None else parse_idempotency_key(header)
 
 
@@ -65,7 +70,10 @@ def _created(response: Response, pending: PendingUpload, location: str) -> Pendi
 @router.post(
     "/assets",
     status_code=status.HTTP_201_CREATED,
-    responses={201: {"description": "Created.", "headers": LOCATION_HEADER}},
+    responses={
+        201: {"description": "Created.", "headers": CREATED_HEADERS},
+        **problem_responses(400, 409),
+    },
 )
 def create_asset(
     body: CreateAssetRequest, service: Service, response: Response, key: IdempotencyKey
@@ -96,8 +104,8 @@ def get_asset(asset_id: UUID, service: Service) -> AssetDetailOut:
     "/assets/{asset_id}/versions",
     status_code=status.HTTP_201_CREATED,
     responses={
-        201: {"description": "Created.", "headers": LOCATION_HEADER},
-        **problem_responses(404),
+        201: {"description": "Created.", "headers": CREATED_HEADERS},
+        **problem_responses(400, 404, 409),
     },
 )
 def add_version(
