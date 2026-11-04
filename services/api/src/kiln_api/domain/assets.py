@@ -12,7 +12,7 @@ from kiln_api.constants import (
     ASSET_NAME_MAX_LENGTH,
     FILE_NAME_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
-    MEDIA_TYPE_KINDS,
+    MEDIA_TYPES,
     OBJECT_KEY_PREFIX,
 )
 from kiln_api.enums import AssetKind, VersionStatus
@@ -31,13 +31,9 @@ from kiln_api.errors import (
 _FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
 _ALLOWED_FORMAT_CHARACTERS = frozenset("\u200c\u200d")
 # Not Cf but render as nothing: combining grapheme joiner, Hangul and Braille fillers.
-_INVISIBLE_CHARACTERS = frozenset("\u034f\u115f\u1160\u2800\u3164\uffa0")
-_EXTENSIONS = {
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/webp": "webp",
-    "model/gltf-binary": "glb",
-}
+_INVISIBLE_CHARACTERS = frozenset("\u034f\u115f\u1160\u17b4\u17b5\u2800\u3164\uffa0")
+# A name must show something: at least one letter, number, punctuation or symbol.
+_VISIBLE_CATEGORY_CLASSES = frozenset("LNPS")
 
 type IdFactory = Callable[[], UUID]
 
@@ -78,6 +74,15 @@ class AssetVersion:
     updated_at: datetime
 
 
+def _is_unreadable(text: str) -> bool:
+    has_visible = any(
+        unicodedata.category(char)[0] in _VISIBLE_CATEGORY_CLASSES
+        and char not in _INVISIBLE_CHARACTERS
+        for char in text
+    )
+    return not has_visible or _has_hidden_characters(text)
+
+
 def _has_hidden_characters(text: str) -> bool:
     return any(
         char in _INVISIBLE_CHARACTERS
@@ -97,26 +102,21 @@ def _require_aware(now: datetime) -> None:
 
 def _clean_name(name: str) -> str:
     cleaned = name.strip()
-    if not cleaned or len(cleaned) > ASSET_NAME_MAX_LENGTH or _has_hidden_characters(cleaned):
+    if not cleaned or len(cleaned) > ASSET_NAME_MAX_LENGTH or _is_unreadable(cleaned):
         raise InvalidAssetNameError
     return cleaned
 
 
 def _clean_file_name(file_name: str) -> str:
     base = re.split(r"[\\/]", file_name)[-1].strip()
-    if (
-        not base
-        or set(base) == {"."}
-        or len(base) > FILE_NAME_MAX_LENGTH
-        or _has_hidden_characters(base)
-    ):
+    if not base or set(base) == {"."} or len(base) > FILE_NAME_MAX_LENGTH or _is_unreadable(base):
         raise InvalidFileNameError
     return base
 
 
 def _media_type(content_type: str) -> str:
     media_type = content_type.split(";", 1)[0].strip().lower()
-    if media_type not in MEDIA_TYPE_KINDS:
+    if media_type not in MEDIA_TYPES:
         raise UnsupportedMediaTypeError
     return media_type
 
@@ -126,7 +126,8 @@ def _build_version(
 ) -> AssetVersion:
     _require_aware(now)
     media_type = _media_type(spec.content_type)
-    if MEDIA_TYPE_KINDS[media_type] is not asset.kind:
+    kind, extension = MEDIA_TYPES[media_type]
+    if kind is not asset.kind:
         raise AssetKindMismatchError
     if not 1 <= spec.size_bytes <= MAX_UPLOAD_BYTES:
         raise InvalidFileSizeError
@@ -139,7 +140,7 @@ def _build_version(
         file_name=_clean_file_name(spec.file_name),
         content_type=media_type,
         size_bytes=spec.size_bytes,
-        object_key=f"{OBJECT_KEY_PREFIX}/{asset.id}/v{number}/{version_id}.{_EXTENSIONS[media_type]}",
+        object_key=f"{OBJECT_KEY_PREFIX}/{asset.id}/v{number}/{version_id}.{extension}",
         created_at=now,
         updated_at=now,
     )
@@ -158,7 +159,7 @@ def new_asset(
     asset = Asset(
         id=new_id(),
         name=_clean_name(name),
-        kind=MEDIA_TYPE_KINDS[_media_type(spec.content_type)],
+        kind=MEDIA_TYPES[_media_type(spec.content_type)][0],
         created_at=now,
         updated_at=now,
     )

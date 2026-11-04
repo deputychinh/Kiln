@@ -76,6 +76,11 @@ def test_a_glb_upload_makes_a_model_asset() -> None:
         "a\u034fb",  # combining grapheme joiner
         "\u3164",  # Hangul filler
         "a\u2800b",  # Braille blank
+        "\u200c",  # ZWNJ alone
+        "\u200d\u200d\u200d",  # ZWJ only
+        "\u0301",  # lone combining mark
+        "\u17b4",  # Khmer inherent vowel (invisible)
+        "\ufe0f",  # variation selector alone
     ],
 )
 def test_invalid_asset_names_are_rejected(name: str) -> None:

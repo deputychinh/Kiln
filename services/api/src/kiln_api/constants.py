@@ -11,11 +11,12 @@ REQUEST_ID_HEADER = "X-Request-Id"
 ASSET_NAME_MAX_LENGTH = 120
 FILE_NAME_MAX_LENGTH = 255
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
-MEDIA_TYPE_KINDS: dict[str, AssetKind] = {
-    "image/png": AssetKind.IMAGE,
-    "image/jpeg": AssetKind.IMAGE,
-    "image/webp": AssetKind.IMAGE,
-    "model/gltf-binary": AssetKind.MODEL,
+# The one table of supported uploads: media type -> (kind, stored file extension).
+MEDIA_TYPES: dict[str, tuple[AssetKind, str]] = {
+    "image/png": (AssetKind.IMAGE, "png"),
+    "image/jpeg": (AssetKind.IMAGE, "jpg"),
+    "image/webp": (AssetKind.IMAGE, "webp"),
+    "model/gltf-binary": (AssetKind.MODEL, "glb"),
 }
 ALLOWED_TRANSITIONS: dict[VersionStatus, frozenset[VersionStatus]] = {
     VersionStatus.PENDING_UPLOAD: frozenset({VersionStatus.PROCESSING}),
@@ -27,3 +28,5 @@ PAGE_LIMIT_MIN = 1
 PAGE_LIMIT_MAX = 100
 PAGE_LIMIT_DEFAULT = 24
 OBJECT_KEY_PREFIX = "assets"
+# Bound for reading one asset's history; review UIs page beyond this (KILN-8).
+MAX_VERSIONS_PER_READ = 500

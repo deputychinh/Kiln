@@ -282,3 +282,13 @@ def test_an_expected_status_that_skips_the_life_cycle_is_rejected(engine: Engine
         repo.save_version(ready, expected=VersionStatus.PENDING_UPLOAD)
 
     assert repo.get_version(version.id).status is VersionStatus.PENDING_UPLOAD
+
+
+def test_a_version_with_an_older_clock_does_not_move_the_asset_backwards(engine: Engine) -> None:
+    repo = SqlAssetRepository(engine)
+    asset, _ = _create(repo, "Rock", T0)
+    earlier = T0 - timedelta(hours=1)
+
+    repo.add_next_version(asset.id, lambda a, n: new_version(a, n, PNG, now=earlier, new_id=uuid7))
+
+    assert repo.get(asset.id).updated_at == T0

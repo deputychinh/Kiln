@@ -31,6 +31,12 @@ def test_a_malformed_cursor_is_rejected(cursor: str) -> None:
         decode_cursor(cursor)
 
 
+@pytest.mark.parametrize("junk", ["!!{cursor}", "{cursor}!!", "{cursor} ", "{cursor}+/"])
+def test_a_valid_cursor_with_extra_characters_is_rejected(junk: str) -> None:
+    with pytest.raises(InvalidCursorError):
+        decode_cursor(junk.format(cursor=encode_cursor(AT, ID)))
+
+
 def test_a_cursor_without_a_timezone_is_rejected() -> None:
     raw = f"{AT.replace(tzinfo=None).isoformat()}|{ID}".encode()
     tampered = base64.urlsafe_b64encode(raw).decode().rstrip("=")

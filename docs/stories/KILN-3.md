@@ -43,7 +43,7 @@ INVEST: Independent ☑ (builds on KILN-2 only) · Negotiable ☑ · Valuable �
 
 ## Design
 
-- **Port** `ObjectStorage` (`ports.py`): `ensure_bucket()`, `presign_upload(key, content_type, size_bytes, expires_in) -> PresignedUpload`, `head(key) -> StoredObject | None`, `ping()`. Adapter `adapters/s3_storage.py` with boto3 (SigV4, path-style, 10 s connect/read timeouts). Fake in `tests/fakes.py`.
+- **Port** `ObjectStorage` (`ports.py`): `ensure_bucket()`, `presign_upload(key, content_type, size_bytes, expires_in) -> PresignedUpload`, `head(key) -> StoredObject | None`, `ping()`. Adapter `adapters/s3_storage.py` with boto3 (SigV4, path-style, 10 s connect/read timeouts). Fake in `tests/fakes.py`. The database engine is built in `container.py` with `lock_timeout = 5s` and `statement_timeout = 15s` so the `FOR UPDATE` path cannot hang (KILN-2 review).
 - **Service** `services/assets.py` (`AssetService`): `create`, `add_version`, `complete_upload`, `get`, `list` — the only place that combines repository, storage and clock.
 - **Routes** `routes/assets.py`, schemas in `schemas/assets.py` (pydantic, boundary only); composition in `container.py` with FastAPI dependencies so tests swap fakes.
 - **New error codes**: `UPLOAD_NOT_FOUND`, `UPLOAD_MISMATCH` (409), `STORAGE_UNAVAILABLE` (503).

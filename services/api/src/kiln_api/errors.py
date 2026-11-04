@@ -7,7 +7,7 @@ from kiln_api.constants import (
     ASSET_NAME_MAX_LENGTH,
     FILE_NAME_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
-    MEDIA_TYPE_KINDS,
+    MEDIA_TYPES,
 )
 from kiln_api.enums import ErrorCode, VersionStatus
 
@@ -88,7 +88,7 @@ class UnsupportedMediaTypeError(DomainError):
 
     status = HTTPStatus.UNPROCESSABLE_ENTITY
     code = ErrorCode.UNSUPPORTED_MEDIA_TYPE
-    default_detail = f"Supported types: {', '.join(sorted(MEDIA_TYPE_KINDS))}."
+    default_detail = f"Supported types: {', '.join(sorted(MEDIA_TYPES))}."
 
 
 class AssetKindMismatchError(DomainError):

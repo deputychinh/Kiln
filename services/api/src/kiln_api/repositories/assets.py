@@ -6,7 +6,12 @@ from uuid import UUID
 
 from sqlalchemy import Engine, Row, func, insert, select, tuple_, update
 
-from kiln_api.constants import ALLOWED_TRANSITIONS, PAGE_LIMIT_MAX, PAGE_LIMIT_MIN
+from kiln_api.constants import (
+    ALLOWED_TRANSITIONS,
+    MAX_VERSIONS_PER_READ,
+    PAGE_LIMIT_MAX,
+    PAGE_LIMIT_MIN,
+)
 from kiln_api.db.schema import asset_versions, assets
 from kiln_api.domain.assets import Asset, AssetVersion
 from kiln_api.domain.cursor import decode_cursor, encode_cursor
@@ -120,7 +125,9 @@ class SqlAssetRepository:
             version = build(_asset(row), int(last) + 1)
             connection.execute(insert(asset_versions).values(**_version_values(version)))
             connection.execute(
-                update(assets).where(assets.c.id == asset_id).values(updated_at=version.created_at)
+                update(assets)
+                .where(assets.c.id == asset_id)
+                .values(updated_at=func.greatest(assets.c.updated_at, version.created_at))
             )
         return version
 
@@ -135,12 +142,13 @@ class SqlAssetRepository:
         return _version(row)
 
     def versions_of(self, asset_id: UUID) -> list[AssetVersion]:
-        """Return the versions of `asset_id` in number order."""
+        """Return the versions of `asset_id` in number order, at most `MAX_VERSIONS_PER_READ`."""
         with self._engine.connect() as connection:
             rows = connection.execute(
                 select(asset_versions)
                 .where(asset_versions.c.asset_id == asset_id)
                 .order_by(asset_versions.c.number)
+                .limit(MAX_VERSIONS_PER_READ)
             ).all()
         return [_version(row) for row in rows]
 

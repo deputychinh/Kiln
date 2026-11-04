@@ -26,7 +26,8 @@ def decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     if len(cursor) > _MAX_CURSOR_LENGTH:
         raise InvalidCursorError
     try:
-        raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode()
+        padded = cursor + "=" * (-len(cursor) % 4)
+        raw = base64.b64decode(padded, altchars=b"-_", validate=True).decode()
         created_text, id_text = raw.split(_SEPARATOR)
         created_at = datetime.fromisoformat(created_text)
         item_id = UUID(id_text)

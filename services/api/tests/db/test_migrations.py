@@ -2,7 +2,7 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import Engine, create_engine, inspect, make_url, text
 
 from kiln_api.db.schema import metadata
 
@@ -46,3 +46,43 @@ def test_constraints_keep_the_names_from_the_naming_convention(database_url: str
         "ck_asset_versions_size_range",
     }
     assert "ix_assets_created_at_id" in indexes
+
+
+_DEFINITIONS = text(
+    """
+    SELECT rel.relname || '.' || con.conname AS name, pg_get_constraintdef(con.oid) AS definition
+    FROM pg_constraint con JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace ns ON ns.oid = rel.relnamespace
+    WHERE ns.nspname = 'public' AND rel.relname <> 'alembic_version'
+    UNION ALL
+    SELECT tablename || '.' || indexname, indexdef FROM pg_indexes
+    WHERE schemaname = 'public' AND tablename <> 'alembic_version'
+    """
+)
+
+
+def _definitions(engine: Engine) -> dict[str, str]:
+    with engine.connect() as connection:
+        return {row.name: row.definition for row in connection.execute(_DEFINITIONS)}
+
+
+def test_constraint_and_index_definitions_match_the_schema_module(database_url: str) -> None:
+    """Alembic does not compare CHECK texts, so compare what Postgres stores for both."""
+    url = make_url(database_url)
+    reference_name = "kiln_schema_reference_test"
+    admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with admin.connect() as connection:
+        connection.execute(text(f'DROP DATABASE IF EXISTS "{reference_name}" WITH (FORCE)'))
+        connection.execute(text(f'CREATE DATABASE "{reference_name}"'))
+    reference = create_engine(url.set(database=reference_name))
+    metadata.create_all(reference)
+    migrated = create_engine(database_url)
+
+    try:
+        assert _definitions(migrated) == _definitions(reference)
+    finally:
+        reference.dispose()
+        migrated.dispose()
+        with admin.connect() as connection:
+            connection.execute(text(f'DROP DATABASE "{reference_name}" WITH (FORCE)'))
+        admin.dispose()
