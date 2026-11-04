@@ -6,6 +6,8 @@ import pytest
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import IntegrityError
 
+from kiln_api.constants import MAX_VERSIONS_PER_READ
+from kiln_api.db.schema import asset_versions
 from kiln_api.domain.assets import (
     Asset,
     AssetVersion,
@@ -292,3 +294,30 @@ def test_a_version_with_an_older_clock_does_not_move_the_asset_backwards(engine:
     repo.add_next_version(asset.id, lambda a, n: new_version(a, n, PNG, now=earlier, new_id=uuid7))
 
     assert repo.get(asset.id).updated_at == T0
+
+
+def test_reading_versions_stops_at_the_documented_cap(engine: Engine) -> None:
+    repo = SqlAssetRepository(engine)
+    asset, first = _create(repo, "Rock", T0)
+    rows = [
+        {
+            "id": uuid7(),
+            "asset_id": asset.id,
+            "number": number,
+            "status": "pending_upload",
+            "file_name": "rock.png",
+            "content_type": "image/png",
+            "size_bytes": 1,
+            "object_key": f"{first.object_key}.{number}",
+            "created_at": T0,
+            "updated_at": T0,
+        }
+        for number in range(2, MAX_VERSIONS_PER_READ + 2)
+    ]
+    with engine.begin() as connection:
+        connection.execute(asset_versions.insert(), rows)
+
+    versions = repo.versions_of(asset.id)
+
+    assert len(versions) == MAX_VERSIONS_PER_READ
+    assert versions[-1].number == MAX_VERSIONS_PER_READ

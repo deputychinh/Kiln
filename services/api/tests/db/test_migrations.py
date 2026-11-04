@@ -1,3 +1,5 @@
+import uuid
+
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
@@ -69,7 +71,7 @@ def _definitions(engine: Engine) -> dict[str, str]:
 def test_constraint_and_index_definitions_match_the_schema_module(database_url: str) -> None:
     """Alembic does not compare CHECK texts, so compare what Postgres stores for both."""
     url = make_url(database_url)
-    reference_name = "kiln_schema_reference_test"
+    reference_name = f"kiln_schema_{uuid.uuid4().hex[:8]}_test"
     admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     with admin.connect() as connection:
         connection.execute(text(f'DROP DATABASE IF EXISTS "{reference_name}" WITH (FORCE)'))

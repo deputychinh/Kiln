@@ -52,7 +52,7 @@ class AssetRepository(Protocol):
         ...
 
     def versions_of(self, asset_id: UUID) -> list[AssetVersion]:
-        """Return an asset's versions by number."""
+        """Return an asset's versions by number, at most `MAX_VERSIONS_PER_READ` (500)."""
         ...
 
     def save_version(self, version: AssetVersion, *, expected: VersionStatus) -> None:
