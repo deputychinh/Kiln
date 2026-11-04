@@ -1,6 +1,6 @@
 # KILN-21: Idempotency-Key for creating assets and versions
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -58,22 +58,22 @@ The IETF draft says a duplicate of an in-progress request SHOULD get `409`. Kiln
 
 ## QA
 
-| AC  | Test(s)                                                                                                                                                                                                             | Result |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| AC1 | `api/test_idempotency_api.py::test_a_retried_creation_replays_the_same_asset_with_a_fresh_upload` (same ids and Location, replay header, later expiry, one asset)                                                   | pass   |
-| AC2 | `::test_a_retried_new_version_replays_the_same_number`                                                                                                                                                              | pass   |
-| AC3 | `::test_a_key_reused_with_another_body_is_rejected`, `::test_a_key_reused_on_another_endpoint_is_rejected`, `unit/test_idempotency_key.py::test_the_fingerprint_depends_on_operation_and_payload_but_not_key_order` | pass   |
-| AC4 | `::test_concurrent_duplicates_wait_and_all_get_the_same_asset` (6 threads, one asset), `::test_a_key_held_longer_than_the_lock_timeout_is_in_use` (409)                                                             | pass   |
-| AC5 | `::test_an_invalid_key_is_a_400` (6), `unit/test_idempotency_key.py` (5 valid, 12 invalid forms)                                                                                                                    | pass   |
-| AC6 | `::test_without_a_key_every_request_creates`                                                                                                                                                                        | pass   |
-| AC7 | `::test_a_failed_request_does_not_store_the_key`                                                                                                                                                                    | pass   |
-| AC8 | `::test_an_expired_key_is_treated_as_new`, `db/test_idempotency_store.py::test_purging_removes_only_keys_older_than_the_window`                                                                                     | pass   |
+| AC  | Test(s)                                                                                                                                                                                                                                                                                | Result |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| AC1 | `api/test_idempotency_api.py::test_a_retried_creation_replays_the_same_asset_with_a_fresh_upload` (same ids and Location, replay header, later expiry, one asset), `::test_a_replay_after_the_upload_was_confirmed_has_no_upload_form`                                                 | pass   |
+| AC2 | `::test_a_retried_new_version_replays_the_same_number`                                                                                                                                                                                                                                 | pass   |
+| AC3 | `::test_a_key_reused_with_another_body_is_rejected`, `::test_a_key_reused_on_another_endpoint_is_rejected`, `unit/test_idempotency_key.py::test_the_fingerprint_depends_on_operation_and_payload_but_not_key_order`, `::test_the_same_key_and_body_on_two_assets_is_a_reuse`           | pass   |
+| AC4 | `::test_concurrent_duplicates_wait_and_all_get_the_same_asset` (6 threads, one asset), `::test_a_key_held_longer_than_the_lock_timeout_is_in_use` (409)                                                                                                                                | pass   |
+| AC5 | `::test_an_invalid_key_is_a_400` (6), `unit/test_idempotency_key.py` (5 valid, 12 invalid forms), `::test_the_key_header_sent_twice_is_a_400`                                                                                                                                          | pass   |
+| AC6 | `::test_without_a_key_every_request_creates`                                                                                                                                                                                                                                           | pass   |
+| AC7 | `::test_a_failed_request_does_not_store_the_key`, `::test_the_key_and_the_asset_commit_or_roll_back_together` (crash between insert and completion: both tables empty, retry creates)                                                                                                  | pass   |
+| AC8 | `::test_an_expired_key_is_treated_as_new`, `db/test_idempotency_store.py::test_purging_removes_only_keys_older_than_the_window`, `::test_a_key_is_still_live_at_exactly_24_hours_and_expired_just_after`, `db/test_idempotency_store.py::test_purging_keeps_a_key_of_exactly_24_hours` | pass   |
 
 Guards: `unit/test_idempotency_guards.py` (a half-recorded key is never replayed; other database errors during a claim propagate; the OpenAPI schema is built once). Migration and schema drift: covered by the existing `db/test_migrations.py` (definitions compared with `schema.py`).
 
 Mutation checks (`PYTHONDONTWRITEBYTECODE=1`, code restored each time), all killed: no fingerprint comparison (2 failed), no expiry (1), never completing the key (3), never replaying (5).
 
-Counts from `pytest --collect-only`: `test_idempotency_key.py` 18, `test_idempotency_api.py` 15, `test_idempotency_store.py` 1, `test_idempotency_guards.py` 3; total suite 279.
+Counts from `pytest --collect-only`: `test_idempotency_key.py` 18, `test_idempotency_api.py` 20, `test_idempotency_store.py` 2, `test_idempotency_guards.py` 3, `test_openapi_contract.py` +1; total suite 286.
 
 Gates: `make ci` green — Python 286 passed, coverage 99 %; ruff and mypy strict clean.
 
@@ -87,4 +87,18 @@ Gates: `make ci` green — Python 286 passed, coverage 99 %; ruff and mypy stric
 
 ## Review score
 
-_Pending independent review._
+Independent reviewer (subagent, fresh for this item), round 2 at `ce64e8f`, with 12 mutants (all killed), 20-thread duplicate attacks, rollback waiters, cross-asset reuse, header and boundary probes. The final round was not run by a second fresh reviewer, to save cost; the owner was told.
+
+| #   | Criterion             | Score       | Evidence                                                                      |
+| --- | --------------------- | ----------- | ----------------------------------------------------------------------------- |
+| 1   | Requirements fit      | 1           | AC1–AC8 traced; 20 duplicates → one asset, 19 replays                         |
+| 2   | Test depth            | 1           | 12 of 12 mutants killed                                                       |
+| 3   | Reliability           | 1           | atomicity pinned; exact 24 h boundary; purge scheduled by KILN-22             |
+| 4   | Security              | 1           | keys validated; repeated headers 400; only a SHA-256 of the body stored       |
+| 5   | Maintainability       | 1           | small cohesive fix; ruff and mypy strict clean                                |
+| 6   | API ergonomics        | 1           | 400/409 and `Idempotent-Replayed` documented; `upload: null` on stale replays |
+| 7   | Accessibility         | 1           | not applicable: API only                                                      |
+| 8   | Performance           | 1           | primary-key lookups; index on `created_at`                                    |
+| 9   | Docs and traceability | 0.5 → fixed | CHANGELOG, QA table and counts were stale; fixed in the ship commit           |
+| 10  | Delivery              | 1           | 286 passed, coverage 99.8 %, pushed                                           |
+|     | **Total**             | **9.5/10**  | rounds: 8.0 → 9.5                                                             |

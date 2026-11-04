@@ -102,7 +102,8 @@ class PendingUploadOut(BaseModel):
     version: VersionOut
     upload: UploadOut | None = Field(
         description=(
-            "Signed form for the file; null on a replay once the version left pending_upload."
+            "Signed form for the file. A first creation always has one; a replay has null"
+            " once the version left pending_upload."
         )
     )
 

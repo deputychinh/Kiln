@@ -294,7 +294,7 @@ export interface components {
         PendingUploadOut: {
             asset: components["schemas"]["AssetOut"];
             version: components["schemas"]["VersionOut"];
-            /** @description Signed form for the file; null on a replay once the version left pending_upload. */
+            /** @description Signed form for the file. A first creation always has one; a replay has null once the version left pending_upload. */
             upload: components["schemas"]["UploadOut"] | null;
         };
         /**

@@ -7,7 +7,7 @@ Ids are `KILN-<n>`; once Jira is linked, the Jira key matches the id here.
 | KILN-1  | –       | Repo bootstrap, conventions, CI, walking skeleton                                                                                        | done   |
 | KILN-2  | v0.1    | `Asset` / `AssetVersion` model, first migration, repository                                                                              | done   |
 | KILN-3  | v0.1    | Upload through presigned URLs (S3) + upload completion                                                                                   | done   |
-| KILN-21 | v0.1    | `Idempotency-Key` replay for `POST /assets` (24 h, stored response)                                                                      | doing  |
+| KILN-21 | v0.1    | `Idempotency-Key` replay for `POST /assets` (24 h, stored response)                                                                      | done   |
 | KILN-4  | v0.1    | Postgres job queue (`SKIP LOCKED`, lease, backoff) + worker image thumbnails; ETag recorded at completion and verified before processing | todo   |
 | KILN-22 | v0.1    | Scheduled maintenance in the worker: purge orphaned `uploads/` staging objects and expired idempotency keys                              | todo   |
 | KILN-23 | v0.1    | Circuit breaker / bulkhead around storage calls in the API                                                                               | todo   |
