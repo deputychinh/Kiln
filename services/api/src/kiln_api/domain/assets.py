@@ -1,6 +1,7 @@
 """Assets and their versions: creation rules and the version status machine."""
 
 import re
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -24,7 +25,9 @@ from kiln_api.errors import (
     UnsupportedMediaTypeError,
 )
 
-_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
+# Control, format (bidi overrides, zero-width) and line/paragraph separators can disguise a name.
+_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+_DOT_NAMES = frozenset({".", ".."})
 _EXTENSIONS = {
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -71,16 +74,31 @@ class AssetVersion:
     updated_at: datetime
 
 
+def _has_hidden_characters(text: str) -> bool:
+    return any(unicodedata.category(char) in _FORBIDDEN_CATEGORIES for char in text)
+
+
+def _require_aware(now: datetime) -> None:
+    if now.tzinfo is None:
+        msg = "Domain timestamps must carry a timezone."
+        raise ValueError(msg)
+
+
 def _clean_name(name: str) -> str:
     cleaned = name.strip()
-    if not cleaned or len(cleaned) > ASSET_NAME_MAX_LENGTH or _CONTROL_CHARACTERS.search(cleaned):
+    if not cleaned or len(cleaned) > ASSET_NAME_MAX_LENGTH or _has_hidden_characters(cleaned):
         raise InvalidAssetNameError
     return cleaned
 
 
 def _clean_file_name(file_name: str) -> str:
     base = re.split(r"[\\/]", file_name)[-1].strip()
-    if not base or len(base) > FILE_NAME_MAX_LENGTH or _CONTROL_CHARACTERS.search(base):
+    if (
+        not base
+        or base in _DOT_NAMES
+        or len(base) > FILE_NAME_MAX_LENGTH
+        or _has_hidden_characters(base)
+    ):
         raise InvalidFileNameError
     return base
 
@@ -95,6 +113,7 @@ def _media_type(content_type: str) -> str:
 def _build_version(
     asset: Asset, number: int, spec: UploadSpec, *, now: datetime, new_id: IdFactory
 ) -> AssetVersion:
+    _require_aware(now)
     media_type = _media_type(spec.content_type)
     if MEDIA_TYPE_KINDS[media_type] is not asset.kind:
         raise AssetKindMismatchError
@@ -124,6 +143,7 @@ def new_asset(
         InvalidAssetNameError, InvalidFileNameError, InvalidFileSizeError,
         UnsupportedMediaTypeError: The input breaks a rule.
     """
+    _require_aware(now)
     asset = Asset(
         id=new_id(),
         name=_clean_name(name),
@@ -151,6 +171,7 @@ def transition(version: AssetVersion, status: VersionStatus, *, now: datetime) -
     Raises:
         InvalidStatusTransitionError: The move is not in `ALLOWED_TRANSITIONS`.
     """
+    _require_aware(now)
     if status not in ALLOWED_TRANSITIONS[version.status]:
         raise InvalidStatusTransitionError(version.status, status)
     return replace(version, status=status, updated_at=now)

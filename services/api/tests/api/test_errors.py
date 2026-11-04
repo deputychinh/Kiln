@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-from kiln_api.errors import NotFoundError, install_error_handlers
+from kiln_api.errors import NotFoundError
+from kiln_api.problems import install_error_handlers
 
 
 class _Body(BaseModel):

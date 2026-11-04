@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from kiln_api.constants import MAX_UPLOAD_BYTES
+from kiln_api.constants import ALLOWED_TRANSITIONS, MAX_UPLOAD_BYTES
 from kiln_api.domain.assets import UploadSpec, new_asset, new_version, transition
 from kiln_api.enums import AssetKind, VersionStatus
 from kiln_api.errors import (
@@ -54,7 +54,20 @@ def test_a_glb_upload_makes_a_model_asset() -> None:
     assert version.object_key.endswith(".glb")
 
 
-@pytest.mark.parametrize("name", ["", "   ", "x" * 121, "bad\nname", "tab\tname", "nul\x00"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "",
+        "   ",
+        "x" * 121,
+        "bad\nname",
+        "tab\tname",
+        "nul\x00",
+        "\u202egnp.exe",
+        "a\u200bb",
+        "a\u2028b",
+    ],
+)
 def test_invalid_asset_names_are_rejected(name: str) -> None:
     with pytest.raises(InvalidAssetNameError):
         new_asset(name, PNG, now=NOW, new_id=_ids())
@@ -116,7 +129,10 @@ def test_directories_are_stripped_from_file_names(file_name: str, stored: str) -
     assert version.file_name == stored
 
 
-@pytest.mark.parametrize("file_name", ["", "dir/", "  ", "x" * 256, "a\nb.png"])
+@pytest.mark.parametrize(
+    "file_name",
+    ["", "dir/", "  ", "x" * 256, "a\nb.png", ".", "..", "foo/..", "\u202egnp.exe", "a\u200b.png"],
+)
 def test_blank_long_or_control_character_file_names_are_rejected(file_name: str) -> None:
     spec = UploadSpec(file_name=file_name, content_type="image/png", size_bytes=1)
 
@@ -167,28 +183,41 @@ def test_allowed_status_paths(path: list[VersionStatus]) -> None:
     assert version.updated_at == later
 
 
-@pytest.mark.parametrize(
-    ("start", "target"),
-    [
-        (VersionStatus.PENDING_UPLOAD, VersionStatus.READY),
-        (VersionStatus.PENDING_UPLOAD, VersionStatus.FAILED),
-        (VersionStatus.PENDING_UPLOAD, VersionStatus.PENDING_UPLOAD),
-        (VersionStatus.PROCESSING, VersionStatus.PENDING_UPLOAD),
-        (VersionStatus.READY, VersionStatus.PROCESSING),
-        (VersionStatus.READY, VersionStatus.FAILED),
-        (VersionStatus.FAILED, VersionStatus.READY),
-    ],
-)
+_PATH_TO = {
+    VersionStatus.PENDING_UPLOAD: [],
+    VersionStatus.PROCESSING: [VersionStatus.PROCESSING],
+    VersionStatus.READY: [VersionStatus.PROCESSING, VersionStatus.READY],
+    VersionStatus.FAILED: [VersionStatus.PROCESSING, VersionStatus.FAILED],
+}
+_FORBIDDEN = [
+    (start, target)
+    for start in VersionStatus
+    for target in VersionStatus
+    if target not in ALLOWED_TRANSITIONS[start]
+]
+
+
+def test_the_transition_table_covers_all_sixteen_pairs() -> None:
+    allowed = sum(len(targets) for targets in ALLOWED_TRANSITIONS.values())
+
+    assert allowed + len(_FORBIDDEN) == len(VersionStatus) ** 2 == 16
+
+
+@pytest.mark.parametrize(("start", "target"), _FORBIDDEN)
 def test_forbidden_status_transitions_raise(start: VersionStatus, target: VersionStatus) -> None:
     _, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
-    path = {
-        VersionStatus.PENDING_UPLOAD: [],
-        VersionStatus.PROCESSING: [VersionStatus.PROCESSING],
-        VersionStatus.READY: [VersionStatus.PROCESSING, VersionStatus.READY],
-        VersionStatus.FAILED: [VersionStatus.PROCESSING, VersionStatus.FAILED],
-    }[start]
-    for status in path:
+    for status in _PATH_TO[start]:
         version = transition(version, status, now=NOW)
 
     with pytest.raises(InvalidStatusTransitionError):
         transition(version, target, now=NOW)
+
+
+def test_timestamps_without_a_timezone_are_a_programming_error() -> None:
+    naive = datetime(2026, 11, 3, 9, 0)  # noqa: DTZ001 - the point of the test
+
+    with pytest.raises(ValueError, match="timezone"):
+        new_asset("Rock", PNG, now=naive, new_id=_ids())
+    _, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
+    with pytest.raises(ValueError, match="timezone"):
+        transition(version, VersionStatus.PROCESSING, now=naive)

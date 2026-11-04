@@ -24,6 +24,8 @@ def _alembic_config(url: str) -> Config:
 def database_url() -> Iterator[str]:
     """A fresh, migrated test database; fails loudly when Postgres is not running."""
     url = make_url(os.environ.get("KILN_TEST_DATABASE_URL", DEFAULT_URL))
+    if not (url.database or "").endswith("_test"):
+        pytest.fail(f"Refusing to recreate {url.database!r}: test databases must end in _test.")
     admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     try:
         with admin.connect() as connection:

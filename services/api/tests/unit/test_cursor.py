@@ -24,7 +24,7 @@ def test_a_cursor_is_opaque_url_safe_text() -> None:
 
 @pytest.mark.parametrize(
     "cursor",
-    ["", "not base64!", "bm8tc2VwYXJhdG9y", "eHx5", "MjAyNi0xMS0wM3xub3QtYS11dWlk"],
+    ["", "not base64!", "bm8tc2VwYXJhdG9y", "eHx5", "MjAyNi0xMS0wM3xub3QtYS11dWlk", "A" * 129],
 )
 def test_a_malformed_cursor_is_rejected(cursor: str) -> None:
     with pytest.raises(InvalidCursorError):

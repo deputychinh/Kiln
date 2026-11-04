@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from kiln_api.config import Settings, get_settings
 from kiln_api.constants import API_PREFIX, API_TITLE, API_VERSION, REQUEST_ID_HEADER
-from kiln_api.errors import install_error_handlers
+from kiln_api.problems import install_error_handlers
 from kiln_api.routes import health
 
 

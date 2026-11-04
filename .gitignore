@@ -34,3 +34,7 @@ data/
 # storybook / vite / blender
 storybook-static/
 *.blend1
+
+# coverage data
+.coverage
+.coverage.*

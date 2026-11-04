@@ -16,7 +16,12 @@ from kiln_api.domain.assets import (
 )
 from kiln_api.domain.ids import uuid7
 from kiln_api.enums import VersionStatus
-from kiln_api.errors import AssetNotFoundError, AssetVersionNotFoundError, InvalidCursorError
+from kiln_api.errors import (
+    AssetNotFoundError,
+    AssetVersionNotFoundError,
+    InvalidCursorError,
+    InvalidStatusTransitionError,
+)
 from kiln_api.repositories.assets import SqlAssetRepository
 
 T0 = datetime(2026, 11, 3, 9, 0, tzinfo=UTC)
@@ -97,7 +102,7 @@ def test_a_saved_status_change_is_persisted(engine: Engine) -> None:
     _, version = _create(repo, "Rock", T0)
 
     moved = transition(version, VersionStatus.PROCESSING, now=T0 + timedelta(minutes=1))
-    repo.save_version(moved)
+    repo.save_version(moved, expected=VersionStatus.PENDING_UPLOAD)
 
     assert repo.get_version(version.id) == moved
 
@@ -107,7 +112,7 @@ def test_saving_an_unknown_version_raises_not_found(engine: Engine) -> None:
     _, version = new_asset("Rock", PNG, now=T0, new_id=uuid7)
 
     with pytest.raises(AssetVersionNotFoundError):
-        repo.save_version(version)
+        repo.save_version(version, expected=VersionStatus.PENDING_UPLOAD)
 
 
 def test_pages_are_newest_first_without_gaps_or_overlap(engine: Engine) -> None:
@@ -203,4 +208,64 @@ def test_the_database_enforces_version_invariants(engine: Engine, column: str, v
         connection.execute(
             text(f"UPDATE asset_versions SET {column} = {value} WHERE id = :id"),  # noqa: S608 - fixed test values
             {"id": version.id},
+        )
+
+
+def test_a_stale_status_change_is_rejected_instead_of_overwriting(engine: Engine) -> None:
+    repo = SqlAssetRepository(engine)
+    _, version = _create(repo, "Rock", T0)
+    processing = transition(version, VersionStatus.PROCESSING, now=T0)
+    repo.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
+    ready = transition(processing, VersionStatus.READY, now=T0)
+    failed = transition(processing, VersionStatus.FAILED, now=T0)
+
+    repo.save_version(ready, expected=VersionStatus.PROCESSING)
+    with pytest.raises(InvalidStatusTransitionError):
+        repo.save_version(failed, expected=VersionStatus.PROCESSING)
+
+    assert repo.get_version(version.id).status is VersionStatus.READY
+
+
+def test_concurrent_status_changes_let_exactly_one_writer_win(engine: Engine) -> None:
+    repo = SqlAssetRepository(engine)
+    _, version = _create(repo, "Rock", T0)
+    processing = transition(version, VersionStatus.PROCESSING, now=T0)
+    repo.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
+    outcomes: list[str] = []
+    barrier = threading.Barrier(2)
+
+    def finish(target: VersionStatus) -> None:
+        barrier.wait()
+        try:
+            repo.save_version(
+                transition(processing, target, now=T0), expected=VersionStatus.PROCESSING
+            )
+            outcomes.append("won")
+        except InvalidStatusTransitionError:
+            outcomes.append("lost")
+
+    threads = [
+        threading.Thread(target=finish, args=(status,))
+        for status in (VersionStatus.READY, VersionStatus.FAILED)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(outcomes) == ["lost", "won"]
+
+
+@pytest.mark.parametrize(
+    ("column", "value"),
+    [("name", "''"), ("name", "repeat('x', 121)"), ("kind", "'video'")],
+)
+def test_the_database_enforces_asset_invariants(engine: Engine, column: str, value: str) -> None:
+    repo = SqlAssetRepository(engine)
+    asset, _ = _create(repo, "Rock", T0)
+
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(
+            text(f"UPDATE assets SET {column} = {value} WHERE id = :id"),  # noqa: S608 - fixed test values
+            {"id": asset.id},
         )

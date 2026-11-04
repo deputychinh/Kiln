@@ -8,6 +8,7 @@ from uuid import UUID
 from kiln_api.errors import InvalidCursorError
 
 _SEPARATOR = "|"
+_MAX_CURSOR_LENGTH = 128  # an encoded cursor is about 90 characters
 
 
 def encode_cursor(created_at: datetime, item_id: UUID) -> str:
@@ -22,6 +23,8 @@ def decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     Raises:
         InvalidCursorError: The cursor was not produced by this API.
     """
+    if len(cursor) > _MAX_CURSOR_LENGTH:
+        raise InvalidCursorError
     try:
         raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode()
         created_text, id_text = raw.split(_SEPARATOR)

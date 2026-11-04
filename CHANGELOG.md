@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Added
 
+- Asset and version model (KILN-2): UUID v7 ids, name, file-name, media-type and size rules, the version life cycle, Postgres schema with database-enforced invariants, first Alembic migration, and a repository with keyset pagination, row-locked version numbering and compare-and-set status changes.
 - Local S3 storage on SeaweedFS (ADR 0003) because MinIO images are no longer published.
 - Repository bootstrap: Prettier, EditorConfig, husky + commitlint, Makefile, CI, docs (conventions, testing, ADR 0001–0002, architecture, security, design system, plan, backlog).
 - API skeleton: `/health` and `/ready`, RFC 9457 problem details with stable codes, request ids, OpenAPI export.

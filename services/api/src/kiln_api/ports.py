@@ -7,6 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from kiln_api.domain.assets import Asset, AssetVersion
+from kiln_api.enums import VersionStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +55,10 @@ class AssetRepository(Protocol):
         """Return an asset's versions by number."""
         ...
 
-    def save_version(self, version: AssetVersion) -> None:
-        """Persist a version's status change or raise `AssetVersionNotFoundError`."""
+    def save_version(self, version: AssetVersion, *, expected: VersionStatus) -> None:
+        """Persist a status change if the stored status is still `expected`.
+
+        Raises `AssetVersionNotFoundError`, or `InvalidStatusTransitionError` when another
+        writer changed the status first.
+        """
         ...

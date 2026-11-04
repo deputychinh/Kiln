@@ -2,18 +2,19 @@
 
 ## Layers
 
-| Layer                               | Where                                         | Run                                                             | Threshold                                |
-| ----------------------------------- | --------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
-| Python domain (pure logic)          | `services/*/tests/unit`                       | `uv run pytest`                                                 | total ≥ 90 %                             |
-| API (FastAPI + fakes for ports)     | `services/api/tests/api`                      | `uv run pytest`                                                 | as above                                 |
-| Worker (processors on sample files) | `services/worker/tests`                       | `uv run pytest`                                                 | as above                                 |
-| Blender core without `bpy` (v0.3)   | `dcc/blender-addon/tests`                     | `uv run pytest`                                                 | as above                                 |
-| UI components                       | `packages/ui/src/**/*.test.tsx`               | `npm test -w @kiln/ui`                                          | lines ≥ 80 %                             |
-| Web units/components                | `apps/web/src/**/*.test.ts(x)`                | `npm test -w @kiln/web`                                         | lines ≥ 80 %                             |
-| CLI                                 | `packages/cli/src/**/*.test.ts`               | `npm test -w @kiln/cli`                                         | lines ≥ 80 %                             |
-| Browser journeys                    | `apps/web/e2e` (Playwright, desktop + mobile) | `make e2e` (builds, serves with `vite preview`, starts the API) | smoke + the main journey of each feature |
-| Accessibility                       | axe in `apps/web/e2e`                         | `make e2e`                                                      | serious/critical = 0 (WCAG 2.2 AA tags)  |
-| Performance                         | Lighthouse on the production build            | manual, every release                                           | LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1     |
+| Layer                                            | Where                                                                                                         | Run                                                             | Threshold                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
+| Python domain (pure logic)                       | `services/*/tests/unit`                                                                                       | `uv run pytest`                                                 | total ≥ 90 %                             |
+| Database (repositories, migrations, constraints) | `services/api/tests/db` against Postgres (`make up`; CI service container; database name must end in `_test`) | `uv run pytest`                                                 | as above                                 |
+| API (FastAPI + fakes for ports)                  | `services/api/tests/api`                                                                                      | `uv run pytest`                                                 | as above                                 |
+| Worker (processors on sample files)              | `services/worker/tests`                                                                                       | `uv run pytest`                                                 | as above                                 |
+| Blender core without `bpy` (v0.3)                | `dcc/blender-addon/tests`                                                                                     | `uv run pytest`                                                 | as above                                 |
+| UI components                                    | `packages/ui/src/**/*.test.tsx`                                                                               | `npm test -w @kiln/ui`                                          | lines ≥ 80 %                             |
+| Web units/components                             | `apps/web/src/**/*.test.ts(x)`                                                                                | `npm test -w @kiln/web`                                         | lines ≥ 80 %                             |
+| CLI                                              | `packages/cli/src/**/*.test.ts`                                                                               | `npm test -w @kiln/cli`                                         | lines ≥ 80 %                             |
+| Browser journeys                                 | `apps/web/e2e` (Playwright, desktop + mobile)                                                                 | `make e2e` (builds, serves with `vite preview`, starts the API) | smoke + the main journey of each feature |
+| Accessibility                                    | axe in `apps/web/e2e`                                                                                         | `make e2e`                                                      | serious/critical = 0 (WCAG 2.2 AA tags)  |
+| Performance                                      | Lighthouse on the production build                                                                            | manual, every release                                           | LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1     |
 
 `make ci` = lint + typecheck + test + build, identical to `.github/workflows/ci.yml`.
 

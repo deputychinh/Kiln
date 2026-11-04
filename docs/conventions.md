@@ -7,7 +7,7 @@ Lint enforces most of these rules; the rest is checked in review.
 - **Single source of truth**: enums, constants, errors and shared interfaces are declared in exactly one place (Python: each package's `enums.py`, `constants.py`, `errors.py`; TypeScript: `src/enums/*.enum.ts`, `src/constants/*.constant.ts`, `src/interfaces/*.interface.ts`) and imported everywhere else.
 - **Dependencies point inward**: routes → services → domain; the domain never imports a framework, the database or an SDK.
 - **Python = classes + SOLID; TypeScript = arrow functions + design tokens + BEM.**
-- Errors are never swallowed; domain errors carry a stable code (`ErrorCode`) and are mapped to HTTP/UI exactly once, at the boundary (the API returns RFC 9457 problem details with a `code` field).
+- Errors are never swallowed; domain errors carry a stable code (`ErrorCode`) and are mapped to HTTP/UI exactly once, at the boundary (the API returns RFC 9457 problem details with a `code` field). `errors.py` stays framework-free; the HTTP mapping lives in `problems.py`.
 - No personal data, secrets, tokens or asset contents in logs.
 - Formatting: Prettier (100 columns, single quotes, trailing commas); Python: ruff format (100 columns).
 - Times are UTC ISO-8601; ids are UUID v7 strings (time-ordered); the JSON API uses `snake_case`, and the web app reads it through types generated from OpenAPI.
@@ -15,16 +15,16 @@ Lint enforces most of these rules; the rest is checked in review.
 
 ## Python (`services/*`, uv workspace)
 
-| Topic         | Rule                                                                                                                                                  |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API layout    | `kiln_api/{config.py, enums.py, constants.py, errors.py, domain/, ports.py, repositories/, services/, routes/, schemas/, db/, container.py, main.py}` |
-| Worker layout | `kiln_worker/{config.py, jobs/, processors/, ports.py, adapters/, __main__.py}`; share models through `kiln_api` rather than copying them             |
-| Types         | mypy `strict`; no `Any`; `frozen=True, slots=True` dataclasses for values; pydantic only at the API boundary and for AI output                        |
-| Lint          | ruff with the rule set in the root `pyproject.toml`; every `noqa` states a reason                                                                     |
-| Classes       | constructor injection, `_private` attributes, one reason to change; services receive abstract ports                                                   |
-| Tests         | `tests/unit` for the domain, `tests/api` through `TestClient` with fakes for ports; test names are sentences; coverage ≥ 90 %                         |
-| Data          | Alembic is the only way to change the schema; every migration is reversible; dropping a column or table needs an ADR                                  |
-| AI            | Claude only through ports; output parsed by pydantic; never send personal data to a model                                                             |
+| Topic         | Rule                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API layout    | `kiln_api/{config.py, enums.py, constants.py, errors.py, problems.py, domain/, ports.py, repositories/, services/, routes/, schemas/, db/, container.py, main.py}` |
+| Worker layout | `kiln_worker/{config.py, jobs/, processors/, ports.py, adapters/, __main__.py}`; share models through `kiln_api` rather than copying them                          |
+| Types         | mypy `strict`; no `Any`; `frozen=True, slots=True` dataclasses for values; pydantic only at the API boundary and for AI output                                     |
+| Lint          | ruff with the rule set in the root `pyproject.toml`; every `noqa` states a reason                                                                                  |
+| Classes       | constructor injection, `_private` attributes, one reason to change; services receive abstract ports                                                                |
+| Tests         | `tests/unit` for the domain, `tests/api` through `TestClient` with fakes for ports; test names are sentences; coverage ≥ 90 %                                      |
+| Data          | Alembic is the only way to change the schema; every migration is reversible; dropping a column or table needs an ADR                                               |
+| AI            | Claude only through ports; output parsed by pydantic; never send personal data to a model                                                                          |
 
 ## TypeScript (`apps/web`, `packages/*`)
 

@@ -11,7 +11,11 @@ from kiln_api.db.schema import asset_versions, assets
 from kiln_api.domain.assets import Asset, AssetVersion
 from kiln_api.domain.cursor import decode_cursor, encode_cursor
 from kiln_api.enums import AssetKind, VersionStatus
-from kiln_api.errors import AssetNotFoundError, AssetVersionNotFoundError
+from kiln_api.errors import (
+    AssetNotFoundError,
+    AssetVersionNotFoundError,
+    InvalidStatusTransitionError,
+)
 from kiln_api.ports import Page
 
 
@@ -140,13 +144,19 @@ class SqlAssetRepository:
             ).all()
         return [_version(row) for row in rows]
 
-    def save_version(self, version: AssetVersion) -> None:
-        """Write the version's status and timestamp."""
+    def save_version(self, version: AssetVersion, *, expected: VersionStatus) -> None:
+        """Write the new status only if the stored one is still `expected` (compare-and-set)."""
         with self._engine.begin() as connection:
             result = connection.execute(
                 update(asset_versions)
-                .where(asset_versions.c.id == version.id)
+                .where(asset_versions.c.id == version.id, asset_versions.c.status == expected.value)
                 .values(status=version.status.value, updated_at=version.updated_at)
             )
-        if result.rowcount == 0:
+            if result.rowcount == 1:
+                return
+            current = connection.execute(
+                select(asset_versions.c.status).where(asset_versions.c.id == version.id)
+            ).scalar_one_or_none()
+        if current is None:
             raise AssetVersionNotFoundError(version.id)
+        raise InvalidStatusTransitionError(VersionStatus(current), version.status)
