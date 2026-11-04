@@ -12,7 +12,7 @@ from kiln_api.config import Settings, get_settings
 from kiln_api.constants import API_PREFIX, API_TITLE, API_VERSION, REQUEST_ID_HEADER
 from kiln_api.container import Container, build_container
 from kiln_api.errors import StorageUnavailableError
-from kiln_api.problems import install_error_handlers
+from kiln_api.problems import BodySizeLimit, install_error_handlers, unexpected_problem
 from kiln_api.routes import assets, health
 
 logger = logging.getLogger("kiln_api")
@@ -33,6 +33,24 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         app.state.container.engine.dispose()
 
     app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
+    # Starlette runs the last-added middleware first. Order from the outside in: CORS, request id
+    # (with the one catch-all for unexpected errors), body limit; so 413 and 500 problems still
+    # carry CORS headers and X-Request-Id.
+    app.add_middleware(BodySizeLimit)
+
+    @app.middleware("http")
+    async def request_id(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        value = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
+        request.state.request_id = value
+        try:
+            response = await call_next(request)
+        except Exception as error:
+            response = unexpected_problem(request, error)
+        response.headers[REQUEST_ID_HEADER] = value
+        return response
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved.cors_origins,
@@ -40,16 +58,6 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         allow_headers=["Content-Type", REQUEST_ID_HEADER],
         expose_headers=["Location", REQUEST_ID_HEADER],
     )
-
-    @app.middleware("http")
-    async def request_id(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        value = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
-        response = await call_next(request)
-        response.headers[REQUEST_ID_HEADER] = value
-        return response
-
     install_error_handlers(app)
     app.include_router(health.router)
     app.include_router(health.router, prefix=API_PREFIX)

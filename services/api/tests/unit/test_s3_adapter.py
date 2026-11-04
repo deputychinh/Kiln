@@ -63,6 +63,24 @@ def test_a_failed_bucket_creation_is_reported_as_unavailable(
         storage.ensure_bucket()
 
 
+def test_promotion_copies_only_if_the_source_etag_still_matches(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_response(
+        "copy_object",
+        {},
+        {
+            "Bucket": "kiln-assets",
+            "Key": "assets/a",
+            "CopySource": {"Bucket": "kiln-assets", "Key": "uploads/a"},
+            "CopySourceIfMatch": '"checked-etag"',
+        },
+    )
+
+    assert storage.promote(source_key="uploads/a", target_key="assets/a", etag='"checked-etag"')
+
+
 def test_a_changed_source_makes_promotion_return_false(
     stubbed: tuple[S3ObjectStorage, Stubber],
 ) -> None:

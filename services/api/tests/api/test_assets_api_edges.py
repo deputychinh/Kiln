@@ -1,5 +1,6 @@
 """Boundary behaviour of the asset API: malformed input, limits, failures (KILN-3 review)."""
 
+import logging
 import threading
 from collections.abc import Iterator
 from typing import Any
@@ -222,18 +223,73 @@ def test_an_unexpected_error_is_a_500_problem_without_internals(
     assert "secret" not in response.text
 
 
+def _final_key(engine: Engine, version_id: str) -> str:
+    with engine.connect() as connection:
+        key: str = connection.execute(
+            text("SELECT object_key FROM asset_versions WHERE id = :id"), {"id": version_id}
+        ).scalar_one()
+    return key
+
+
+def test_a_resumed_completion_still_checks_the_final_file(
+    client: TestClient, storage: FakeStorage, engine: Engine
+) -> None:
+    created = _create(client)
+    version_id = created["version"]["id"]
+    storage.put(_final_key(engine, version_id), 9, "image/png")
+
+    response = client.post(f"/api/v1/asset-versions/{version_id}/completions")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "UPLOAD_MISMATCH"
+
+
 def test_a_completion_resumes_when_only_the_final_file_remains(
     client: TestClient, storage: FakeStorage, engine: Engine
 ) -> None:
     created = _create(client)
     version_id = created["version"]["id"]
-    with engine.connect() as connection:
-        final_key = connection.execute(
-            text("SELECT object_key FROM asset_versions WHERE id = :id"), {"id": version_id}
-        ).scalar_one()
-    storage.put(final_key, 2048, "image/png")  # promoted and staging deleted, status not saved
+    storage.put(
+        _final_key(engine, version_id), 2048, "image/png"
+    )  # promoted and staging deleted, status not saved
 
     response = client.post(f"/api/v1/asset-versions/{version_id}/completions")
 
     assert response.status_code == 200
     assert response.json()["status"] == "processing"
+
+
+ORIGIN = {"Origin": "http://127.0.0.1:5173", "X-Request-Id": "req-42"}
+
+
+def test_a_413_keeps_cors_and_the_request_id(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/assets",
+        content=b"x" * (1024 * 1024 + 1),
+        headers={**ORIGIN, "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 413
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert response.headers["X-Request-Id"] == "req-42"
+
+
+def test_a_500_keeps_cors_and_the_request_id_and_logs_it(
+    client: TestClient, storage: FakeStorage, caplog: pytest.LogCaptureFixture
+) -> None:
+    created = _create(client)
+
+    def explode() -> None:
+        message = "boom"
+        raise RuntimeError(message)
+
+    storage.on_head = explode
+    with caplog.at_level(logging.ERROR, logger="kiln_api"):
+        response = client.post(
+            f"/api/v1/asset-versions/{created['version']['id']}/completions", headers=ORIGIN
+        )
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert response.headers["X-Request-Id"] == "req-42"
+    assert "request req-42" in caplog.text

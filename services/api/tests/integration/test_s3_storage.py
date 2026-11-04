@@ -161,3 +161,25 @@ def test_reusing_a_signed_form_after_completion_cannot_change_the_file(
     assert replay.status_code in {200, 201, 204}  # the staging key accepts it ...
     assert content == b"GOOD"  # ... but the final file never changes
     assert detail["versions"][0]["status"] == "processing"
+
+
+def test_promotion_with_a_stale_etag_is_refused_by_the_real_server(settings: Settings) -> None:
+    storage = build_storage(settings)
+    storage.ensure_bucket()
+    staging, final = f"uploads/{uuid.uuid4()}", f"assets/{uuid.uuid4()}.png"
+    first = storage.presign_upload(
+        key=staging, content_type="image/png", size_bytes=4, ttl_seconds=60
+    )
+    httpx2.post(first.url, data=first.fields, files={"file": ("a.png", b"GOOD", "image/png")})
+    checked = storage.head(staging)
+    assert checked is not None
+    second = storage.presign_upload(
+        key=staging, content_type="image/png", size_bytes=4, ttl_seconds=60
+    )
+    httpx2.post(second.url, data=second.fields, files={"file": ("a.png", b"EVIL", "image/png")})
+
+    promoted = storage.promote(source_key=staging, target_key=final, etag=checked.etag)
+
+    assert promoted is False
+    assert storage.head(final) is None
+    storage.delete(staging)

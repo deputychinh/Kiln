@@ -26,7 +26,7 @@ INVEST: Independent ☑ (builds on KILN-2 only) · Negotiable ☑ · Valuable �
 ## Non-functional
 
 - Security (A01, A05, A06, A10): object keys come only from the server; the POST policy limits key, type and size; URLs expire after 15 minutes; completion re-checks size and type with `HEAD` (defence in depth if a storage server ignores a policy condition); JSON bodies limited to 1 MB by validation of field lengths.
-- Reliability: storage calls have a 10 s timeout and surface `STORAGE_UNAVAILABLE` (`503`) instead of hanging; completion is idempotent.
+- Reliability: storage calls are bounded (3 s connect, 10 s read, 2 attempts in total) and surface `STORAGE_UNAVAILABLE` (`503`) instead of hanging; completion is idempotent.
 - API (Zalando, RFC 9457): plural kebab-case resources, `201 + Location`, actions as sub-resources (`/completions`), `snake_case` JSON, problem details for every error, OpenAPI regenerated and web types updated.
 - Performance: the API never proxies file bytes.
 
@@ -43,7 +43,7 @@ INVEST: Independent ☑ (builds on KILN-2 only) · Negotiable ☑ · Valuable �
 
 ## Design
 
-- **Port** `ObjectStorage` (`ports.py`): `ensure_bucket()`, `presign_upload(key, content_type, size_bytes, expires_in) -> PresignedUpload`, `head(key) -> StoredObject | None`, `ping()`. Adapter `adapters/s3_storage.py` with boto3 (SigV4, path-style, 10 s connect/read timeouts). Fake in `tests/fakes.py`. The database engine is built in `container.py` with `lock_timeout = 5s` and `statement_timeout = 15s` so the `FOR UPDATE` path cannot hang (KILN-2 review).
+- **Port** `ObjectStorage` (`ports.py`): `ensure_bucket()`, `presign_upload(key, content_type, size_bytes, ttl_seconds) -> SignedPost`, `promote(source_key, target_key, etag)`, `delete(key)`, `head(key) -> StoredObject | None`, `ping()`. Adapter `adapters/s3_storage.py` with boto3 (SigV4, path-style, 10 s connect/read timeouts). Fake in `tests/fakes.py`. The database engine is built in `container.py` with `lock_timeout = 5s` and `statement_timeout = 15s` so the `FOR UPDATE` path cannot hang (KILN-2 review).
 - **Service** `services/assets.py` (`AssetService`): `create`, `add_version`, `complete_upload`, `get`, `list` — the only place that combines repository, storage and clock.
 - **Routes** `routes/assets.py`, schemas in `schemas/assets.py` (pydantic, boundary only); composition in `container.py` with FastAPI dependencies so tests swap fakes.
 - **New error codes**: `UPLOAD_NOT_FOUND`, `UPLOAD_MISMATCH` (409), `STORAGE_UNAVAILABLE` (503).
@@ -55,7 +55,7 @@ Probed SeaweedFS 4.48 with a boto3 presigned POST: exact size → `204`; one byt
 
 ### Design as built
 
-- `adapters.py` (`S3ObjectStorage`, boto3), `services/assets.py` (`AssetService`), `schemas/assets.py`, `routes/assets.py`, `container.py` (engine with `lock_timeout` 5 s and `statement_timeout` 15 s, `pool_pre_ping`; S3 client with 10 s timeouts and 2 attempts), app lifespan creates the bucket and only warns if storage is down.
+- `adapters.py` (`S3ObjectStorage`, boto3), `services/assets.py` (`AssetService`), `schemas/assets.py`, `routes/assets.py`, `container.py` (engine with `lock_timeout` 5 s and `statement_timeout` 15 s, `pool_pre_ping`; S3 client with 3 s connect and 10 s read timeouts and 2 attempts in total), app lifespan creates the bucket and only warns if storage is down.
 - The port signs with a TTL (`SignedPost`); the service owns `expires_at` through the `Clock`.
 - `GET /api/v1/asset-versions/{id}` was added so the `Location` of a new version resolves.
 - CORS allows `GET`/`POST` only and exposes `Location` and `X-Request-Id`.
@@ -86,11 +86,17 @@ Probed SeaweedFS 4.48 with a boto3 presigned POST: exact size → `204`; one byt
 
 Contract: `unit/test_openapi_contract.py` keeps `openapi.json` equal to the app; web types regenerated with `make openapi`.
 
-Mutation checks (all killed, code restored): no size/type comparison on completion; no `content-length-range` in the policy; `ExpiresIn` of 7 days; no database `connect_args` timeouts. Exploratory: form reuse after completion against the real server, swap between check and copy, interrupted completion, held row lock, chunked oversized body, boolean size, out-of-range limit, malformed ids on every route.
+Mutation checks (code restored each time). Round 1, all killed: no size/type comparison on completion; no `content-length-range` in the policy; `ExpiresIn` of 7 days; no database `connect_args` timeouts. Exploratory: form reuse after completion against the real server, swap between check and copy, interrupted completion, held row lock, chunked oversized body, boolean size, out-of-range limit, malformed ids on every route.
+
+Round 2 (reviewer): 15 of 17 mutants killed; the two survivors — dropping `CopySourceIfMatch` from the promotion, and skipping the size/type re-check on the resume path — are now killed by `unit/test_s3_adapter.py::test_promotion_copies_only_if_the_source_etag_still_matches`, `integration/…::test_promotion_with_a_stale_etag_is_refused_by_the_real_server` and `edges::test_a_resumed_completion_still_checks_the_final_file`.
+
+Round 2 also moved the 1 MB body limit inside CORS and the request-id middleware and handles unexpected errors there, so `413` and `500` problems keep `Access-Control-Allow-Origin` and `X-Request-Id` and the log line names the request (`edges::test_a_413_keeps_cors_and_the_request_id`, `::test_a_500_keeps_cors_and_the_request_id_and_logs_it`).
+
+Deferred to KILN-4 (worker), recorded there: a narrow race where a second, concurrent completion could copy bytes re-posted to staging after the first one finished (the worker will verify the ETag recorded at completion before processing), and purging orphaned staging objects under `uploads/`.
 
 Defects found in QA and fixed: a bucket per integration test exhausted SeaweedFS volumes; chunked oversized bodies came back as `400` until the middleware buffered and counted them.
 
-Gates: `make ci` green — Python 223 passed, coverage 99 %; ruff and mypy strict clean; web e2e on the production build.
+Gates: `make ci` green — Python 228 passed, coverage 99 %; ruff and mypy strict clean; web e2e on the production build.
 
 ## Review score
 

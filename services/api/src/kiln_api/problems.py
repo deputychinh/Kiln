@@ -14,7 +14,6 @@ from kiln_api.constants import (
     DB_BUSY_SQLSTATES,
     MAX_JSON_BODY_BYTES,
     PROBLEM_JSON,
-    REQUEST_ID_HEADER,
     RETRY_AFTER_SECONDS,
 )
 from kiln_api.enums import ErrorCode
@@ -96,11 +95,16 @@ async def _database_handler(request: Request, exc: Exception) -> JSONResponse:
     return _problem(request, unavailable.status, unavailable.code, unavailable.detail)
 
 
-async def _unexpected_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception(
+def unexpected_problem(request: Request, exc: Exception) -> JSONResponse:
+    """Log an unforeseen error with the request id and answer 500 without internals.
+
+    Called from the request-id middleware so the response still passes through CORS and
+    carries `X-Request-Id`, which a handler run by Starlette's outermost middleware would not.
+    """
+    logger.error(
         "unexpected error on %s (request %s)",
         request.url.path,
-        request.headers.get(REQUEST_ID_HEADER, "-"),
+        getattr(request.state, "request_id", "-"),
         exc_info=exc,
     )
     return _problem(
@@ -180,5 +184,3 @@ def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, _http_handler)
     app.add_exception_handler(RequestValidationError, _validation_handler)
     app.add_exception_handler(SQLAlchemyError, _database_handler)
-    app.add_exception_handler(Exception, _unexpected_handler)
-    app.add_middleware(BodySizeLimit)
