@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import Engine, Row, func, insert, select, tuple_, update
 
-from kiln_api.constants import PAGE_LIMIT_MAX, PAGE_LIMIT_MIN
+from kiln_api.constants import ALLOWED_TRANSITIONS, PAGE_LIMIT_MAX, PAGE_LIMIT_MIN
 from kiln_api.db.schema import asset_versions, assets
 from kiln_api.domain.assets import Asset, AssetVersion
 from kiln_api.domain.cursor import decode_cursor, encode_cursor
@@ -146,6 +146,8 @@ class SqlAssetRepository:
 
     def save_version(self, version: AssetVersion, *, expected: VersionStatus) -> None:
         """Write the new status only if the stored one is still `expected` (compare-and-set)."""
+        if version.status not in ALLOWED_TRANSITIONS[expected]:
+            raise InvalidStatusTransitionError(expected, version.status)
         with self._engine.begin() as connection:
             result = connection.execute(
                 update(asset_versions)

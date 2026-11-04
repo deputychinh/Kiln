@@ -73,6 +73,23 @@ def test_invalid_asset_names_are_rejected(name: str) -> None:
         new_asset(name, PNG, now=NOW, new_id=_ids())
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Đá tảng rêu phong",
+        "岩石テクスチャ",
+        "Pierre mousse",
+        "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645",  # Persian with ZWNJ
+        "\u0915\u094d\u200d\u0937",  # Devanagari with ZWJ
+        "Artist \U0001f469\u200d\U0001f3a8",  # emoji ZWJ sequence
+    ],
+)
+def test_names_in_any_script_are_accepted(name: str) -> None:
+    asset, _ = new_asset(name, PNG, now=NOW, new_id=_ids())
+
+    assert asset.name == name
+
+
 def test_a_name_of_exactly_120_characters_is_accepted() -> None:
     asset, _ = new_asset("x" * 120, PNG, now=NOW, new_id=_ids())
 
@@ -131,7 +148,19 @@ def test_directories_are_stripped_from_file_names(file_name: str, stored: str) -
 
 @pytest.mark.parametrize(
     "file_name",
-    ["", "dir/", "  ", "x" * 256, "a\nb.png", ".", "..", "foo/..", "\u202egnp.exe", "a\u200b.png"],
+    [
+        "",
+        "dir/",
+        "  ",
+        "x" * 256,
+        "a\nb.png",
+        ".",
+        "..",
+        "...",
+        "foo/..",
+        "\u202egnp.exe",
+        "a\u200b.png",
+    ],
 )
 def test_blank_long_or_control_character_file_names_are_rejected(file_name: str) -> None:
     spec = UploadSpec(file_name=file_name, content_type="image/png", size_bytes=1)
@@ -189,18 +218,28 @@ _PATH_TO = {
     VersionStatus.READY: [VersionStatus.PROCESSING, VersionStatus.READY],
     VersionStatus.FAILED: [VersionStatus.PROCESSING, VersionStatus.FAILED],
 }
-_FORBIDDEN = [
+# The life cycle from the story (AC3), written out so a change to the table fails a test.
+_EXPECTED_ALLOWED = {
+    (VersionStatus.PENDING_UPLOAD, VersionStatus.PROCESSING),
+    (VersionStatus.PROCESSING, VersionStatus.READY),
+    (VersionStatus.PROCESSING, VersionStatus.FAILED),
+    (VersionStatus.FAILED, VersionStatus.PROCESSING),
+}
+_FORBIDDEN = sorted(
     (start, target)
     for start in VersionStatus
     for target in VersionStatus
-    if target not in ALLOWED_TRANSITIONS[start]
-]
+    if (start, target) not in _EXPECTED_ALLOWED
+)
 
 
-def test_the_transition_table_covers_all_sixteen_pairs() -> None:
-    allowed = sum(len(targets) for targets in ALLOWED_TRANSITIONS.values())
+def test_the_transition_table_is_exactly_the_story_life_cycle() -> None:
+    table = {
+        (start, target) for start, targets in ALLOWED_TRANSITIONS.items() for target in targets
+    }
 
-    assert allowed + len(_FORBIDDEN) == len(VersionStatus) ** 2 == 16
+    assert table == _EXPECTED_ALLOWED
+    assert len(_EXPECTED_ALLOWED) + len(_FORBIDDEN) == 16
 
 
 @pytest.mark.parametrize(("start", "target"), _FORBIDDEN)

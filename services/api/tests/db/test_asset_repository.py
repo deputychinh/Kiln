@@ -110,9 +110,10 @@ def test_a_saved_status_change_is_persisted(engine: Engine) -> None:
 def test_saving_an_unknown_version_raises_not_found(engine: Engine) -> None:
     repo = SqlAssetRepository(engine)
     _, version = new_asset("Rock", PNG, now=T0, new_id=uuid7)
+    processing = transition(version, VersionStatus.PROCESSING, now=T0)
 
     with pytest.raises(AssetVersionNotFoundError):
-        repo.save_version(version, expected=VersionStatus.PENDING_UPLOAD)
+        repo.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
 
 
 def test_pages_are_newest_first_without_gaps_or_overlap(engine: Engine) -> None:
@@ -269,3 +270,15 @@ def test_the_database_enforces_asset_invariants(engine: Engine, column: str, val
             text(f"UPDATE assets SET {column} = {value} WHERE id = :id"),  # noqa: S608 - fixed test values
             {"id": asset.id},
         )
+
+
+def test_an_expected_status_that_skips_the_life_cycle_is_rejected(engine: Engine) -> None:
+    repo = SqlAssetRepository(engine)
+    _, version = _create(repo, "Rock", T0)
+    processing = transition(version, VersionStatus.PROCESSING, now=T0)
+    ready = transition(processing, VersionStatus.READY, now=T0)
+
+    with pytest.raises(InvalidStatusTransitionError):
+        repo.save_version(ready, expected=VersionStatus.PENDING_UPLOAD)
+
+    assert repo.get_version(version.id).status is VersionStatus.PENDING_UPLOAD

@@ -59,7 +59,8 @@ class InvalidAssetNameError(DomainError):
     status = HTTPStatus.UNPROCESSABLE_ENTITY
     code = ErrorCode.INVALID_ASSET_NAME
     default_detail = (
-        f"An asset name needs 1 to {ASSET_NAME_MAX_LENGTH} characters without control characters."
+        f"An asset name needs 1 to {ASSET_NAME_MAX_LENGTH} characters,"
+        " without hidden or control characters."
     )
 
 
@@ -69,7 +70,8 @@ class InvalidFileNameError(DomainError):
     status = HTTPStatus.UNPROCESSABLE_ENTITY
     code = ErrorCode.INVALID_FILE_NAME
     default_detail = (
-        f"A file name needs 1 to {FILE_NAME_MAX_LENGTH} characters without control characters."
+        f"A file name needs 1 to {FILE_NAME_MAX_LENGTH} characters,"
+        " without hidden or control characters, and cannot be only dots."
     )
 
 

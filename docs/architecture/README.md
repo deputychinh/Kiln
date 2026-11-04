@@ -18,7 +18,7 @@ flowchart LR
 
 ## Upload flow (v0.1)
 
-1. The client calls `POST /api/v1/assets` (with `Idempotency-Key`); the API creates `Asset` + `AssetVersion(pending_upload)` and returns a presigned POST (15-minute expiry; the policy pins the key, content type and exact size).
+1. The client calls `POST /api/v1/assets` (with `Idempotency-Key`); the API creates `Asset` + `AssetVersion(pending_upload)` and returns a presigned POST (ADR 0004: 15-minute expiry; the policy pins the key, content type and exact size).
 2. The client POSTs the file to storage as multipart form data, then calls `POST /api/v1/asset-versions/{id}/completions`.
 3. The API checks the object exists, moves the version to `processing` and writes a `thumbnail` job in the same transaction.
 4. The worker takes the job, renders the thumbnail, (v0.3) asks for AI tags, and marks the version `ready`. The web app polls or listens on SSE `/api/v1/events`.

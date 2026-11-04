@@ -25,9 +25,12 @@ from kiln_api.errors import (
     UnsupportedMediaTypeError,
 )
 
-# Control, format (bidi overrides, zero-width) and line/paragraph separators can disguise a name.
-_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
-_DOT_NAMES = frozenset({".", ".."})
+# Characters that hide or reorder text (Trojan Source, CVE-2021-42574). ZWNJ/ZWJ (U+200C/D)
+# stay allowed: Persian, Indic scripts and emoji sequences need them.
+_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+_HIDDEN_CHARACTERS = frozenset(
+    "\u00ad\u200b\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\ufeff"
+)
 _EXTENSIONS = {
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -75,7 +78,10 @@ class AssetVersion:
 
 
 def _has_hidden_characters(text: str) -> bool:
-    return any(unicodedata.category(char) in _FORBIDDEN_CATEGORIES for char in text)
+    return any(
+        char in _HIDDEN_CHARACTERS or unicodedata.category(char) in _FORBIDDEN_CATEGORIES
+        for char in text
+    )
 
 
 def _require_aware(now: datetime) -> None:
@@ -95,7 +101,7 @@ def _clean_file_name(file_name: str) -> str:
     base = re.split(r"[\\/]", file_name)[-1].strip()
     if (
         not base
-        or base in _DOT_NAMES
+        or set(base) == {"."}
         or len(base) > FILE_NAME_MAX_LENGTH
         or _has_hidden_characters(base)
     ):
