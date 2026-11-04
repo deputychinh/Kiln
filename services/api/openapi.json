@@ -11,7 +11,7 @@
           "health"
         ],
         "summary": "Health",
-        "description": "Report that the process is alive.",
+        "description": "Report that the process is alive; never touches dependencies.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -33,7 +33,7 @@
           "health"
         ],
         "summary": "Ready",
-        "description": "Report that dependencies are reachable (database and storage join in v0.1).",
+        "description": "Report that the database and storage answer (503 problem details otherwise).",
         "operationId": "ready_ready_get",
         "responses": {
           "200": {
@@ -55,7 +55,7 @@
           "health"
         ],
         "summary": "Health",
-        "description": "Report that the process is alive.",
+        "description": "Report that the process is alive; never touches dependencies.",
         "operationId": "health_api_v1_health_get",
         "responses": {
           "200": {
@@ -77,7 +77,7 @@
           "health"
         ],
         "summary": "Ready",
-        "description": "Report that dependencies are reachable (database and storage join in v0.1).",
+        "description": "Report that the database and storage answer (503 problem details otherwise).",
         "operationId": "ready_api_v1_ready_get",
         "responses": {
           "200": {
@@ -92,10 +92,461 @@
           }
         }
       }
+    },
+    "/api/v1/assets": {
+      "post": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Create Asset",
+        "description": "Create an asset with version 1 and return the signed upload form.",
+        "operationId": "create_asset_api_v1_assets_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingUploadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "List Assets",
+        "description": "List assets newest first; `limit` is clamped to 1 to 100.",
+        "operationId": "list_assets_api_v1_assets_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 24,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{asset_id}": {
+      "get": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Get Asset",
+        "description": "Return an asset with its versions.",
+        "operationId": "get_asset_api_v1_assets__asset_id__get",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{asset_id}/versions": {
+      "post": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Add Version",
+        "description": "Add the next version of an asset and return its signed upload form.",
+        "operationId": "add_version_api_v1_assets__asset_id__versions_post",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadDeclaration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingUploadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset-versions/{version_id}": {
+      "get": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Get Version",
+        "description": "Return one version.",
+        "operationId": "get_version_api_v1_asset_versions__version_id__get",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset-versions/{version_id}/completions": {
+      "post": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Complete Upload",
+        "description": "Confirm the file arrived intact and start processing; safe to repeat.",
+        "operationId": "complete_upload_api_v1_asset_versions__version_id__completions_post",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AssetDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssetKind"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "created_at",
+          "updated_at",
+          "versions"
+        ],
+        "title": "AssetDetailOut",
+        "description": "An asset with its versions by number."
+      },
+      "AssetKind": {
+        "type": "string",
+        "enum": [
+          "image",
+          "model"
+        ],
+        "title": "AssetKind",
+        "description": "What an asset holds; decides how it is previewed."
+      },
+      "AssetOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssetKind"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AssetOut",
+        "description": "An asset."
+      },
+      "AssetPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssetOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "AssetPageOut",
+        "description": "A newest-first page; pass `next_cursor` back to get the next one."
+      },
+      "CreateAssetRequest": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "File Name"
+          },
+          "content_type": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file_name",
+          "content_type",
+          "size_bytes",
+          "name"
+        ],
+        "title": "CreateAssetRequest",
+        "description": "A new asset and its first file."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -121,6 +572,190 @@
         ],
         "title": "HealthStatus",
         "description": "Result of a health or readiness probe."
+      },
+      "PendingUploadOut": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetOut"
+          },
+          "version": {
+            "$ref": "#/components/schemas/VersionOut"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset",
+          "version",
+          "upload"
+        ],
+        "title": "PendingUploadOut",
+        "description": "A created asset or version waiting for its file."
+      },
+      "UploadDeclaration": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "File Name"
+          },
+          "content_type": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file_name",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "UploadDeclaration",
+        "description": "What the client is about to upload."
+      },
+      "UploadOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "fields",
+          "expires_at"
+        ],
+        "title": "UploadOut",
+        "description": "POST the file as multipart form data: every field, then `file`, to `url`."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VersionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "asset_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Asset Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VersionStatus"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "asset_id",
+          "number",
+          "status",
+          "file_name",
+          "content_type",
+          "size_bytes",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VersionOut",
+        "description": "One version; the storage key stays internal."
+      },
+      "VersionStatus": {
+        "type": "string",
+        "enum": [
+          "pending_upload",
+          "processing",
+          "ready",
+          "failed"
+        ],
+        "title": "VersionStatus",
+        "description": "Life cycle of one uploaded version."
       }
     }
   }

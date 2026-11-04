@@ -1,3 +1,4 @@
+from fakes import FakeStorage
 from fastapi.testclient import TestClient
 
 
@@ -8,11 +9,26 @@ def test_health_reports_ok_with_the_version(client: TestClient) -> None:
     assert response.json() == {"status": "ok", "version": "0.0.0"}
 
 
-def test_ready_is_also_served_under_the_versioned_prefix(client: TestClient) -> None:
+def test_ready_checks_database_and_storage_and_creates_the_bucket(
+    client: TestClient, storage: FakeStorage
+) -> None:
     response = client.get("/api/v1/ready")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert storage.bucket_ready
+
+
+def test_a_storage_outage_makes_ready_fail_while_health_stays_up(
+    client: TestClient, storage: FakeStorage
+) -> None:
+    storage.available = False
+
+    ready = client.get("/ready")
+    health = client.get("/health")
+
+    assert ready.status_code == 503
+    assert ready.json()["code"] == "STORAGE_UNAVAILABLE"
+    assert health.status_code == 200
 
 
 def test_request_id_is_echoed_when_the_client_sends_one(client: TestClient) -> None:

@@ -18,6 +18,40 @@ class Page[T]:
     next_cursor: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class SignedPost:
+    """Where and how a client posts one file: form `fields` plus the file, to `url`."""
+
+    url: str
+    fields: dict[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class StoredObject:
+    """What storage reports about an uploaded object."""
+
+    size_bytes: int
+    content_type: str
+
+
+class ObjectStorage(Protocol):
+    """S3-compatible object storage; every failure surfaces as `StorageUnavailableError`."""
+
+    def ensure_bucket(self) -> None:
+        """Create the bucket if it is missing; doubles as the readiness probe."""
+        ...
+
+    def presign_upload(
+        self, *, key: str, content_type: str, size_bytes: int, ttl_seconds: int
+    ) -> SignedPost:
+        """Sign a POST policy pinning the key, the content type and the exact size."""
+        ...
+
+    def head(self, key: str) -> StoredObject | None:
+        """Describe the object at `key`, or return None when it does not exist."""
+        ...
+
+
 class Clock(Protocol):
     """Source of the current time (UTC)."""
 

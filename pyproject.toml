@@ -16,6 +16,7 @@ kiln-worker = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "boto3-stubs[s3]>=1.43.123",
     "httpx2>=2.16.0",
     "kiln-api",
     "kiln-worker",
@@ -44,7 +45,7 @@ max-complexity = 8
 known-first-party = ["kiln_api", "kiln_worker"]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "D", "ANN", "PLR2004", "TRY003"]
+"**/tests/**" = ["S101", "S106", "D", "ANN", "PLR2004", "TRY003"]
 
 [tool.mypy]
 strict = true
@@ -52,9 +53,10 @@ python_version = "3.12"
 files = ["services/api/src", "services/api/tests", "services/api/migrations", "services/worker/src", "services/worker/tests"]
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
-mypy_path = ["services/api/src", "services/worker/src"]
+mypy_path = ["services/api/src", "services/worker/src", "services/api/tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["services/api/tests", "services/worker/tests"]
+pythonpath = ["services/api/tests"]
 addopts = "--import-mode=importlib --strict-markers --cov=kiln_api --cov=kiln_worker --cov-report=term-missing --cov-fail-under=90"
 filterwarnings = ["error"]

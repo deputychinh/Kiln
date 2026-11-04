@@ -115,3 +115,35 @@ class InvalidCursorError(DomainError):
 
     code = ErrorCode.INVALID_CURSOR
     default_detail = "The cursor is not valid; start again without one."
+
+
+class UploadNotFoundError(DomainError):
+    """Completion was requested but storage has no object for the version."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.UPLOAD_NOT_FOUND
+    default_detail = "No file has been uploaded for this version yet."
+
+
+class UploadMismatchError(DomainError):
+    """The stored object differs from what was declared."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.UPLOAD_MISMATCH
+    default_detail = "The uploaded file does not match the declared size or content type."
+
+
+class StorageUnavailableError(DomainError):
+    """Object storage did not answer in time or failed."""
+
+    status = HTTPStatus.SERVICE_UNAVAILABLE
+    code = ErrorCode.STORAGE_UNAVAILABLE
+    default_detail = "File storage is unavailable; try again shortly."
+
+
+class DatabaseUnavailableError(DomainError):
+    """The database did not answer."""
+
+    status = HTTPStatus.SERVICE_UNAVAILABLE
+    code = ErrorCode.DATABASE_UNAVAILABLE
+    default_detail = "The database is unavailable; try again shortly."

@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Health
-         * @description Report that the process is alive.
+         * @description Report that the process is alive; never touches dependencies.
          */
         get: operations["health_health_get"];
         put?: never;
@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Ready
-         * @description Report that dependencies are reachable (database and storage join in v0.1).
+         * @description Report that the database and storage answer (503 problem details otherwise).
          */
         get: operations["ready_ready_get"];
         put?: never;
@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Health
-         * @description Report that the process is alive.
+         * @description Report that the process is alive; never touches dependencies.
          */
         get: operations["health_api_v1_health_get"];
         put?: never;
@@ -73,7 +73,7 @@ export interface paths {
         };
         /**
          * Ready
-         * @description Report that dependencies are reachable (database and storage join in v0.1).
+         * @description Report that the database and storage answer (503 problem details otherwise).
          */
         get: operations["ready_api_v1_ready_get"];
         put?: never;
@@ -84,10 +84,199 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Assets
+         * @description List assets newest first; `limit` is clamped to 1 to 100.
+         */
+        get: operations["list_assets_api_v1_assets_get"];
+        put?: never;
+        /**
+         * Create Asset
+         * @description Create an asset with version 1 and return the signed upload form.
+         */
+        post: operations["create_asset_api_v1_assets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Asset
+         * @description Return an asset with its versions.
+         */
+        get: operations["get_asset_api_v1_assets__asset_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/{asset_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Version
+         * @description Add the next version of an asset and return its signed upload form.
+         */
+        post: operations["add_version_api_v1_assets__asset_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Version
+         * @description Return one version.
+         */
+        get: operations["get_version_api_v1_asset_versions__version_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-versions/{version_id}/completions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Upload
+         * @description Confirm the file arrived intact and start processing; safe to repeat.
+         */
+        post: operations["complete_upload_api_v1_asset_versions__version_id__completions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AssetDetailOut
+         * @description An asset with its versions by number.
+         */
+        AssetDetailOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            kind: components["schemas"]["AssetKind"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Versions */
+            versions: components["schemas"]["VersionOut"][];
+        };
+        /**
+         * AssetKind
+         * @description What an asset holds; decides how it is previewed.
+         * @enum {string}
+         */
+        AssetKind: "image" | "model";
+        /**
+         * AssetOut
+         * @description An asset.
+         */
+        AssetOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            kind: components["schemas"]["AssetKind"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * AssetPageOut
+         * @description A newest-first page; pass `next_cursor` back to get the next one.
+         */
+        AssetPageOut: {
+            /** Items */
+            items: components["schemas"]["AssetOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /**
+         * CreateAssetRequest
+         * @description A new asset and its first file.
+         */
+        CreateAssetRequest: {
+            /** File Name */
+            file_name: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Name */
+            name: string;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /**
          * HealthResponse
          * @description Probe result.
@@ -103,6 +292,98 @@ export interface components {
          * @enum {string}
          */
         HealthStatus: "ok";
+        /**
+         * PendingUploadOut
+         * @description A created asset or version waiting for its file.
+         */
+        PendingUploadOut: {
+            asset: components["schemas"]["AssetOut"];
+            version: components["schemas"]["VersionOut"];
+            upload: components["schemas"]["UploadOut"];
+        };
+        /**
+         * UploadDeclaration
+         * @description What the client is about to upload.
+         */
+        UploadDeclaration: {
+            /** File Name */
+            file_name: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /**
+         * UploadOut
+         * @description POST the file as multipart form data: every field, then `file`, to `url`.
+         */
+        UploadOut: {
+            /** Url */
+            url: string;
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
+        /**
+         * VersionOut
+         * @description One version; the storage key stays internal.
+         */
+        VersionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id: string;
+            /** Number */
+            number: number;
+            status: components["schemas"]["VersionStatus"];
+            /** File Name */
+            file_name: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * VersionStatus
+         * @description Life cycle of one uploaded version.
+         * @enum {string}
+         */
+        VersionStatus: "pending_upload" | "processing" | "ready" | "failed";
     };
     responses: never;
     parameters: never;
@@ -188,6 +469,199 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_assets_api_v1_assets_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_asset_api_v1_assets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAssetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingUploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_asset_api_v1_assets__asset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_version_api_v1_assets__asset_id__versions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadDeclaration"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingUploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_version_api_v1_asset_versions__version_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_upload_api_v1_asset_versions__version_id__completions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
