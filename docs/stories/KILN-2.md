@@ -1,6 +1,6 @@
 # KILN-2: Asset and version model, first migration, repository
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -33,6 +33,8 @@ INVEST: Independent ☑ (no UI, no storage yet) · Negotiable ☑ · Valuable �
 
 ## Out of scope
 
+- Names made only of private-use characters (Unicode Co, e.g. a studio icon-font glyph) are rejected by the visible-character rule; accepted trade-off.
+
 - HTTP endpoints, presigned URLs and storage (KILN-3), jobs (KILN-4), users and ownership (KILN-12), deleting assets.
 
 ## References
@@ -64,7 +66,7 @@ INVEST: Independent ☑ (no UI, no storage yet) · Negotiable ☑ · Valuable �
 | AC5  | `::test_unsupported_media_types_are_rejected` (4), `::test_media_types_are_matched_case_insensitively_with_parameters_ignored`                                                                                                                                                                                                                                                                                                                                                                                                                                                               | pass   |
 | AC6  | `::test_sizes_outside_one_byte_to_500_mb_are_rejected` (0, −1, max+1), `::test_the_size_boundaries_are_accepted` (1, max)                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | pass   |
 | AC7  | `db/…::test_pages_are_newest_first_without_gaps_or_overlap` (25 / 10), `::test_assets_created_in_the_same_instant_are_still_paged_exactly_once`, `::test_an_exactly_full_last_page_has_no_next_cursor`, `::test_an_empty_database_gives_an_empty_page`, `::test_the_page_limit_is_clamped` (0, −5, 500), `unit/test_cursor.py` (13 collected, incl. a 129-character cursor, a timezone-less one and valid cursors with junk around them)                                                                                                                                                     | pass   |
-| AC8  | `db/…::test_reading_an_unknown_asset_raises_not_found`, `::test_reading_an_unknown_version_raises_not_found`, `::test_adding_a_version_to_an_unknown_asset_raises_not_found`, `::test_saving_an_unknown_version_raises_not_found`                                                                                                                                                                                                                                                                                                                                                            | pass   |
+| AC8  | `db/…::test_reading_an_unknown_asset_raises_not_found`, `::test_reading_an_unknown_version_raises_not_found`, `::test_adding_a_version_to_an_unknown_asset_raises_not_found`, `::test_saving_an_unknown_version_raises_not_found`, `::test_reading_versions_stops_at_the_documented_cap` (501 versions → 500)                                                                                                                                                                                                                                                                                | pass   |
 | AC9  | `db/test_migrations.py` (4: Alembic diff empty, downgrade → upgrade, constraint names, and Postgres-stored CHECK/index definitions identical between the migrated database and one built from `schema.py`; a `number >= 0` mutant fails it), `db/…::test_the_database_enforces_asset_invariants` (3), `::test_the_database_enforces_version_invariants` (4); `make migrate` on the dev database                                                                                                                                                                                              | pass   |
 | AC10 | `::test_a_version_of_another_kind_is_rejected`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | pass   |
 | AC11 | `::test_directories_are_stripped_from_file_names` (3), `::test_blank_long_or_control_character_file_names_are_rejected` (11, incl. `.`, `..`, `...`, `foo/..`, bidi, zero-width)                                                                                                                                                                                                                                                                                                                                                                                                             | pass   |
@@ -73,8 +75,24 @@ Exploratory checks (ISTQB): boundary values on name length (0/1/120/121), size (
 
 Defect found in QA and fixed: the first migration doubled constraint names (`ck_asset_versions_ck_asset_versions_status`) because the naming convention was applied on top of full names; names are now marked final with `op.f()` and a test pins them.
 
-Gates: `make ci` green — Python 137 passed, coverage 99 %; ruff (with DTZ) and mypy strict clean; Node workspaces unchanged and green. Review rounds: 1 → 6.5, 2 → 8.5, 3 → 8.5, fresh reviewer → 8.0.
+Gates: `make ci` green — Python 138 passed, coverage 99 %; ruff (with DTZ) and mypy strict clean; Node workspaces unchanged and green. Review rounds: 1 → 6.5, 2 → 8.5, 3 → 8.5, fresh reviewer → 8.0.
 
 ## Review score
 
-_Round 3 pending._
+Final round by a fresh independent reviewer (subagent), commit `e74dc97`, with mutations re-run.
+
+| #   | Criterion             | Score      | Evidence                                                                                                                              |
+| --- | --------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Requirements fit      | 1          | AC1–AC11 traced to passing tests; 137 passed, coverage 99.5 %                                                                         |
+| 2   | Test depth            | 1          | mutants killed: `number >= 0` in the schema, missing `GREATEST`, cursor without `validate=True`, missing row lock                     |
+| 3   | Reliability           | 1          | `updated_at` only moves forward; compare-and-set status saves; lock/statement timeouts planned in KILN-3                              |
+| 4   | Security              | 1          | invisible-only and disguised names rejected; legitimate names in many scripts and emoji accepted; server-built keys                   |
+| 5   | Maintainability       | 1          | one `MEDIA_TYPES` table; ruff and mypy clean; layering pinned by a test                                                               |
+| 6   | API ergonomics        | 1          | stable codes; opaque, strictly decoded cursor; clamped limit                                                                          |
+| 7   | Accessibility         | 1          | not applicable: no UI                                                                                                                 |
+| 8   | Performance           | 1          | keyset index; bounded version reads                                                                                                   |
+| 9   | Docs and traceability | 1          | every count matches `pytest --collect-only`; design, security, CHANGELOG match the code                                               |
+| 10  | Delivery              | 0.5        | gates green and pushed, but early history holds a committed `.coverage` and KILN-3 docs in KILN-2 commits (`main` is never rewritten) |
+|     | **Total**             | **9.5/10** | rounds: 6.5 → 8.5 → 8.5 → fresh reviewer 8.0 → 9.5                                                                                    |
+
+Low findings from the final round, fixed before shipping (`5265f9a`): a test for the 500-version cap, the cap in the port docstring, U+17B4/U+17B5 in `docs/security.md`, a unique name for the reference database.

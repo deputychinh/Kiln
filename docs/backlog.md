@@ -5,7 +5,7 @@ Ids are `KILN-<n>`; once Jira is linked, the Jira key matches the id here.
 | Id      | Release | Item                                                                        | Status |
 | ------- | ------- | --------------------------------------------------------------------------- | ------ |
 | KILN-1  | –       | Repo bootstrap, conventions, CI, walking skeleton                           | done   |
-| KILN-2  | v0.1    | `Asset` / `AssetVersion` model, first migration, repository                 | doing  |
+| KILN-2  | v0.1    | `Asset` / `AssetVersion` model, first migration, repository                 | done   |
 | KILN-3  | v0.1    | Upload through presigned URLs (S3) + upload completion                      | todo   |
 | KILN-21 | v0.1    | `Idempotency-Key` replay for `POST /assets` (24 h, stored response)         | todo   |
 | KILN-4  | v0.1    | Postgres job queue (`SKIP LOCKED`) + worker image thumbnails                | todo   |
