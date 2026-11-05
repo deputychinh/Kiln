@@ -17,7 +17,7 @@ from kiln_api.domain.assets import (
     transition,
 )
 from kiln_api.domain.ids import uuid7
-from kiln_api.enums import VersionStatus
+from kiln_api.enums import FailureReason, VersionStatus
 from kiln_api.errors import (
     AssetNotFoundError,
     AssetVersionNotFoundError,
@@ -220,7 +220,9 @@ def test_a_stale_status_change_is_rejected_instead_of_overwriting(engine: Engine
     processing = transition(version, VersionStatus.PROCESSING, now=T0)
     repo.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
     ready = transition(processing, VersionStatus.READY, now=T0)
-    failed = transition(processing, VersionStatus.FAILED, now=T0)
+    failed = transition(
+        processing, VersionStatus.FAILED, now=T0, failure_reason=FailureReason.UNREADABLE_IMAGE
+    )
 
     repo.save_version(ready, expected=VersionStatus.PROCESSING)
     with pytest.raises(InvalidStatusTransitionError):
@@ -241,7 +243,15 @@ def test_concurrent_status_changes_let_exactly_one_writer_win(engine: Engine) ->
         barrier.wait()
         try:
             repo.save_version(
-                transition(processing, target, now=T0), expected=VersionStatus.PROCESSING
+                transition(
+                    processing,
+                    target,
+                    now=T0,
+                    failure_reason=(
+                        FailureReason.UNREADABLE_IMAGE if target is VersionStatus.FAILED else None
+                    ),
+                ),
+                expected=VersionStatus.PROCESSING,
             )
             outcomes.append("won")
         except InvalidStatusTransitionError:

@@ -66,3 +66,27 @@ class PromotionResult(StrEnum):
     PROMOTED = "promoted"
     CHANGED = "changed"  # the staging object is not the one that was checked (412)
     SOURCE_GONE = "source_gone"  # a concurrent completion already promoted and deleted it
+
+
+class FailureReason(StrEnum):
+    """Why a version ended `failed`; shown to people, so stable and human-mappable."""
+
+    UPLOAD_CHANGED = "UPLOAD_CHANGED"
+    UNREADABLE_IMAGE = "UNREADABLE_IMAGE"
+    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    PROCESSING_GAVE_UP = "PROCESSING_GAVE_UP"
+
+
+class JobKind(StrEnum):
+    """Work the worker knows how to do."""
+
+    THUMBNAIL = "thumbnail"
+
+
+class JobStatus(StrEnum):
+    """Life cycle of a queued job."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    DONE = "done"
+    DEAD = "dead"

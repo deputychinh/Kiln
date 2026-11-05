@@ -1,6 +1,6 @@
 # KILN-4: Job queue on Postgres and a worker that makes image thumbnails
 
-- Release: v0.1 · Status: todo (BA done) · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
 
 ## Story
 

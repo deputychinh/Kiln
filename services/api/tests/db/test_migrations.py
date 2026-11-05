@@ -46,6 +46,8 @@ def test_constraints_keep_the_names_from_the_naming_convention(database_url: str
         "ck_asset_versions_status",
         "ck_asset_versions_file_name_length",
         "ck_asset_versions_size_range",
+        "ck_asset_versions_failure_reason",
+        "ck_asset_versions_failure_reason_when_failed",
     }
     assert "ix_assets_created_at_id" in indexes
 

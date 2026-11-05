@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    text,
 )
 
 from kiln_api.constants import (
@@ -22,7 +23,7 @@ from kiln_api.constants import (
     IDEMPOTENCY_KEY_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
 )
-from kiln_api.enums import AssetKind, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, JobKind, JobStatus, VersionStatus
 
 metadata = MetaData(
     naming_convention={
@@ -48,6 +49,12 @@ assets = Table(
     Column("kind", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column(
+        "cover_version_id",
+        Uuid,
+        ForeignKey("asset_versions.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    ),
     CheckConstraint(f"char_length(name) BETWEEN 1 AND {ASSET_NAME_MAX_LENGTH}", name="name_length"),
     CheckConstraint(_one_of("kind", [k.value for k in AssetKind]), name="kind"),
     Index(None, "created_at", "id"),
@@ -66,6 +73,8 @@ asset_versions = Table(
     Column("object_key", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("etag", Text, nullable=True),
+    Column("failure_reason", Text, nullable=True),
     UniqueConstraint("asset_id", "number"),
     UniqueConstraint("object_key"),
     CheckConstraint("number >= 1", name="number_positive"),
@@ -74,6 +83,13 @@ asset_versions = Table(
         f"char_length(file_name) BETWEEN 1 AND {FILE_NAME_MAX_LENGTH}", name="file_name_length"
     ),
     CheckConstraint(f"size_bytes BETWEEN 1 AND {MAX_UPLOAD_BYTES}", name="size_range"),
+    CheckConstraint(
+        "failure_reason IS NULL OR " + _one_of("failure_reason", [r.value for r in FailureReason]),
+        name="failure_reason",
+    ),
+    CheckConstraint(
+        "(status = 'failed') = (failure_reason IS NOT NULL)", name="failure_reason_when_failed"
+    ),
 )
 
 
@@ -91,4 +107,26 @@ idempotency_keys = Table(
     ),
     CheckConstraint("octet_length(request_hash) = 32", name="request_hash_length"),
     Index(None, "created_at"),
+)
+
+
+jobs = Table(
+    "jobs",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("kind", Text, nullable=False),
+    Column("version_id", Uuid, ForeignKey("asset_versions.id", ondelete="CASCADE"), nullable=False),
+    Column("status", Text, nullable=False),
+    Column("attempts", Integer, nullable=False),
+    Column("run_after", DateTime(timezone=True), nullable=False),
+    Column("leased_until", DateTime(timezone=True), nullable=True),
+    Column("last_error", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("version_id", "kind"),
+    CheckConstraint(_one_of("kind", [k.value for k in JobKind]), name="kind"),
+    CheckConstraint(_one_of("status", [s.value for s in JobStatus]), name="status"),
+    CheckConstraint("attempts >= 0", name="attempts_non_negative"),
+    Index(None, "run_after", postgresql_where=text("status = 'queued'")),
+    Index(None, "leased_until", postgresql_where=text("status = 'running'")),
 )

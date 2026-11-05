@@ -4,9 +4,14 @@ version = "0.0.0"
 description = "Kiln asset worker: thumbnails, validation and AI tagging."
 requires-python = ">=3.12"
 dependencies = [
+    "kiln-api",
+    "pillow>=12.3.0",
     "pydantic-settings>=2.16.2",
 ]
 
 [build-system]
 requires = ["uv_build>=0.9,<0.13"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+kiln-api = { workspace = true }

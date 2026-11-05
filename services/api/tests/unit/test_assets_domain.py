@@ -5,8 +5,8 @@ from uuid import UUID
 import pytest
 
 from kiln_api.constants import ALLOWED_TRANSITIONS, MAX_UPLOAD_BYTES
-from kiln_api.domain.assets import UploadSpec, new_asset, new_version, transition
-from kiln_api.enums import AssetKind, VersionStatus
+from kiln_api.domain.assets import UploadSpec, new_asset, new_version, thumbnail_key, transition
+from kiln_api.enums import AssetKind, FailureReason, VersionStatus
 from kiln_api.errors import (
     AssetKindMismatchError,
     InvalidAssetNameError,
@@ -19,6 +19,10 @@ from kiln_api.errors import (
 NOW = datetime(2026, 11, 3, 9, 0, tzinfo=UTC)
 PNG = UploadSpec(file_name="T_Rock_01_BaseColor.png", content_type="image/png", size_bytes=2048)
 GLB = UploadSpec(file_name="SM_Rock_01.glb", content_type="model/gltf-binary", size_bytes=4096)
+
+
+def _reason(status: VersionStatus) -> FailureReason | None:
+    return FailureReason.UNREADABLE_IMAGE if status is VersionStatus.FAILED else None
 
 
 def _ids() -> Callable[[], UUID]:
@@ -221,7 +225,7 @@ def test_allowed_status_paths(path: list[VersionStatus]) -> None:
     later = NOW + timedelta(minutes=5)
 
     for status in path:
-        version = transition(version, status, now=later)
+        version = transition(version, status, now=later, failure_reason=_reason(status))
 
     assert version.status is path[-1]
     assert version.updated_at == later
@@ -261,10 +265,10 @@ def test_the_transition_table_is_exactly_the_story_life_cycle() -> None:
 def test_forbidden_status_transitions_raise(start: VersionStatus, target: VersionStatus) -> None:
     _, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
     for status in _PATH_TO[start]:
-        version = transition(version, status, now=NOW)
+        version = transition(version, status, now=NOW, failure_reason=_reason(status))
 
     with pytest.raises(InvalidStatusTransitionError):
-        transition(version, target, now=NOW)
+        transition(version, target, now=NOW, failure_reason=_reason(target))
 
 
 def test_timestamps_without_a_timezone_are_a_programming_error() -> None:
@@ -275,3 +279,34 @@ def test_timestamps_without_a_timezone_are_a_programming_error() -> None:
     _, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
     with pytest.raises(ValueError, match="timezone"):
         transition(version, VersionStatus.PROCESSING, now=naive)
+
+
+def test_a_failed_version_must_carry_a_reason_and_others_must_not() -> None:
+    _, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
+    processing = transition(version, VersionStatus.PROCESSING, now=NOW)
+
+    with pytest.raises(ValueError, match="failure reason"):
+        transition(processing, VersionStatus.FAILED, now=NOW)
+    with pytest.raises(ValueError, match="failure reason"):
+        transition(
+            processing, VersionStatus.READY, now=NOW, failure_reason=FailureReason.UPLOAD_CHANGED
+        )
+
+
+def test_retrying_a_failed_version_clears_its_reason() -> None:
+    _, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
+    processing = transition(version, VersionStatus.PROCESSING, now=NOW)
+    failed = transition(
+        processing, VersionStatus.FAILED, now=NOW, failure_reason=FailureReason.PROCESSING_GAVE_UP
+    )
+
+    retried = transition(failed, VersionStatus.PROCESSING, now=NOW)
+
+    assert failed.failure_reason is FailureReason.PROCESSING_GAVE_UP
+    assert retried.failure_reason is None
+
+
+def test_the_thumbnail_key_is_derived_from_ids_only() -> None:
+    asset, version = new_asset("Rock", PNG, now=NOW, new_id=_ids())
+
+    assert thumbnail_key(version) == f"thumbs/{asset.id}/{version.id}.webp"

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Connection, Engine, Row, func, insert, select, tuple_, update
+from sqlalchemy import Connection, Engine, Row, func, insert, or_, select, tuple_, update
 
 from kiln_api.constants import (
     ALLOWED_TRANSITIONS,
@@ -16,7 +16,7 @@ from kiln_api.constants import (
 from kiln_api.db.schema import asset_versions, assets
 from kiln_api.domain.assets import Asset, AssetVersion
 from kiln_api.domain.cursor import decode_cursor, encode_cursor
-from kiln_api.enums import AssetKind, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, VersionStatus
 from kiln_api.errors import (
     AssetNotFoundError,
     AssetVersionNotFoundError,
@@ -32,6 +32,7 @@ def _asset(row: Row[Any]) -> Asset:
         kind=AssetKind(row.kind),
         created_at=row.created_at,
         updated_at=row.updated_at,
+        cover_version_id=row.cover_version_id,
     )
 
 
@@ -47,6 +48,8 @@ def _version(row: Row[Any]) -> AssetVersion:
         object_key=row.object_key,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        etag=row.etag,
+        failure_reason=None if row.failure_reason is None else FailureReason(row.failure_reason),
     )
 
 
@@ -62,6 +65,8 @@ def _version_values(version: AssetVersion) -> dict[str, object]:
         "object_key": version.object_key,
         "created_at": version.created_at,
         "updated_at": version.updated_at,
+        "etag": version.etag,
+        "failure_reason": None if version.failure_reason is None else version.failure_reason.value,
     }
 
 
@@ -181,7 +186,14 @@ class SqlAssetRepository:
             result = connection.execute(
                 update(asset_versions)
                 .where(asset_versions.c.id == version.id, asset_versions.c.status == expected.value)
-                .values(status=version.status.value, updated_at=version.updated_at)
+                .values(
+                    status=version.status.value,
+                    updated_at=version.updated_at,
+                    etag=version.etag,
+                    failure_reason=(
+                        None if version.failure_reason is None else version.failure_reason.value
+                    ),
+                )
             )
             if result.rowcount == 1:
                 return
@@ -191,3 +203,20 @@ class SqlAssetRepository:
         if current is None:
             raise AssetVersionNotFoundError(version.id)
         raise InvalidStatusTransitionError(VersionStatus(current), version.status)
+
+    def promote_cover(self, version: AssetVersion) -> None:
+        """Make `version` the asset's cover unless a newer version already is."""
+        newer_cover = (
+            select(asset_versions.c.number)
+            .where(asset_versions.c.id == assets.c.cover_version_id)
+            .scalar_subquery()
+        )
+        with self._write() as connection:
+            connection.execute(
+                update(assets)
+                .where(
+                    assets.c.id == version.asset_id,
+                    or_(assets.c.cover_version_id.is_(None), newer_cover < version.number),
+                )
+                .values(cover_version_id=version.id)
+            )

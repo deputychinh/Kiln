@@ -14,9 +14,10 @@ from kiln_api.constants import (
     MAX_UPLOAD_BYTES,
     MEDIA_TYPES,
     OBJECT_KEY_PREFIX,
+    THUMBNAIL_KEY_PREFIX,
     UPLOAD_KEY_PREFIX,
 )
-from kiln_api.enums import AssetKind, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, VersionStatus
 from kiln_api.errors import (
     AssetKindMismatchError,
     InvalidAssetNameError,
@@ -57,6 +58,7 @@ class Asset:
     kind: AssetKind
     created_at: datetime
     updated_at: datetime
+    cover_version_id: UUID | None = None  # newest ready version, shown in the gallery
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +75,8 @@ class AssetVersion:
     object_key: str
     created_at: datetime
     updated_at: datetime
+    etag: str | None = None  # of the final object, recorded at completion (ADR 0005)
+    failure_reason: FailureReason | None = None
 
 
 def _is_unreadable(text: str) -> bool:
@@ -178,18 +182,35 @@ def new_version(
     return _build_version(asset, number, spec, now=now, new_id=new_id)
 
 
-def transition(version: AssetVersion, status: VersionStatus, *, now: datetime) -> AssetVersion:
+def transition(
+    version: AssetVersion,
+    status: VersionStatus,
+    *,
+    now: datetime,
+    failure_reason: FailureReason | None = None,
+) -> AssetVersion:
     """Move a version to `status` if the life cycle allows it.
+
+    A `failed` version must carry a `failure_reason`; any other status clears it.
 
     Raises:
         InvalidStatusTransitionError: The move is not in `ALLOWED_TRANSITIONS`.
+        ValueError: A reason is missing for `failed` or given for another status.
     """
     _require_aware(now)
     if status not in ALLOWED_TRANSITIONS[version.status]:
         raise InvalidStatusTransitionError(version.status, status)
-    return replace(version, status=status, updated_at=now)
+    if (status is VersionStatus.FAILED) != (failure_reason is not None):
+        msg = "A failure reason is required for failed versions and only for them."
+        raise ValueError(msg)
+    return replace(version, status=status, updated_at=now, failure_reason=failure_reason)
 
 
 def upload_key(version: AssetVersion) -> str:
     """The staging key a signed form may write; never the final `object_key`."""
     return f"{UPLOAD_KEY_PREFIX}/{version.asset_id}/{version.id}"
+
+
+def thumbnail_key(version: AssetVersion) -> str:
+    """Where the worker writes the preview of `version`."""
+    return f"{THUMBNAIL_KEY_PREFIX}/{version.asset_id}/{version.id}.webp"

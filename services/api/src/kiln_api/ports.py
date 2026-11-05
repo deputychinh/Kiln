@@ -111,6 +111,10 @@ class AssetRepository(Protocol):
         """
         ...
 
+    def promote_cover(self, version: AssetVersion) -> None:
+        """Make a ready `version` the asset's cover unless a newer version already is."""
+        ...
+
 
 @dataclass(frozen=True, slots=True)
 class IdempotentResult:

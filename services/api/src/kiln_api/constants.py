@@ -28,6 +28,11 @@ PAGE_LIMIT_MIN = 1
 PAGE_LIMIT_MAX = 100
 PAGE_LIMIT_DEFAULT = 24
 OBJECT_KEY_PREFIX = "assets"
+THUMBNAIL_KEY_PREFIX = "thumbs"
+DOWNLOAD_URL_TTL_SECONDS = 15 * 60
+JOB_LEASE_SECONDS = 5 * 60
+JOB_MAX_ATTEMPTS = 5
+JOB_BACKOFF_BASE_SECONDS = 5
 # Signed forms write only to a staging key; completion copies to the final key (immutable).
 UPLOAD_KEY_PREFIX = "uploads"
 UPLOAD_URL_TTL_SECONDS = 15 * 60
