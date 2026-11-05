@@ -19,7 +19,11 @@ from kiln_api.ports import AssetRepository, Clock, JobQueue, ObjectStorage, Unit
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.jobs import SqlJobQueue
 from kiln_api.repositories.unit_of_work import SqlUnitOfWork
-from kiln_worker.constants import IDLE_POLL_SECONDS, SPOOL_MAX_BYTES
+from kiln_worker.constants import (
+    IDLE_POLL_SECONDS,
+    MAX_SOURCE_BYTES_BY_MEDIA_TYPE,
+    SPOOL_MAX_BYTES,
+)
 from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
@@ -105,8 +109,15 @@ class Worker:
             return FailureReason.UPLOAD_CHANGED
         if asset.kind is AssetKind.MODEL:
             return None  # 3D previews arrive with KILN-5
+        if version.size_bytes > MAX_SOURCE_BYTES_BY_MEDIA_TYPE.get(
+            version.content_type, version.size_bytes
+        ):
+            return FailureReason.IMAGE_TOO_LARGE
+        return self._render_image(version, stored.etag)
+
+    def _render_image(self, version: AssetVersion, etag: str) -> FailureReason | None:
         with SpooledTemporaryFile(max_size=SPOOL_MAX_BYTES) as buffer:
-            if not self._storage.download(version.object_key, buffer, if_match=stored.etag):
+            if not self._storage.download(version.object_key, buffer, if_match=etag):
                 return FailureReason.UPLOAD_CHANGED  # replaced between HEAD and GET
             buffer.seek(0)
             try:

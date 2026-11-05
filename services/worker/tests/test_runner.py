@@ -542,3 +542,34 @@ def test_a_production_worker_uses_the_database_clock(engine: Engine, storage: Fa
 
     assert isinstance(production._clock, DatabaseClock)
     assert production._database_clock is True
+
+
+@pytest.mark.parametrize(
+    ("size", "reason"), [(64 * 1024 * 1024 + 1, FailureReason.IMAGE_TOO_LARGE)]
+)
+def test_a_webp_file_over_64_mb_is_refused_before_download(
+    container: Container,
+    worker: Worker,
+    storage: FakeStorage,
+    engine: Engine,
+    size: int,
+    reason: FailureReason,
+) -> None:
+    spec = UploadSpec(file_name="anim.webp", content_type="image/webp", size_bytes=size)
+    pending = container.assets.create("Anim", spec)
+    assert pending.upload is not None
+    storage.put(pending.upload.fields["key"], size, "image/webp", b"RIFF")
+    version = container.assets.complete_upload(pending.version.id)
+    downloads: list[str] = []
+
+    def record(key: str, _into: Any, *, if_match: str | None = None) -> bool:
+        downloads.append(f"{key} {if_match}")
+        return True
+
+    storage.download = record  # type: ignore[method-assign,assignment]
+
+    worker.run_once()
+
+    failed = SqlAssetRepository(engine).get_version(version.id)
+    assert failed.failure_reason is reason
+    assert downloads == []

@@ -184,3 +184,13 @@ def test_backoff_is_5_25_125_625_seconds_then_gives_up_after_5_attempts() -> Non
         timedelta(seconds=625),
         None,
     ]
+
+
+def test_the_oldest_runnable_job_is_claimed_first(engine: Engine) -> None:
+    newer = _enqueue(engine, at=T0)
+    older = _enqueue(engine, at=T0 - timedelta(minutes=1))
+
+    first = _claim(SqlJobQueue(engine))
+
+    assert first is not None
+    assert first.id == older != newer

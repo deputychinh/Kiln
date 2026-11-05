@@ -1,6 +1,6 @@
 # KILN-4: Job queue on Postgres and a worker that makes image thumbnails
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -106,4 +106,20 @@ Gates: `make ci` green — Python 366 passed, coverage 99 %; ruff and mypy stric
 
 ## Review score
 
-_Pending independent review._
+Final gate by a fresh independent reviewer (subagent) at `aecd0fb`, after rounds 8.0 (first reviewer) → 8.0 → 8.5 → 9.5 (fresh reviewer). Evidence: real API, SeaweedFS and 4 worker processes on 300 jobs, SIGKILL mid-job, poison job, Postgres and storage outages, a +3 h clock skew, 16-bit and WebP probes, peak memory per format in fresh processes, 22 mutants (20 killed; the two survivors change no AC-relevant behaviour).
+
+| #   | Criterion             | Score                    | Evidence                                                                                                                                                                                                         |
+| --- | --------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Requirements fit      | 1                        | AC1–AC8 end to end; 16-bit 2048²/49 MP, flat and offset maps, WebP 8 MP lossless/animated ready; 12 MP refused                                                                                                   |
+| 2   | Test depth            | 1                        | 20 of 22 mutants killed; earlier survivors (clock wiring, local time, span) now killed                                                                                                                           |
+| 3   | Reliability           | 1                        | no duplicate processing; crashed and poison jobs end correctly; workers survive outages; leases on the database clock                                                                                            |
+| 4   | Security              | 0.5 → fixed after review | bombs refused before decoding; no metadata leaks; WebP memory grew with file size (450 MB animated → 950 MB) — fixed in the ship commit with a 64 MB WebP source cap and a test (self-verified, not re-reviewed) |
+| 5   | Maintainability       | 1                        | ruff and mypy strict clean; small units                                                                                                                                                                          |
+| 6   | API ergonomics        | 1                        | `thumbnail_url` signed GET; `failure_reason` enum                                                                                                                                                                |
+| 7   | Accessibility         | 1                        | not applicable: no UI                                                                                                                                                                                            |
+| 8   | Performance           | 1                        | 16-bit 49 MP in 171 ms; claim uses the partial indexes                                                                                                                                                           |
+| 9   | Docs and traceability | 1                        | counts match `--collect-only`; AC5, QA, CHANGELOG, security updated                                                                                                                                              |
+| 10  | Delivery              | 1                        | Conventional Commits, `Refs: KILN-4`, pushed                                                                                                                                                                     |
+|     | **Total**             | **9.5/10**               |                                                                                                                                                                                                                  |
+
+Follow-ups filed: KILN-23 (storage circuit breaker), KILN-24 (lease heartbeat), KILN-25 (recycle the worker after N jobs). Also fixed in the ship commit: a test pins oldest-first claiming.
