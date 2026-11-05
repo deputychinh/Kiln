@@ -1,4 +1,5 @@
 import io
+import os
 import struct
 import subprocess
 import sys
@@ -124,6 +125,10 @@ def test_a_model_file_is_not_an_image_job() -> None:
         make_thumbnail(b"glTF....", "model/gltf-binary")
 
 
+def _noise(mode: str, side: int) -> Image.Image:
+    return Image.frombytes(mode, (side, side), os.urandom(side * side * len(mode)))
+
+
 def _encoded(image: Image.Image, fmt: str, **options: object) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, fmt, **options)
@@ -143,6 +148,41 @@ def test_a_16_bit_height_map_is_scaled_not_clipped_to_white() -> None:
     assert row[0] < 20
     assert row[-1] > 200
     assert len(set(row)) == len(row)
+
+
+@pytest.mark.parametrize("side", [2048, 4096])
+def test_large_16_bit_maps_are_thumbnailed(side: int) -> None:
+    gradient = Image.new("I;16", (side, side), 1000)
+    gradient.paste(60000, (side // 2, 0, side, side))
+
+    thumbnail = make_thumbnail(_encoded(gradient, "PNG"), "image/png")
+
+    with Image.open(io.BytesIO(thumbnail)) as result:
+        grey = result.convert("L")
+        assert result.size == (512, 512)
+        assert cast(int, grey.getpixel((10, 10))) < 10
+        assert cast(int, grey.getpixel((500, 10))) > 245
+
+
+def test_a_16_bit_map_that_does_not_start_at_zero_uses_its_full_range() -> None:
+    gradient = Image.new("I;16", (256, 8))
+    gradient.putdata([20000 + x * 100 for x in range(256)] * 8)
+
+    thumbnail = make_thumbnail(_encoded(gradient, "PNG"), "image/png")
+
+    with Image.open(io.BytesIO(thumbnail)) as result:
+        grey = result.convert("L")
+        assert cast(int, grey.getpixel((0, 4))) < 10
+        assert cast(int, grey.getpixel((255, 4))) > 245
+
+
+def test_a_flat_16_bit_map_keeps_its_level() -> None:
+    flat = Image.new("I;16", (64, 64), 30000)
+
+    thumbnail = make_thumbnail(_encoded(flat, "PNG"), "image/png")
+
+    with Image.open(io.BytesIO(thumbnail)) as result:
+        assert abs(cast(int, result.convert("L").getpixel((5, 5))) - 117) <= 2
 
 
 def test_palette_transparency_is_kept_as_alpha() -> None:
@@ -175,8 +215,8 @@ def test_jpeg_is_decoded_at_reduced_size(monkeypatch: pytest.MonkeyPatch) -> Non
     assert requested == [("RGB", (512, 512))]
 
 
-@pytest.mark.parametrize(("side", "refused"), [(3464, False), (3465, True)])
-def test_webp_is_limited_to_12_megapixels(side: int, refused: bool) -> None:
+@pytest.mark.parametrize(("side", "refused"), [(2828, False), (2829, True)])
+def test_webp_is_limited_to_8_megapixels(side: int, refused: bool) -> None:
     data = _encoded(Image.new("RGB", (side, side), (5, 5, 5)), "WEBP", quality=10)
 
     if refused:
@@ -200,7 +240,9 @@ print(grown if sys.platform == "darwin" else grown * 1024)
 @pytest.mark.parametrize(
     ("image", "fmt", "content_type"),
     [
-        (lambda: Image.new("RGBA", (3464, 3464), (1, 2, 3, 128)), "WEBP", "image/webp"),
+        (lambda: Image.new("RGBA", (2828, 2828), (1, 2, 3, 128)), "WEBP", "image/webp"),
+        (lambda: _noise("RGBA", 2828), "WEBP_LOSSLESS", "image/webp"),
+        (lambda: Image.new("I;16", (7000, 7000), 4000), "PNG", "image/png"),
         (lambda: Image.new("RGB", (7000, 7000), (1, 2, 3)), "PNG", "image/png"),
         (lambda: Image.new("RGB", (7000, 7000), (1, 2, 3)), "JPEG", "image/jpeg"),
     ],
@@ -209,7 +251,10 @@ def test_peak_memory_stays_within_the_job_budget_at_each_formats_limit(
     tmp_path: Path, image: Callable[[], Image.Image], fmt: str, content_type: str
 ) -> None:
     source = tmp_path / f"limit.{fmt.lower()}"
-    image().save(source, fmt)
+    if fmt == "WEBP_LOSSLESS":
+        image().save(source, "WEBP", lossless=True)
+    else:
+        image().save(source, fmt)
     script = tmp_path / "peak.py"
     script.write_text(_PEAK_SCRIPT)
 

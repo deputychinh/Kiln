@@ -17,6 +17,8 @@ from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
 THUMBNAIL_MEDIA_TYPE = "image/webp"
 _KEEP_ALPHA = {"RGBA", "LA", "PA"}
 _WIDE_GREY = {"I", "I;16", "I;16B", "I;16L", "I;16N"}
+_REDUCING_GAP = 2.0  # Pillow's default for thumbnail()
+_SIXTEEN_TO_EIGHT_BIT = 1 / 256
 
 
 def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
@@ -39,7 +41,9 @@ def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
                     raise ImageTooLargeError
                 opened.draft("RGB", (THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
                 # Shrink first, then orient: rotating the full image would copy every pixel.
-                opened.thumbnail((THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
+                # reduce() rejects 16-bit greyscale; plain resampling handles it.
+                gap = None if opened.mode in _WIDE_GREY else _REDUCING_GAP
+                opened.thumbnail((THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE), reducing_gap=gap)
                 image = ImageOps.exif_transpose(opened)
         except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
             raise UnreadableImageError from error
@@ -56,8 +60,10 @@ def _to_8_bit(image: Image.Image) -> Image.Image:
     if image.mode in _WIDE_GREY:
         wide = image.convert("I")
         low, high = cast("tuple[int, int]", wide.getextrema())  # mode "I": one (min, max) pair
-        span = max(high - low, 1)
-        scaled = wide.point(lambda value: (value - low) * 255 / span)
+        if high == low:  # a flat map: keep its level instead of stretching to black
+            scaled = wide.point(lambda value: value * _SIXTEEN_TO_EIGHT_BIT)
+        else:
+            scaled = wide.point(lambda value: (value - low) * 255 / (high - low))
         return scaled.convert("L").convert("RGB")
     keep_alpha = image.mode in _KEEP_ALPHA or "transparency" in image.info
     return image.convert("RGBA" if keep_alpha else "RGB")

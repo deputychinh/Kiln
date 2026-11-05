@@ -1,8 +1,10 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, tzinfo
 from typing import Any
 
+import pytest
 from sqlalchemy import Engine, text
 
+from kiln_api import clock as kiln_clock
 from kiln_api.clock import DatabaseClock
 from kiln_api.config import Settings
 from kiln_api.container import build_engine, build_storage
@@ -38,7 +40,24 @@ def test_readiness_uses_a_one_second_single_attempt_probe_client() -> None:
 
 
 def test_the_database_clock_reports_postgres_time_in_utc(engine: Engine) -> None:
+    with engine.connect() as connection:
+        before = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
     moment = DatabaseClock(engine).now()
+    with engine.connect() as connection:
+        after = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
 
     assert moment.tzinfo is UTC
-    assert abs(moment - datetime.now(UTC)) < timedelta(seconds=30)
+    assert before <= moment <= after
+
+
+def test_the_database_clock_ignores_a_skewed_local_clock(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class SkewedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> "SkewedDatetime":
+            return cls(2000, 1, 1, tzinfo=tz)
+
+    monkeypatch.setattr(kiln_clock, "datetime", SkewedDatetime)
+
+    assert DatabaseClock(engine).now().year >= 2026

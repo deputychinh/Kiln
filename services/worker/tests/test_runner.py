@@ -12,6 +12,7 @@ from fakes import FakeStorage, FixedClock
 from PIL import Image
 from sqlalchemy import Engine, text
 
+from kiln_api.clock import DatabaseClock
 from kiln_api.config import Settings
 from kiln_api.container import Container, build_container
 from kiln_api.domain.assets import UploadSpec, thumbnail_key
@@ -534,3 +535,10 @@ def test_giving_up_when_the_version_changes_at_the_last_moment_does_not_crash(
     worker.run_once()
 
     assert _job_status(engine, version.id)[0] == "dead"
+
+
+def test_a_production_worker_uses_the_database_clock(engine: Engine, storage: FakeStorage) -> None:
+    production = build_worker(engine, storage=storage)
+
+    assert isinstance(production._clock, DatabaseClock)
+    assert production._database_clock is True
