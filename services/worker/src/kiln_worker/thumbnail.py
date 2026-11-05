@@ -2,13 +2,13 @@
 
 import io
 import warnings
-from typing import IO
+from typing import IO, cast
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from kiln_worker.constants import (
     DECODERS_BY_MEDIA_TYPE,
-    MAX_SOURCE_PIXELS,
+    MAX_SOURCE_PIXELS_BY_DECODER,
     THUMBNAIL_MAX_SIDE,
     THUMBNAIL_QUALITY,
 )
@@ -16,6 +16,7 @@ from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
 
 THUMBNAIL_MEDIA_TYPE = "image/webp"
 _KEEP_ALPHA = {"RGBA", "LA", "PA"}
+_WIDE_GREY = {"I", "I;16", "I;16B", "I;16L", "I;16N"}
 
 
 def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
@@ -34,7 +35,7 @@ def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
             stream = io.BytesIO(source) if isinstance(source, bytes) else source
             with Image.open(stream, formats=list(decoders)) as opened:
                 width, height = opened.size
-                if width * height > MAX_SOURCE_PIXELS:
+                if width * height > MAX_SOURCE_PIXELS_BY_DECODER[opened.format or ""]:
                     raise ImageTooLargeError
                 opened.draft("RGB", (THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
                 # Shrink first, then orient: rotating the full image would copy every pixel.
@@ -44,8 +45,19 @@ def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
             raise UnreadableImageError from error
         except (Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
             raise ImageTooLargeError from error
-    mode = "RGBA" if image.mode in _KEEP_ALPHA or "transparency" in image.info else "RGB"
-    clean = image.convert(mode)
+    clean = _to_8_bit(image)
     output = io.BytesIO()
     clean.save(output, "WEBP", quality=THUMBNAIL_QUALITY, method=4)
     return output.getvalue()
+
+
+def _to_8_bit(image: Image.Image) -> Image.Image:
+    """RGB or RGBA for WebP; 16/32-bit greyscale (height maps) is scaled, not clipped."""
+    if image.mode in _WIDE_GREY:
+        wide = image.convert("I")
+        low, high = cast("tuple[int, int]", wide.getextrema())  # mode "I": one (min, max) pair
+        span = max(high - low, 1)
+        scaled = wide.point(lambda value: (value - low) * 255 / span)
+        return scaled.convert("L").convert("RGB")
+    keep_alpha = image.mode in _KEEP_ALPHA or "transparency" in image.info
+    return image.convert("RGBA" if keep_alpha else "RGB")

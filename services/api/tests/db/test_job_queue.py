@@ -127,7 +127,7 @@ def test_a_job_with_no_attempts_left_is_never_leased_again_but_can_be_buried(
         at += LEASE + timedelta(seconds=1)
 
     assert _claim(queue, at) is None
-    exhausted = queue.lock_exhausted(max_attempts=MAX, now=at)
+    exhausted = queue.exhausted_jobs(max_attempts=MAX, now=at)
     assert [job.id for job in exhausted] == [job_id]
     assert queue.bury(exhausted[0], error="crashed", now=at) is True
     assert queue.counts() == {JobStatus.DEAD: 1}

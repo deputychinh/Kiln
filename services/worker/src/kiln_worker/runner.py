@@ -9,7 +9,7 @@ from tempfile import SpooledTemporaryFile
 
 from sqlalchemy import Engine
 
-from kiln_api.clock import SystemClock
+from kiln_api.clock import DatabaseClock
 from kiln_api.constants import JOB_LEASE_SECONDS, JOB_MAX_ATTEMPTS
 from kiln_api.domain.assets import Asset, AssetVersion, thumbnail_key, transition
 from kiln_api.domain.jobs import Job, next_attempt_delay
@@ -71,6 +71,9 @@ class Worker:
         job = self._jobs.claim(lease=_LEASE, max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
         if job is None:
             return False
+        logger.info(
+            "job %s for version %s: started (attempt %d)", job.id, job.version_id, job.attempts
+        )
         started = time.monotonic()
         outcome = self._handle(job)
         logger.info(
@@ -166,8 +169,7 @@ class Worker:
 
     def _bury_exhausted(self) -> None:
         """Jobs that crashed the worker on every attempt are buried and their versions failed."""
-        with self._unit_of_work() as tx:
-            exhausted = tx.jobs.lock_exhausted(max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
+        exhausted = self._jobs.exhausted_jobs(max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
         for job in exhausted:
             logger.warning("job %s exhausted its attempts while leased; burying", job.id)
             self._give_up(job, "crashed on every attempt")
@@ -191,4 +193,4 @@ def build_worker(engine: Engine, *, storage: ObjectStorage, clock: Clock | None 
         storage=storage,
         unit_of_work=SqlUnitOfWork(engine),
     )
-    return Worker(ports, clock or SystemClock(), database_clock=clock is None)
+    return Worker(ports, clock or DatabaseClock(engine), database_clock=clock is None)

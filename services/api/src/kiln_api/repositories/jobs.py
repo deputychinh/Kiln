@@ -115,8 +115,12 @@ class SqlJobQueue:
             ).first()
         return None if row is None else _job(row)
 
-    def lock_exhausted(self, *, max_attempts: int, now: datetime | None = None) -> list[Job]:
-        """Lock running jobs whose lease expired with no attempts left (crashed every time)."""
+    def exhausted_jobs(self, *, max_attempts: int, now: datetime | None = None) -> list[Job]:
+        """Running jobs whose lease expired with no attempts left (they crashed every time).
+
+        Read only: burying them is guarded by the claim (status and attempt number), so two
+        workers reaping the same job cannot both succeed.
+        """
         with self._write() as connection:
             rows = connection.execute(
                 select(jobs)
@@ -126,7 +130,6 @@ class SqlJobQueue:
                     jobs.c.attempts >= max_attempts,
                 )
                 .limit(10)
-                .with_for_update(skip_locked=True)
             ).all()
         return [_job(row) for row in rows]
 

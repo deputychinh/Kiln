@@ -11,6 +11,7 @@ Ids are `KILN-<n>`; once Jira is linked, the Jira key matches the id here.
 | KILN-4  | v0.1    | Postgres job queue (`SKIP LOCKED`, lease, backoff) + worker image thumbnails; ETag recorded at completion and verified before processing | doing  |
 | KILN-22 | v0.1    | Scheduled maintenance in the worker: purge orphaned `uploads/` staging objects and expired idempotency keys                              | todo   |
 | KILN-23 | v0.1    | Circuit breaker / bulkhead around storage calls in the API                                                                               | todo   |
+| KILN-24 | v0.1    | Lease heartbeat for worker jobs longer than the 5-minute lease                                                                           | todo   |
 | KILN-5  | v0.1    | Thumbnails for `.glb` (offscreen render)                                                                                                 | todo   |
 | KILN-6  | v0.1    | Gallery + asset detail, four states, cursor pagination, adaptive navigation                                                              | todo   |
 | KILN-7  | v0.1    | Storybook for the design system                                                                                                          | todo   |

@@ -168,8 +168,8 @@ class JobQueue(Protocol):
         """Take the next runnable job that still has attempts left, or return None."""
         ...
 
-    def lock_exhausted(self, *, max_attempts: int, now: datetime | None = None) -> list[Job]:
-        """Lock expired running jobs with no attempts left, to bury them."""
+    def exhausted_jobs(self, *, max_attempts: int, now: datetime | None = None) -> list[Job]:
+        """Expired running jobs with no attempts left, to bury them."""
         ...
 
     def finish(self, job: Job, *, now: datetime | None = None) -> bool:

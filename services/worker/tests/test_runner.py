@@ -216,8 +216,8 @@ def test_job_logs_name_the_job_but_not_the_file(
     with caplog.at_level(logging.INFO, logger="kiln_worker"):
         worker.run_once()
 
-    assert str(version.id) in caplog.text
-    assert "ready" in caplog.text
+    assert f"version {version.id}: started (attempt 1)" in caplog.text
+    assert f"version {version.id}: ready" in caplog.text
     assert "rock.png" not in caplog.text
 
 

@@ -1,7 +1,9 @@
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 
+from kiln_api.clock import DatabaseClock
 from kiln_api.config import Settings
 from kiln_api.container import build_engine, build_storage
 from kiln_api.enums import Environment
@@ -33,3 +35,10 @@ def test_readiness_uses_a_one_second_single_attempt_probe_client() -> None:
     assert storage._probe is not storage._client
     assert (probe.connect_timeout, probe.read_timeout) == (1, 1)
     assert probe.retries == {"total_max_attempts": 1, "mode": "standard"}
+
+
+def test_the_database_clock_reports_postgres_time_in_utc(engine: Engine) -> None:
+    moment = DatabaseClock(engine).now()
+
+    assert moment.tzinfo is UTC
+    assert abs(moment - datetime.now(UTC)) < timedelta(seconds=30)

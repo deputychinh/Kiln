@@ -1,9 +1,14 @@
 import io
 import struct
+import subprocess
+import sys
 import zlib
+from collections.abc import Callable
+from pathlib import Path
+from typing import cast
 
 import pytest
-from PIL import Image
+from PIL import Image, JpegImagePlugin
 
 from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
@@ -117,3 +122,102 @@ def test_unreadable_or_mislabelled_files_are_refused(data: bytes, content_type: 
 def test_a_model_file_is_not_an_image_job() -> None:
     with pytest.raises(UnreadableImageError):
         make_thumbnail(b"glTF....", "model/gltf-binary")
+
+
+def _encoded(image: Image.Image, fmt: str, **options: object) -> bytes:
+    buffer = io.BytesIO()
+    image.save(buffer, fmt, **options)
+    return buffer.getvalue()
+
+
+def test_a_16_bit_height_map_is_scaled_not_clipped_to_white() -> None:
+    gradient = Image.new("I;16", (256, 8))
+    gradient.putdata([x * 257 for x in range(256)] * 8)
+
+    thumbnail = make_thumbnail(_encoded(gradient, "PNG"), "image/png")
+
+    with Image.open(io.BytesIO(thumbnail)) as result:
+        grey = result.convert("L")
+        row = [cast(int, grey.getpixel((x, 4))) for x in range(0, 256, 32)]
+    assert row == sorted(row)
+    assert row[0] < 20
+    assert row[-1] > 200
+    assert len(set(row)) == len(row)
+
+
+def test_palette_transparency_is_kept_as_alpha() -> None:
+    palette = Image.new("P", (32, 32), 0)
+    palette.putpalette([0, 0, 0, 255, 0, 0] + [0] * 762)
+    palette.paste(1, (16, 0, 32, 32))
+
+    thumbnail = make_thumbnail(_encoded(palette, "PNG", transparency=0), "image/png")
+
+    with Image.open(io.BytesIO(thumbnail)) as result:
+        assert result.mode == "RGBA"
+        assert result.getpixel((0, 0))[3] == 0  # type: ignore[index]
+        assert result.getpixel((31, 0))[3] == 255  # type: ignore[index]
+
+
+def test_jpeg_is_decoded_at_reduced_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    requested: list[tuple[str | None, tuple[int, int] | None]] = []
+    original = JpegImagePlugin.JpegImageFile.draft
+
+    def spy(
+        self: JpegImagePlugin.JpegImageFile, mode: str | None, size: tuple[int, int] | None
+    ) -> object:
+        requested.append((mode, size))
+        return original(self, mode, size)
+
+    monkeypatch.setattr(JpegImagePlugin.JpegImageFile, "draft", spy)
+
+    make_thumbnail(_image("JPEG", (2048, 2048)), "image/jpeg")
+
+    assert requested == [("RGB", (512, 512))]
+
+
+@pytest.mark.parametrize(("side", "refused"), [(3464, False), (3465, True)])
+def test_webp_is_limited_to_12_megapixels(side: int, refused: bool) -> None:
+    data = _encoded(Image.new("RGB", (side, side), (5, 5, 5)), "WEBP", quality=10)
+
+    if refused:
+        with pytest.raises(ImageTooLargeError):
+            make_thumbnail(data, "image/webp")
+    else:
+        assert make_thumbnail(data, "image/webp")
+
+
+_PEAK_SCRIPT = """
+import resource, sys
+from kiln_worker.thumbnail import make_thumbnail
+data = open(sys.argv[1], "rb").read()
+base = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+make_thumbnail(data, sys.argv[2])
+grown = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - base
+print(grown if sys.platform == "darwin" else grown * 1024)
+"""
+
+
+@pytest.mark.parametrize(
+    ("image", "fmt", "content_type"),
+    [
+        (lambda: Image.new("RGBA", (3464, 3464), (1, 2, 3, 128)), "WEBP", "image/webp"),
+        (lambda: Image.new("RGB", (7000, 7000), (1, 2, 3)), "PNG", "image/png"),
+        (lambda: Image.new("RGB", (7000, 7000), (1, 2, 3)), "JPEG", "image/jpeg"),
+    ],
+)
+def test_peak_memory_stays_within_the_job_budget_at_each_formats_limit(
+    tmp_path: Path, image: Callable[[], Image.Image], fmt: str, content_type: str
+) -> None:
+    source = tmp_path / f"limit.{fmt.lower()}"
+    image().save(source, fmt)
+    script = tmp_path / "peak.py"
+    script.write_text(_PEAK_SCRIPT)
+
+    result = subprocess.run(  # noqa: S603 - fixed interpreter, script and arguments
+        [sys.executable, str(script), str(source), content_type],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert int(result.stdout.strip()) < 300 * 1024 * 1024

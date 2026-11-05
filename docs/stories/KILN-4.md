@@ -73,9 +73,9 @@ Performance (manual, laptop, worst-case random-noise images 4096 × 4096): PNG 5
 
 Mutation checks (`PYTHONDONTWRITEBYTECODE=1`, code restored each time), all killed: no ETag check, any decoder, no 50 MP check, `<=` on the lease, cover always overwritten, EXIF kept in the thumbnail.
 
-Counts from `pytest --collect-only`: `test_runner.py` 12, `test_thumbnail.py` 14, `test_main.py` 2, `test_job_queue.py` 8, `test_processing_api.py` 4; total suite 349 after round 1 (`test_runner.py` 25, `test_job_queue.py` 11, `test_migrations.py` 5).
+Counts from `pytest --collect-only`: `test_runner.py` 12, `test_thumbnail.py` 14, `test_main.py` 2, `test_job_queue.py` 8, `test_processing_api.py` 4; total suite 358 after round 2 (round 1: 349 ; `test_runner.py` 25, `test_job_queue.py` 11, `test_migrations.py` 5, `test_thumbnail.py` 22).
 
-Gates: `make ci` green — Python 349 passed, coverage 99 %; ruff and mypy strict clean.
+Gates: `make ci` green — Python 358 passed, coverage 99 %; ruff and mypy strict clean.
 
 ### Review round 1 changes (8.0/10, reliability 0)
 
@@ -87,6 +87,15 @@ Gates: `make ci` green — Python 349 passed, coverage 99 %; ruff and mypy stric
 - **TOCTOU**: the download is a `GetObject` with `If-Match` on the ETag from the `HEAD`; a change in between is `UPLOAD_CHANGED`. The integration test showed boto3's `download_fileobj` silently cannot do this (`IfMatch` is not an allowed extra arg), which the fake had hidden.
 - **Migration 0003 backfill**: failed rows from before get `PROCESSING_GAVE_UP`; processing rows get a job; the worker accepts legacy rows without a recorded ETag.
 - New tests (16) for each of these; the review's surviving mutants (no `SKIP LOCKED`, finish outside the transaction, busy loop) and a new one (no ownership guard) are killed.
+
+### Review round 2 changes (fresh reviewer, 8.0/10)
+
+- **Memory budget per job about 256 MB**, enforced by per-format pixel limits measured in fresh processes: PNG 50 MP (~4.4 B/pixel, full decode), JPEG 50 MP (decoded at reduced size), **WebP 12 MP** (~21 B/pixel with alpha, no reduced decode). A small 7000 × 7000 WebP that used to reach 823 MB is now refused before decoding. A regression test runs each format at its limit in a subprocess and asserts a peak below 300 MB. (This corrects the round-1 note that claimed about 220 MB for every format.)
+- **AC8**: the worker logs `started (attempt n)` right after the claim and the outcome afterwards, so the job that crashes a worker is identifiable.
+- **16-bit greyscale** (height and displacement maps) is scaled to 8-bit instead of clipped to white; palette transparency (`tRNS`) is kept as alpha; tests pin both and that JPEG is decoded at reduced size.
+- **Times from the database** in production: the worker stamps versions with Postgres `now()` (`DatabaseClock`), like the queue's leases.
+- `lock_exhausted` became `exhausted_jobs` (read only; burying is guarded by the claim).
+- Filed **KILN-24**: lease heartbeat for jobs longer than the 5-minute lease (today safe because processing is idempotent).
 
 ## Review score
 
