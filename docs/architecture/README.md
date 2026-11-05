@@ -20,8 +20,8 @@ flowchart LR
 
 1. The client calls `POST /api/v1/assets` (optional `Idempotency-Key`; the key row and the asset are written in one transaction, so a retry replays the first result — KILN-21); the API creates `Asset` + `AssetVersion(pending_upload)` and returns a presigned POST (ADR 0004: 15-minute expiry; the policy pins the key, content type and exact size).
 2. The client POSTs the file as multipart form data to its **staging key** `uploads/<asset_id>/<version_id>`, then calls `POST /api/v1/asset-versions/{id}/completions`.
-3. The API `HEAD`s the staging object, checks size and type, copies it to the final key with `CopySourceIfMatch` (ADR 0005), deletes the staging object, moves the version to `processing` (from KILN-4 the same transaction also writes a `thumbnail` job).
-4. The worker takes the job, renders the thumbnail, (v0.3) asks for AI tags, and marks the version `ready`. The web app polls or listens on SSE `/api/v1/events`.
+3. The API `HEAD`s the staging object, checks size and type, copies it to the final key with `CopySourceIfMatch` (ADR 0005), deletes the staging object, moves the version to `processing` records the final object's ETag and writes a `thumbnail` job in the same transaction (outbox).
+4. The worker claims the job (`FOR UPDATE SKIP LOCKED`, 5-minute lease), checks the final object's ETag against the one recorded at completion, renders a 512 px WebP to `thumbs/<asset_id>/<version_id>.webp`, and in one transaction marks the version `ready`, updates the asset cover and finishes the job. Permanent problems mark the version `failed` with a reason; transient ones retry with backoff (5/25/125/625 s) and give up after 5 attempts. (v0.3 adds AI tagging to this step.) The web app polls or listens on SSE `/api/v1/events`.
 
 ## Endpoints (v0.1)
 
