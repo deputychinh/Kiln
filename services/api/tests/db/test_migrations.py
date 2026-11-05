@@ -90,3 +90,46 @@ def test_constraint_and_index_definitions_match_the_schema_module(database_url: 
         with admin.connect() as connection:
             connection.execute(text(f'DROP DATABASE "{reference_name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def test_migration_0003_backfills_existing_rows(database_url: str, alembic_config: Config) -> None:
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0002_idempotency_keys")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                " VALUES ('00000000-0000-7000-8000-000000000001', 'Old', 'image', now(), now())"
+            )
+        )
+        for number, status in ((1, "failed"), (2, "processing")):
+            connection.execute(
+                text(
+                    "INSERT INTO asset_versions (id, asset_id, number, status, file_name,"
+                    " content_type, size_bytes, object_key, created_at, updated_at) VALUES"
+                    " (:id, '00000000-0000-7000-8000-000000000001', :n, :s, 'a.png', 'image/png',"
+                    " 1, :key, now(), now())"
+                ),
+                {
+                    "id": f"00000000-0000-7000-8000-00000000001{number}",
+                    "n": number,
+                    "s": status,
+                    "key": f"assets/old/v{number}",
+                },
+            )
+
+    command.upgrade(alembic_config, "head")
+
+    with engine.connect() as connection:
+        reasons: dict[str, str | None] = dict(
+            connection.execute(text("SELECT status, failure_reason FROM asset_versions")).all()
+        )
+        queued = connection.execute(text("SELECT count(*) FROM jobs")).scalar_one()
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM jobs"))
+        connection.execute(text("DELETE FROM asset_versions"))
+        connection.execute(text("DELETE FROM assets"))
+    engine.dispose()
+
+    assert reasons == {"failed": "PROCESSING_GAVE_UP", "processing": None}
+    assert queued == 1

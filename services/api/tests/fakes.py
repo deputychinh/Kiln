@@ -76,9 +76,12 @@ class FakeStorage:
         if data is not None:
             self.blobs[key] = data
 
-    def download(self, key: str, into: IO[bytes]) -> None:
+    def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
         self._check()
+        if if_match is not None and self.objects[key].etag != if_match:
+            return False
         into.write(self.blobs[key])
+        return True
 
     def upload(self, key: str, data: bytes, content_type: str) -> None:
         self._check()

@@ -3,18 +3,18 @@
 import logging
 import threading
 import time
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from tempfile import SpooledTemporaryFile
 
 from sqlalchemy import Engine
-from sqlalchemy.exc import SQLAlchemyError
 
 from kiln_api.clock import SystemClock
-from kiln_api.constants import JOB_LEASE_SECONDS
+from kiln_api.constants import JOB_LEASE_SECONDS, JOB_MAX_ATTEMPTS
 from kiln_api.domain.assets import Asset, AssetVersion, thumbnail_key, transition
-from kiln_api.domain.jobs import Job, next_attempt_at
+from kiln_api.domain.jobs import Job, next_attempt_delay
 from kiln_api.enums import AssetKind, FailureReason, VersionStatus
-from kiln_api.errors import DomainError, InvalidStatusTransitionError
+from kiln_api.errors import InvalidStatusTransitionError
 from kiln_api.ports import AssetRepository, Clock, JobQueue, ObjectStorage, UnitOfWork
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.jobs import SqlJobQueue
@@ -25,37 +25,50 @@ from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
 logger = logging.getLogger("kiln_worker")
 
-_LEASE_SECONDS = float(JOB_LEASE_SECONDS)
+_LEASE = timedelta(seconds=JOB_LEASE_SECONDS)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerPorts:
+    """Everything the worker talks to."""
+
+    jobs: JobQueue
+    assets: AssetRepository
+    storage: ObjectStorage
+    unit_of_work: UnitOfWork
 
 
 class Worker:
     """Processes one job at a time; safe to run several copies (SKIP LOCKED + leases)."""
 
-    def __init__(
-        self,
-        *,
-        jobs: JobQueue,
-        assets: AssetRepository,
-        storage: ObjectStorage,
-        unit_of_work: UnitOfWork,
-        clock: Clock,
-    ) -> None:
-        """Receive every collaborator through its port."""
-        self._jobs = jobs
-        self._assets = assets
-        self._storage = storage
-        self._unit_of_work = unit_of_work
+    def __init__(self, ports: WorkerPorts, clock: Clock, *, database_clock: bool = True) -> None:
+        """Receive every collaborator through its port.
+
+        With `database_clock`, leases and retries use the database's `now()` so workers with
+        skewed clocks agree; tests turn it off and drive time through `clock`.
+        """
+        self._jobs = ports.jobs
+        self._assets = ports.assets
+        self._storage = ports.storage
+        self._unit_of_work = ports.unit_of_work
         self._clock = clock
+        self._database_clock = database_clock
 
     def run(self, *, stop: threading.Event, idle_seconds: float = IDLE_POLL_SECONDS) -> None:
-        """Work until `stop` is set; sleep between polls only when the queue is empty."""
+        """Work until `stop` is set; never dies on an error, sleeps when idle or failing."""
         while not stop.is_set():
-            if not self.run_once():
+            try:
+                worked = self.run_once()
+            except Exception as error:
+                logger.exception("worker iteration failed: %s", type(error).__name__)
+                worked = False
+            if not worked:
                 stop.wait(idle_seconds)
 
     def run_once(self) -> bool:
-        """Claim and process one job; False when nothing was runnable."""
-        job = self._jobs.claim(now=self._clock.now(), lease=timedelta(seconds=_LEASE_SECONDS))
+        """Bury exhausted jobs, then claim and process one job; False when nothing ran."""
+        self._bury_exhausted()
+        job = self._jobs.claim(lease=_LEASE, max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
         if job is None:
             return False
         started = time.monotonic()
@@ -70,25 +83,28 @@ class Worker:
         )
         return True
 
+    def _queue_now(self) -> datetime | None:
+        return None if self._database_clock else self._clock.now()
+
     def _handle(self, job: Job) -> str:
-        version = self._assets.get_version(job.version_id)
-        if version.status is not VersionStatus.PROCESSING:
-            self._jobs.finish(job.id, now=self._clock.now())
-            return f"skipped ({version.status})"
         try:
+            version = self._assets.get_version(job.version_id)
+            if version.status is not VersionStatus.PROCESSING:
+                return self._close(job, f"skipped ({version.status})")
             reason = self._render(self._assets.get(version.asset_id), version)
-        except (DomainError, SQLAlchemyError) as error:
-            return self._retry_or_give_up(job, version, error)
-        return self._finish(job, version, reason)
+            return self._finish(job, version, reason)
+        except Exception as error:
+            return self._retry_or_give_up(job, error)
 
     def _render(self, asset: Asset, version: AssetVersion) -> FailureReason | None:
         stored = self._storage.head(version.object_key)
-        if stored is None or stored.etag != version.etag:
+        if stored is None or (version.etag is not None and stored.etag != version.etag):
             return FailureReason.UPLOAD_CHANGED
         if asset.kind is AssetKind.MODEL:
             return None  # 3D previews arrive with KILN-5
         with SpooledTemporaryFile(max_size=SPOOL_MAX_BYTES) as buffer:
-            self._storage.download(version.object_key, buffer)
+            if not self._storage.download(version.object_key, buffer, if_match=stored.etag):
+                return FailureReason.UPLOAD_CHANGED  # replaced between HEAD and GET
             buffer.seek(0)
             try:
                 preview = make_thumbnail(buffer, version.content_type)
@@ -105,37 +121,74 @@ class Worker:
         done = transition(version, status, now=now, failure_reason=reason)
         try:
             with self._unit_of_work() as tx:  # version, cover and job change together
+                _require_owner(tx.jobs.finish(job, now=self._queue_now()))
                 tx.assets.save_version(done, expected=VersionStatus.PROCESSING)
                 if reason is None:
                     tx.assets.promote_cover(done)
-                tx.jobs.finish(job.id, now=now)
+        except _LeaseLostError:
+            return "lease lost; another worker owns the job"
         except InvalidStatusTransitionError:
-            self._jobs.finish(job.id, now=now)
-            return "skipped (changed meanwhile)"
+            return self._close(job, "skipped (changed meanwhile)")
         return status.value if reason is None else f"failed {reason.value}"
 
-    def _retry_or_give_up(self, job: Job, version: AssetVersion, error: Exception) -> str:
-        now = self._clock.now()
+    def _close(self, job: Job, outcome: str) -> str:
+        if not self._jobs.finish(job, now=self._queue_now()):
+            return "lease lost; another worker owns the job"
+        return outcome
+
+    def _retry_or_give_up(self, job: Job, error: Exception) -> str:
         cause = getattr(error, "cause_code", "") or type(error).__name__
-        retry_at = next_attempt_at(job, now=now)
-        if retry_at is not None:
-            self._jobs.retry(job.id, run_after=retry_at, error=cause, now=now)
-            return f"retry at {retry_at.isoformat()} ({cause})"
-        gave_up = transition(
-            version, VersionStatus.FAILED, now=now, failure_reason=FailureReason.PROCESSING_GAVE_UP
-        )
-        with self._unit_of_work() as tx:
-            tx.assets.save_version(gave_up, expected=VersionStatus.PROCESSING)
-            tx.jobs.bury(job.id, error=cause, now=now)
+        delay = next_attempt_delay(job)
+        if delay is not None:
+            if not self._jobs.retry(job, delay=delay, error=cause, now=self._queue_now()):
+                return "lease lost; another worker owns the job"
+            return f"retry in {delay.total_seconds():.0f} s ({cause})"
+        self._give_up(job, cause)
         return f"gave up ({cause})"
+
+    def _give_up(self, job: Job, cause: str) -> None:
+        with self._unit_of_work() as tx:
+            if not tx.jobs.bury(job, error=cause, now=self._queue_now()):
+                return
+            version = tx.assets.get_version(job.version_id)
+            if version.status is not VersionStatus.PROCESSING:
+                return
+            gave_up = transition(
+                version,
+                VersionStatus.FAILED,
+                now=self._clock.now(),
+                failure_reason=FailureReason.PROCESSING_GAVE_UP,
+            )
+            try:
+                tx.assets.save_version(gave_up, expected=VersionStatus.PROCESSING)
+            except InvalidStatusTransitionError:
+                return
+
+    def _bury_exhausted(self) -> None:
+        """Jobs that crashed the worker on every attempt are buried and their versions failed."""
+        with self._unit_of_work() as tx:
+            exhausted = tx.jobs.lock_exhausted(max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
+        for job in exhausted:
+            logger.warning("job %s exhausted its attempts while leased; burying", job.id)
+            self._give_up(job, "crashed on every attempt")
+
+
+class _LeaseLostError(Exception):
+    """This worker's claim expired and another worker re-claimed the job."""
+
+
+def _require_owner(owned: bool) -> None:
+    if not owned:
+        msg = "lease lost"
+        raise _LeaseLostError(msg)
 
 
 def build_worker(engine: Engine, *, storage: ObjectStorage, clock: Clock | None = None) -> Worker:
-    """Wire the worker on the API's adapters (one schema, one set of rules)."""
-    return Worker(
+    """Wire the worker on the API's adapters; an injected clock also drives the queue (tests)."""
+    ports = WorkerPorts(
         jobs=SqlJobQueue(engine),
         assets=SqlAssetRepository(engine),
         storage=storage,
         unit_of_work=SqlUnitOfWork(engine),
-        clock=clock or SystemClock(),
     )
+    return Worker(ports, clock or SystemClock(), database_clock=clock is None)

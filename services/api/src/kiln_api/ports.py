@@ -62,8 +62,8 @@ class ObjectStorage(Protocol):
         """Fast readiness check (about 1 s, one attempt); raise `StorageUnavailableError`."""
         ...
 
-    def download(self, key: str, into: IO[bytes]) -> None:
-        """Stream the object at `key` into a file object."""
+    def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
+        """Stream the object into a file object; False when it no longer matches `if_match`."""
         ...
 
     def upload(self, key: str, data: bytes, content_type: str) -> None:
@@ -152,26 +152,36 @@ class IdempotencyStore(Protocol):
 
 
 class JobQueue(Protocol):
-    """Background work stored next to the data it is about."""
+    """Background work stored next to the data it is about.
+
+    `now=None` means the database clock; tests pass explicit times. State changes after a claim
+    return False when the claim no longer owns the job (its lease expired and it was re-claimed).
+    """
 
     def enqueue(self, job: Job) -> None:
         """Store a new job."""
         ...
 
-    def claim(self, *, now: datetime, lease: timedelta) -> Job | None:
-        """Take the next runnable job with a lease, or return None."""
+    def claim(
+        self, *, lease: timedelta, max_attempts: int, now: datetime | None = None
+    ) -> Job | None:
+        """Take the next runnable job that still has attempts left, or return None."""
         ...
 
-    def finish(self, job_id: UUID, *, now: datetime) -> None:
-        """Mark a job done."""
+    def lock_exhausted(self, *, max_attempts: int, now: datetime | None = None) -> list[Job]:
+        """Lock expired running jobs with no attempts left, to bury them."""
         ...
 
-    def retry(self, job_id: UUID, *, run_after: datetime, error: str, now: datetime) -> None:
-        """Requeue a job for a later attempt."""
+    def finish(self, job: Job, *, now: datetime | None = None) -> bool:
+        """Mark a claimed job done."""
         ...
 
-    def bury(self, job_id: UUID, *, error: str, now: datetime) -> None:
-        """Mark a job dead."""
+    def retry(self, job: Job, *, delay: timedelta, error: str, now: datetime | None = None) -> bool:
+        """Requeue a claimed job after `delay`."""
+        ...
+
+    def bury(self, job: Job, *, error: str, now: datetime | None = None) -> bool:
+        """Mark a claimed job dead."""
         ...
 
 

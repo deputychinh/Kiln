@@ -20,6 +20,11 @@ def upgrade() -> None:
     """Add processing columns and the jobs table."""
     op.add_column("asset_versions", sa.Column("etag", sa.Text(), nullable=True))
     op.add_column("asset_versions", sa.Column("failure_reason", sa.Text(), nullable=True))
+    # Rows that failed before reasons existed get the generic one, so the new check holds.
+    op.execute(
+        "UPDATE asset_versions SET failure_reason = 'PROCESSING_GAVE_UP'"
+        " WHERE status = 'failed' AND failure_reason IS NULL"
+    )
     op.create_check_constraint(
         op.f("ck_asset_versions_failure_reason"),
         "asset_versions",
@@ -70,6 +75,13 @@ def upgrade() -> None:
         "jobs",
         ["run_after"],
         postgresql_where=sa.text("status = 'queued'"),
+    )
+    # Versions already processing before jobs existed get a job; with no recorded ETag the worker
+    # accepts the object as it is (only such legacy rows lack one).
+    op.execute(
+        "INSERT INTO jobs (id, kind, version_id, status, attempts, run_after, created_at,"
+        " updated_at) SELECT gen_random_uuid(), 'thumbnail', id, 'queued', 0, now(), now(), now()"
+        " FROM asset_versions WHERE status = 'processing'"
     )
     op.create_index(
         op.f("ix_jobs_leased_until"),

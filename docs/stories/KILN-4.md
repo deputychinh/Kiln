@@ -73,9 +73,20 @@ Performance (manual, laptop, worst-case random-noise images 4096 × 4096): PNG 5
 
 Mutation checks (`PYTHONDONTWRITEBYTECODE=1`, code restored each time), all killed: no ETag check, any decoder, no 50 MP check, `<=` on the lease, cover always overwritten, EXIF kept in the thumbnail.
 
-Counts from `pytest --collect-only`: `test_runner.py` 12, `test_thumbnail.py` 14, `test_main.py` 2, `test_job_queue.py` 8, `test_processing_api.py` 4; total suite 330.
+Counts from `pytest --collect-only`: `test_runner.py` 12, `test_thumbnail.py` 14, `test_main.py` 2, `test_job_queue.py` 8, `test_processing_api.py` 4; total suite 349 after round 1 (`test_runner.py` 25, `test_job_queue.py` 11, `test_migrations.py` 5).
 
-Gates: `make ci` green — Python 330 passed, coverage 99 %; ruff and mypy strict clean.
+Gates: `make ci` green — Python 349 passed, coverage 99 %; ruff and mypy strict clean.
+
+### Review round 1 changes (8.0/10, reliability 0)
+
+- **No job loops forever**: the loop catches every error (logged with the class and a traceback) and keeps running, also when the database is down; any unexpected error in a job is retried with backoff or buried; jobs that crashed the worker on every attempt are no longer leased again but buried with their version failed (`PROCESSING_GAVE_UP`).
+- **Ownership**: `finish`, `retry` and `bury` only apply while the job is still `running` with the attempt number of this claim; a worker whose lease expired cannot overwrite the new owner's state, and finishing is the first statement of the outcome transaction.
+- **Database clock** for leases and retries in production (`now()`), so skewed worker clocks agree; tests drive an explicit clock.
+- **Give-up is safe** when the version changed at the last moment.
+- **Memory**: shrink before applying EXIF orientation; peak for a 49 MP rotated PNG fell from 405 MB to 215 MB (PNG must decode every pixel, so about 220 MB per worker is the budget at the 50 MP limit; JPEG decodes at reduced size, about 14 MB).
+- **TOCTOU**: the download is a `GetObject` with `If-Match` on the ETag from the `HEAD`; a change in between is `UPLOAD_CHANGED`. The integration test showed boto3's `download_fileobj` silently cannot do this (`IfMatch` is not an allowed extra arg), which the fake had hidden.
+- **Migration 0003 backfill**: failed rows from before get `PROCESSING_GAVE_UP`; processing rows get a job; the worker accepts legacy rows without a recorded ETag.
+- New tests (16) for each of these; the review's surviving mutants (no `SKIP LOCKED`, finish outside the transaction, busy loop) and a new one (no ownership guard) are killed.
 
 ## Review score
 

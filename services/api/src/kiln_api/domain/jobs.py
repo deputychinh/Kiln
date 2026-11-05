@@ -38,8 +38,8 @@ def new_job(kind: JobKind, version_id: UUID, *, job_id: UUID, now: datetime) -> 
     )
 
 
-def next_attempt_at(job: Job, *, now: datetime) -> datetime | None:
-    """When to retry after a transient failure: 5 s, 25 s, 125 s, …; None once attempts run out."""
+def next_attempt_delay(job: Job) -> timedelta | None:
+    """How long to wait after a transient failure: 5 s, 25 s, 125 s, 625 s; None once used up."""
     if job.attempts >= JOB_MAX_ATTEMPTS:
         return None
-    return now + timedelta(seconds=JOB_BACKOFF_BASE_SECONDS * 5 ** (job.attempts - 1))
+    return timedelta(seconds=JOB_BACKOFF_BASE_SECONDS * 5 ** (job.attempts - 1))

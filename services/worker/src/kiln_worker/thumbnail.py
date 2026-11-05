@@ -37,8 +37,9 @@ def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
                 if width * height > MAX_SOURCE_PIXELS:
                     raise ImageTooLargeError
                 opened.draft("RGB", (THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
+                # Shrink first, then orient: rotating the full image would copy every pixel.
+                opened.thumbnail((THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
                 image = ImageOps.exif_transpose(opened)
-                image.thumbnail((THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
         except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
             raise UnreadableImageError from error
         except (Image.DecompressionBombError, Image.DecompressionBombWarning) as error:

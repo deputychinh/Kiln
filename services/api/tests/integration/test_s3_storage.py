@@ -304,3 +304,20 @@ def test_download_and_upload_report_an_unreachable_storage(settings: Settings) -
         storage.download("anything", io.BytesIO())
     with pytest.raises(StorageUnavailableError):
         storage.upload("anything", b"x", "image/webp")
+
+
+def test_a_download_with_a_stale_etag_is_refused_by_the_real_server(settings: Settings) -> None:
+    storage = build_storage(settings)
+    storage.ensure_bucket()
+    key = f"assets/{uuid.uuid4()}.png"
+    storage.upload(key, b"first", "image/png")
+    stale = storage.head(key)
+    assert stale is not None
+    storage.upload(key, b"second", "image/png")
+
+    refused = storage.download(key, io.BytesIO(), if_match=stale.etag)
+    fresh = storage.head(key)
+    assert fresh is not None
+    accepted = storage.download(key, io.BytesIO(), if_match=fresh.etag)
+
+    assert (refused, accepted) == (False, True)

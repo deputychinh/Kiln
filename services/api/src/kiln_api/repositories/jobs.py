@@ -1,12 +1,30 @@
-"""Postgres adapter for the `JobQueue` port (ADR 0001 §5: a queue on Postgres)."""
+"""Postgres adapter for the `JobQueue` port (ADR 0001 §5: a queue on Postgres).
+
+Times come from the database clock (`now()`) unless a caller passes `now` (tests), so workers
+with skewed clocks agree on leases. Every state change after a claim is guarded by the claim
+itself (`status = 'running'` and the attempt number), so a worker whose lease expired cannot
+overwrite the state written by the worker that re-claimed the job.
+"""
 
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any
-from uuid import UUID
 
-from sqlalchemy import Connection, Engine, Row, and_, func, insert, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Connection,
+    Engine,
+    Row,
+    and_,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    update,
+)
+from sqlalchemy.types import DateTime
 
 from kiln_api.db.schema import jobs
 from kiln_api.domain.jobs import Job
@@ -25,6 +43,10 @@ def _job(row: Row[Any]) -> Job:
         last_error=row.last_error,
         created_at=row.created_at,
     )
+
+
+def _clock(now: datetime | None) -> ColumnElement[datetime]:
+    return func.now() if now is None else literal(now, DateTime(timezone=True))
 
 
 class SqlJobQueue:
@@ -60,15 +82,19 @@ class SqlJobQueue:
                 )
             )
 
-    def claim(self, *, now: datetime, lease: timedelta) -> Job | None:
-        """Take the oldest runnable job: queued and due, or running with an expired lease."""
+    def claim(
+        self, *, lease: timedelta, max_attempts: int, now: datetime | None = None
+    ) -> Job | None:
+        """Take the oldest runnable job that still has attempts left."""
+        at = _clock(now)
         runnable = (
             select(jobs.c.id)
             .where(
+                jobs.c.attempts < max_attempts,
                 or_(
-                    and_(jobs.c.status == JobStatus.QUEUED.value, jobs.c.run_after <= now),
-                    and_(jobs.c.status == JobStatus.RUNNING.value, jobs.c.leased_until < now),
-                )
+                    and_(jobs.c.status == JobStatus.QUEUED.value, jobs.c.run_after <= at),
+                    and_(jobs.c.status == JobStatus.RUNNING.value, jobs.c.leased_until < at),
+                ),
             )
             .order_by(jobs.c.run_after)
             .limit(1)
@@ -82,31 +108,46 @@ class SqlJobQueue:
                 .values(
                     status=JobStatus.RUNNING.value,
                     attempts=jobs.c.attempts + 1,
-                    leased_until=now + lease,
-                    updated_at=now,
+                    leased_until=at + lease,
+                    updated_at=at,
                 )
                 .returning(*jobs.c)
             ).first()
         return None if row is None else _job(row)
 
-    def finish(self, job_id: UUID, *, now: datetime) -> None:
-        """Mark the job done."""
-        self._set(job_id, now=now, status=JobStatus.DONE, leased_until=None)
+    def lock_exhausted(self, *, max_attempts: int, now: datetime | None = None) -> list[Job]:
+        """Lock running jobs whose lease expired with no attempts left (crashed every time)."""
+        with self._write() as connection:
+            rows = connection.execute(
+                select(jobs)
+                .where(
+                    jobs.c.status == JobStatus.RUNNING.value,
+                    jobs.c.leased_until < _clock(now),
+                    jobs.c.attempts >= max_attempts,
+                )
+                .limit(10)
+                .with_for_update(skip_locked=True)
+            ).all()
+        return [_job(row) for row in rows]
 
-    def retry(self, job_id: UUID, *, run_after: datetime, error: str, now: datetime) -> None:
-        """Put the job back in the queue for a later attempt."""
-        self._set(
-            job_id,
+    def finish(self, job: Job, *, now: datetime | None = None) -> bool:
+        """Mark the claimed job done; False if this claim no longer owns it."""
+        return self._set(job, now=now, status=JobStatus.DONE, leased_until=None)
+
+    def retry(self, job: Job, *, delay: timedelta, error: str, now: datetime | None = None) -> bool:
+        """Requeue the claimed job after `delay`; False if this claim no longer owns it."""
+        return self._set(
+            job,
             now=now,
             status=JobStatus.QUEUED,
-            run_after=run_after,
+            run_after=_clock(now) + delay,
             leased_until=None,
             last_error=error,
         )
 
-    def bury(self, job_id: UUID, *, error: str, now: datetime) -> None:
-        """Stop retrying: the job is dead and stays visible."""
-        self._set(job_id, now=now, status=JobStatus.DEAD, leased_until=None, last_error=error)
+    def bury(self, job: Job, *, error: str, now: datetime | None = None) -> bool:
+        """Stop retrying the claimed job; False if this claim no longer owns it."""
+        return self._set(job, now=now, status=JobStatus.DEAD, leased_until=None, last_error=error)
 
     def counts(self) -> dict[JobStatus, int]:
         """Jobs per status, for monitoring."""
@@ -116,10 +157,15 @@ class SqlJobQueue:
             ).all()
         return {JobStatus(status): count for status, count in rows}
 
-    def _set(self, job_id: UUID, *, now: datetime, status: JobStatus, **values: object) -> None:
+    def _set(self, job: Job, *, now: datetime | None, status: JobStatus, **values: object) -> bool:
         with self._write() as connection:
-            connection.execute(
+            result = connection.execute(
                 update(jobs)
-                .where(jobs.c.id == job_id)
-                .values(status=status.value, updated_at=now, **values)
+                .where(
+                    jobs.c.id == job.id,
+                    jobs.c.status == JobStatus.RUNNING.value,
+                    jobs.c.attempts == job.attempts,
+                )
+                .values(status=status.value, updated_at=_clock(now), **values)
             )
+        return result.rowcount == 1

@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -199,3 +200,13 @@ def test_an_s3_error_keeps_its_code_as_the_cause(stubbed: tuple[S3ObjectStorage,
         storage.head("uploads/a")
 
     assert raised.value.cause_code == "SlowDown"
+
+
+def test_a_download_error_other_than_412_is_reported_as_unavailable(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error("get_object", service_error_code="InternalError", http_status_code=500)
+
+    with pytest.raises(StorageUnavailableError):
+        storage.download("assets/a.png", io.BytesIO(), if_match='"x"')

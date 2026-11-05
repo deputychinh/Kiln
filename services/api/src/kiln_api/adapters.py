@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
 _MISSING = {str(HTTPStatus.NOT_FOUND.value), "NoSuchKey", "NoSuchBucket", "NotFound"}
+_DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 _PRECONDITION_FAILED = {str(HTTPStatus.PRECONDITION_FAILED.value), "PreconditionFailed"}
 
 
@@ -121,12 +122,25 @@ class S3ObjectStorage:
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
 
-    def download(self, key: str, into: IO[bytes]) -> None:
-        """Stream with the work client (timeouts and retries apply)."""
+    def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
+        """Stream with the work client; with `if_match`, refuse an object that changed (412)."""
+        # download_fileobj does not accept IfMatch, so stream GetObject ourselves.
         try:
-            self._client.download_fileobj(self._bucket, key, into)
-        except (BotoCoreError, ClientError) as error:
+            response = (
+                self._client.get_object(Bucket=self._bucket, Key=key)
+                if if_match is None
+                else self._client.get_object(Bucket=self._bucket, Key=key, IfMatch=if_match)
+            )
+            body = response["Body"]
+            for chunk in body.iter_chunks(chunk_size=_DOWNLOAD_CHUNK_BYTES):
+                into.write(chunk)
+        except ClientError as error:
+            if _code(error) in _PRECONDITION_FAILED:
+                return False
             raise _unavailable(error) from error
+        except BotoCoreError as error:
+            raise _unavailable(error) from error
+        return True
 
     def upload(self, key: str, data: bytes, content_type: str) -> None:
         """Put a Kiln-generated object."""
