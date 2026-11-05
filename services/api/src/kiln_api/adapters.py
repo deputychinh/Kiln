@@ -1,7 +1,7 @@
 """Adapters for ports that talk to external systems (object storage)."""
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING
 
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -120,3 +120,25 @@ class S3ObjectStorage:
             self._client.delete_object(Bucket=self._bucket, Key=key)
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
+
+    def download(self, key: str, into: IO[bytes]) -> None:
+        """Stream with the work client (timeouts and retries apply)."""
+        try:
+            self._client.download_fileobj(self._bucket, key, into)
+        except (BotoCoreError, ClientError) as error:
+            raise _unavailable(error) from error
+
+    def upload(self, key: str, data: bytes, content_type: str) -> None:
+        """Put a Kiln-generated object."""
+        try:
+            self._client.put_object(
+                Bucket=self._bucket, Key=key, Body=data, ContentType=content_type
+            )
+        except (BotoCoreError, ClientError) as error:
+            raise _unavailable(error) from error
+
+    def presign_download(self, key: str, ttl_seconds: int) -> str:
+        """Sign a GET locally."""
+        return self._client.generate_presigned_url(
+            "get_object", Params={"Bucket": self._bucket, "Key": key}, ExpiresIn=ttl_seconds
+        )

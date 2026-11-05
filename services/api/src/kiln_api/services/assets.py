@@ -1,10 +1,10 @@
 """Asset use cases: create, add a version, confirm an upload, read."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from kiln_api.constants import UPLOAD_URL_TTL_SECONDS
+from kiln_api.constants import DOWNLOAD_URL_TTL_SECONDS, UPLOAD_URL_TTL_SECONDS
 from kiln_api.domain.assets import (
     Asset,
     AssetVersion,
@@ -12,11 +12,14 @@ from kiln_api.domain.assets import (
     UploadSpec,
     new_asset,
     new_version,
+    thumbnail_key,
+    thumbnail_key_for,
     transition,
     upload_key,
 )
 from kiln_api.domain.idempotency import request_fingerprint
-from kiln_api.enums import PromotionResult, VersionStatus
+from kiln_api.domain.jobs import new_job
+from kiln_api.enums import AssetKind, JobKind, PromotionResult, VersionStatus
 from kiln_api.errors import (
     IdempotencyKeyInUseError,
     InvalidStatusTransitionError,
@@ -55,11 +58,28 @@ class PendingUpload:
 
 
 @dataclass(frozen=True, slots=True)
-class AssetDetail:
-    """An asset with its versions by number."""
+class VersionView:
+    """A version with the URL of its preview (None until it is ready)."""
+
+    version: AssetVersion
+    thumbnail_url: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class AssetCard:
+    """An asset with the URL of its cover preview."""
 
     asset: Asset
-    versions: list[AssetVersion]
+    thumbnail_url: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class AssetDetail:
+    """An asset with its cover preview and its versions by number."""
+
+    asset: Asset
+    thumbnail_url: str | None
+    versions: list[VersionView]
 
 
 class AssetService:
@@ -165,31 +185,55 @@ class AssetService:
                 raise UploadMismatchError  # replaced between the check and the copy
         if result is PromotionResult.PROMOTED:
             self._storage.delete(staging)
-        else:
-            # No staging object: an earlier or concurrent completion already promoted it.
-            promoted = self._storage.head(version.object_key)
-            if promoted is None:
-                raise UploadNotFoundError
-            self._check_declared(version, promoted)
-        processing = transition(version, VersionStatus.PROCESSING, now=self._clock.now())
+        # The final object is the one processing will read; record its ETag (ADR 0005).
+        final = self._storage.head(version.object_key)
+        if final is None:
+            raise UploadNotFoundError
+        self._check_declared(version, final)
+        now = self._clock.now()
+        processing = replace(
+            transition(version, VersionStatus.PROCESSING, now=now), etag=final.etag
+        )
+        job = new_job(JobKind.THUMBNAIL, version.id, job_id=self._new_id(), now=now)
         try:
-            self._repository.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
+            with self._unit_of_work() as tx:  # status, ETag and job commit together (outbox)
+                tx.assets.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
+                tx.jobs.enqueue(job)
         except InvalidStatusTransitionError:
             return self._repository.get_version(version_id)  # a concurrent completion won
         return processing
 
     def get(self, asset_id: UUID) -> AssetDetail:
-        """Return an asset with its versions."""
+        """Return an asset with its cover and versions, each with its preview URL."""
         asset = self._repository.get(asset_id)
-        return AssetDetail(asset=asset, versions=self._repository.versions_of(asset_id))
+        versions = [
+            VersionView(version=v, thumbnail_url=self._version_thumbnail(asset, v))
+            for v in self._repository.versions_of(asset_id)
+        ]
+        return AssetDetail(asset=asset, thumbnail_url=self._cover(asset), versions=versions)
 
-    def get_version(self, version_id: UUID) -> AssetVersion:
-        """Return one version."""
-        return self._repository.get_version(version_id)
+    def get_version(self, version_id: UUID) -> VersionView:
+        """Return one version with its preview URL."""
+        version = self._repository.get_version(version_id)
+        asset = self._repository.get(version.asset_id)
+        return VersionView(version=version, thumbnail_url=self._version_thumbnail(asset, version))
 
-    def list(self, *, cursor: str | None, limit: int) -> Page[Asset]:
-        """Return assets newest first."""
-        return self._repository.list_page(cursor=cursor, limit=limit)
+    def list(self, *, cursor: str | None, limit: int) -> Page[AssetCard]:
+        """Return assets newest first, each with its cover preview URL."""
+        page = self._repository.list_page(cursor=cursor, limit=limit)
+        cards = tuple(AssetCard(asset=a, thumbnail_url=self._cover(a)) for a in page.items)
+        return Page(items=cards, next_cursor=page.next_cursor)
+
+    def _version_thumbnail(self, asset: Asset, version: AssetVersion) -> str | None:
+        if asset.kind is not AssetKind.IMAGE or version.status is not VersionStatus.READY:
+            return None
+        return self._storage.presign_download(thumbnail_key(version), DOWNLOAD_URL_TTL_SECONDS)
+
+    def _cover(self, asset: Asset) -> str | None:
+        if asset.kind is not AssetKind.IMAGE or asset.cover_version_id is None:
+            return None
+        key = thumbnail_key_for(asset.id, asset.cover_version_id)
+        return self._storage.presign_download(key, DOWNLOAD_URL_TTL_SECONDS)
 
     @staticmethod
     def _check_declared(version: AssetVersion, stored: StoredObject) -> None:

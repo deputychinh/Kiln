@@ -91,7 +91,8 @@ def list_assets(
 ) -> AssetPageOut:
     """List assets newest first; `limit` is 1 to 100."""
     page = service.list(cursor=cursor, limit=limit)
-    return AssetPageOut(items=[AssetOut.of(a) for a in page.items], next_cursor=page.next_cursor)
+    items = [AssetOut.of(card.asset, card.thumbnail_url) for card in page.items]
+    return AssetPageOut(items=items, next_cursor=page.next_cursor)
 
 
 @router.get("/assets/{asset_id}", responses=problem_responses(404))
@@ -123,7 +124,8 @@ def add_version(
 @router.get("/asset-versions/{version_id}", responses=problem_responses(404))
 def get_version(version_id: UUID, service: Service) -> VersionOut:
     """Return one version."""
-    return VersionOut.of(service.get_version(version_id))
+    view = service.get_version(version_id)
+    return VersionOut.of(view.version, view.thumbnail_url)
 
 
 @router.post("/asset-versions/{version_id}/completions", responses=problem_responses(404, 409))

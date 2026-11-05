@@ -10,3 +10,6 @@ DECODERS_BY_MEDIA_TYPE: dict[str, tuple[str, ...]] = {
     "image/jpeg": ("JPEG",),
     "image/webp": ("WEBP",),
 }
+# Downloads stay in memory up to this size, then spill to a temporary file.
+SPOOL_MAX_BYTES = 16 * 1024 * 1024
+IDLE_POLL_SECONDS = 1.0

@@ -785,6 +785,18 @@
             "format": "date-time",
             "title": "Updated At"
           },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Url",
+            "description": "Preview of the newest ready version (signed, 15 minutes)."
+          },
           "versions": {
             "items": {
               "$ref": "#/components/schemas/VersionOut"
@@ -837,6 +849,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Url",
+            "description": "Preview of the newest ready version (signed, 15 minutes)."
           }
         },
         "type": "object",
@@ -911,6 +935,17 @@
         ],
         "title": "CreateAssetRequest",
         "description": "A new asset and its first file."
+      },
+      "FailureReason": {
+        "type": "string",
+        "enum": [
+          "UPLOAD_CHANGED",
+          "UNREADABLE_IMAGE",
+          "IMAGE_TOO_LARGE",
+          "PROCESSING_GAVE_UP"
+        ],
+        "title": "FailureReason",
+        "description": "Why a version ended `failed`; shown to people, so stable and human-mappable."
       },
       "HealthResponse": {
         "properties": {
@@ -1062,6 +1097,29 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FailureReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why processing failed; set only when status is failed."
+          },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Url",
+            "description": "Preview once the version is ready (signed, 15 minutes)."
           }
         },
         "type": "object",

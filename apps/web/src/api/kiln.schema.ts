@@ -215,6 +215,11 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /**
+             * Thumbnail Url
+             * @description Preview of the newest ready version (signed, 15 minutes).
+             */
+            thumbnail_url?: string | null;
             /** Versions */
             versions: components["schemas"]["VersionOut"][];
         };
@@ -247,6 +252,11 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /**
+             * Thumbnail Url
+             * @description Preview of the newest ready version (signed, 15 minutes).
+             */
+            thumbnail_url?: string | null;
         };
         /**
          * AssetPageOut
@@ -272,6 +282,12 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * FailureReason
+         * @description Why a version ended `failed`; shown to people, so stable and human-mappable.
+         * @enum {string}
+         */
+        FailureReason: "UPLOAD_CHANGED" | "UNREADABLE_IMAGE" | "IMAGE_TOO_LARGE" | "PROCESSING_GAVE_UP";
         /**
          * HealthResponse
          * @description Probe result.
@@ -360,6 +376,13 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** @description Why processing failed; set only when status is failed. */
+            failure_reason?: components["schemas"]["FailureReason"] | null;
+            /**
+             * Thumbnail Url
+             * @description Preview once the version is ready (signed, 15 minutes).
+             */
+            thumbnail_url?: string | null;
         };
         /**
          * VersionStatus

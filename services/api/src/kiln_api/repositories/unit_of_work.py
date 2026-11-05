@@ -8,6 +8,7 @@ from sqlalchemy import Engine
 
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.idempotency import SqlIdempotencyStore
+from kiln_api.repositories.jobs import SqlJobQueue
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +17,7 @@ class SqlTransaction:
 
     assets: SqlAssetRepository
     idempotency: SqlIdempotencyStore
+    jobs: SqlJobQueue
 
 
 class SqlUnitOfWork:
@@ -30,5 +32,7 @@ class SqlUnitOfWork:
         """Start a transaction and hand out repositories bound to it."""
         with self._engine.begin() as connection:
             yield SqlTransaction(
-                assets=SqlAssetRepository(connection), idempotency=SqlIdempotencyStore(connection)
+                assets=SqlAssetRepository(connection),
+                idempotency=SqlIdempotencyStore(connection),
+                jobs=SqlJobQueue(connection),
             )

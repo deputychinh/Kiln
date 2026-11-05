@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import IO
 
 from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
@@ -13,6 +14,7 @@ class FakeStorage:
 
     def __init__(self) -> None:
         self.objects: dict[str, StoredObject] = {}
+        self.blobs: dict[str, bytes] = {}
         self.signed: list[dict[str, object]] = []
         self.available = True
         self.bucket_ready = False
@@ -52,6 +54,8 @@ class FakeStorage:
         if not self.promote_succeeds or source.etag != etag:
             return PromotionResult.CHANGED
         self.objects[target_key] = source
+        if source_key in self.blobs:
+            self.blobs[target_key] = self.blobs[source_key]
         return PromotionResult.PROMOTED
 
     def ping(self) -> None:
@@ -62,12 +66,26 @@ class FakeStorage:
         if not self.delete_available:
             raise StorageUnavailableError
         self.objects.pop(key, None)
+        self.blobs.pop(key, None)
 
-    def put(self, key: str, size_bytes: int, content_type: str) -> None:
+    def put(self, key: str, size_bytes: int, content_type: str, data: bytes | None = None) -> None:
         etag = f'"{len(self.objects)}-{size_bytes}"'
         self.objects[key] = StoredObject(
             size_bytes=size_bytes, content_type=content_type, etag=etag
         )
+        if data is not None:
+            self.blobs[key] = data
+
+    def download(self, key: str, into: IO[bytes]) -> None:
+        self._check()
+        into.write(self.blobs[key])
+
+    def upload(self, key: str, data: bytes, content_type: str) -> None:
+        self._check()
+        self.put(key, len(data), content_type, data)
+
+    def presign_download(self, key: str, ttl_seconds: int) -> str:
+        return f"http://storage.test/kiln-assets/{key}?ttl={ttl_seconds}"
 
     def _check(self) -> None:
         if not self.available:

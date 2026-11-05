@@ -2,6 +2,7 @@
 
 import io
 import warnings
+from typing import IO
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -17,7 +18,7 @@ THUMBNAIL_MEDIA_TYPE = "image/webp"
 _KEEP_ALPHA = {"RGBA", "LA", "PA"}
 
 
-def make_thumbnail(data: bytes, content_type: str) -> bytes:
+def make_thumbnail(source: bytes | IO[bytes], content_type: str) -> bytes:
     """Return a WebP whose longest side is at most 512 px, EXIF-oriented, without metadata.
 
     Raises:
@@ -30,12 +31,13 @@ def make_thumbnail(data: bytes, content_type: str) -> bytes:
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
-            with Image.open(io.BytesIO(data), formats=list(decoders)) as source:
-                width, height = source.size
+            stream = io.BytesIO(source) if isinstance(source, bytes) else source
+            with Image.open(stream, formats=list(decoders)) as opened:
+                width, height = opened.size
                 if width * height > MAX_SOURCE_PIXELS:
                     raise ImageTooLargeError
-                source.draft("RGB", (THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
-                image = ImageOps.exif_transpose(source)
+                opened.draft("RGB", (THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
+                image = ImageOps.exif_transpose(opened)
                 image.thumbnail((THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE))
         except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
             raise UnreadableImageError from error

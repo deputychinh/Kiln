@@ -213,4 +213,9 @@ def upload_key(version: AssetVersion) -> str:
 
 def thumbnail_key(version: AssetVersion) -> str:
     """Where the worker writes the preview of `version`."""
-    return f"{THUMBNAIL_KEY_PREFIX}/{version.asset_id}/{version.id}.webp"
+    return thumbnail_key_for(version.asset_id, version.id)
+
+
+def thumbnail_key_for(asset_id: UUID, version_id: UUID) -> str:
+    """The preview key from ids alone (used for an asset's cover)."""
+    return f"{THUMBNAIL_KEY_PREFIX}/{asset_id}/{version_id}.webp"

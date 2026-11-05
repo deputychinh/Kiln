@@ -1,5 +1,6 @@
 """Against the real SeaweedFS from `make up` (ADR 0003): the signed POST policy and HEAD."""
 
+import io
 import socket
 import threading
 import time
@@ -277,3 +278,29 @@ def test_a_hung_storage_makes_ready_answer_503_within_seconds(
     assert response.json()["code"] == "STORAGE_UNAVAILABLE"
     assert response.headers["Retry-After"] == "1"
     assert elapsed < 5  # start-up probe (1 s) + readiness probe (1 s), not the 26 s work budget
+
+
+def test_upload_download_and_a_signed_get_round_trip(settings: Settings) -> None:
+    storage = build_storage(settings)
+    storage.ensure_bucket()
+    key = f"thumbs/{uuid.uuid4()}.webp"
+
+    storage.upload(key, b"RIFF....WEBP", "image/webp")
+    buffer = io.BytesIO()
+    storage.download(key, buffer)
+    fetched = httpx2.get(storage.presign_download(key, 60))
+
+    assert buffer.getvalue() == b"RIFF....WEBP"
+    assert fetched.status_code == 200
+    assert fetched.content == b"RIFF....WEBP"
+    assert storage.head(key) is not None
+    assert storage.head(key).content_type == "image/webp"  # type: ignore[union-attr]
+
+
+def test_download_and_upload_report_an_unreachable_storage(settings: Settings) -> None:
+    storage = build_storage(settings.model_copy(update={"s3_endpoint": "http://127.0.0.1:9"}))
+
+    with pytest.raises(StorageUnavailableError):
+        storage.download("anything", io.BytesIO())
+    with pytest.raises(StorageUnavailableError):
+        storage.upload("anything", b"x", "image/webp")

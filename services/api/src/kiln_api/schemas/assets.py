@@ -11,7 +11,7 @@ from kiln_api.constants import (
     MAX_NAME_FIELD_LENGTH,
 )
 from kiln_api.domain.assets import Asset, AssetVersion, UploadSpec
-from kiln_api.enums import AssetKind, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, VersionStatus
 from kiln_api.services.assets import AssetDetail, PendingUpload
 
 
@@ -45,9 +45,12 @@ class AssetOut(BaseModel):
     kind: AssetKind
     created_at: datetime
     updated_at: datetime
+    thumbnail_url: str | None = Field(
+        default=None, description="Preview of the newest ready version (signed, 15 minutes)."
+    )
 
     @classmethod
-    def of(cls, asset: Asset) -> "AssetOut":
+    def of(cls, asset: Asset, thumbnail_url: str | None = None) -> "AssetOut":
         """Build from the domain object."""
         return cls(
             id=asset.id,
@@ -55,6 +58,7 @@ class AssetOut(BaseModel):
             kind=asset.kind,
             created_at=asset.created_at,
             updated_at=asset.updated_at,
+            thumbnail_url=thumbnail_url,
         )
 
 
@@ -70,9 +74,15 @@ class VersionOut(BaseModel):
     size_bytes: int
     created_at: datetime
     updated_at: datetime
+    failure_reason: FailureReason | None = Field(
+        default=None, description="Why processing failed; set only when status is failed."
+    )
+    thumbnail_url: str | None = Field(
+        default=None, description="Preview once the version is ready (signed, 15 minutes)."
+    )
 
     @classmethod
-    def of(cls, version: AssetVersion) -> "VersionOut":
+    def of(cls, version: AssetVersion, thumbnail_url: str | None = None) -> "VersionOut":
         """Build from the domain object."""
         return cls(
             id=version.id,
@@ -84,6 +94,8 @@ class VersionOut(BaseModel):
             size_bytes=version.size_bytes,
             created_at=version.created_at,
             updated_at=version.updated_at,
+            failure_reason=version.failure_reason,
+            thumbnail_url=thumbnail_url,
         )
 
 
@@ -132,8 +144,8 @@ class AssetDetailOut(AssetOut):
     def of_detail(cls, detail: AssetDetail) -> "AssetDetailOut":
         """Build from the service result."""
         return cls(
-            **AssetOut.of(detail.asset).model_dump(),
-            versions=[VersionOut.of(version) for version in detail.versions],
+            **AssetOut.of(detail.asset, detail.thumbnail_url).model_dump(),
+            versions=[VersionOut.of(view.version, view.thumbnail_url) for view in detail.versions],
         )
 
 

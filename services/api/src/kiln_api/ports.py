@@ -3,11 +3,12 @@
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Protocol
+from datetime import datetime, timedelta
+from typing import IO, Protocol
 from uuid import UUID
 
 from kiln_api.domain.assets import Asset, AssetVersion
+from kiln_api.domain.jobs import Job
 from kiln_api.enums import PromotionResult, VersionStatus
 
 
@@ -59,6 +60,18 @@ class ObjectStorage(Protocol):
 
     def ping(self) -> None:
         """Fast readiness check (about 1 s, one attempt); raise `StorageUnavailableError`."""
+        ...
+
+    def download(self, key: str, into: IO[bytes]) -> None:
+        """Stream the object at `key` into a file object."""
+        ...
+
+    def upload(self, key: str, data: bytes, content_type: str) -> None:
+        """Write a small object (thumbnails) written by Kiln itself."""
+        ...
+
+    def presign_download(self, key: str, ttl_seconds: int) -> str:
+        """A time-limited GET URL; signed locally, no network call."""
         ...
 
     def delete(self, key: str) -> None:
@@ -138,6 +151,30 @@ class IdempotencyStore(Protocol):
         ...
 
 
+class JobQueue(Protocol):
+    """Background work stored next to the data it is about."""
+
+    def enqueue(self, job: Job) -> None:
+        """Store a new job."""
+        ...
+
+    def claim(self, *, now: datetime, lease: timedelta) -> Job | None:
+        """Take the next runnable job with a lease, or return None."""
+        ...
+
+    def finish(self, job_id: UUID, *, now: datetime) -> None:
+        """Mark a job done."""
+        ...
+
+    def retry(self, job_id: UUID, *, run_after: datetime, error: str, now: datetime) -> None:
+        """Requeue a job for a later attempt."""
+        ...
+
+    def bury(self, job_id: UUID, *, error: str, now: datetime) -> None:
+        """Mark a job dead."""
+        ...
+
+
 class Transaction(Protocol):
     """Repositories that share one database transaction."""
 
@@ -149,6 +186,11 @@ class Transaction(Protocol):
     @property
     def idempotency(self) -> IdempotencyStore:
         """Idempotency keys in this transaction."""
+        ...
+
+    @property
+    def jobs(self) -> JobQueue:
+        """Jobs in this transaction (outbox)."""
         ...
 
 
