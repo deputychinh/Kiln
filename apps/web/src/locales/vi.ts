@@ -37,7 +37,8 @@ export const vi: Copy = {
       UPLOAD_EXPIRED: 'Tệp chưa bao giờ được tải lên xong. Hãy tải lại tệp.',
       UNREADABLE_MODEL:
         'Đây không phải tệp glTF nhị phân (.glb) mà Kiln đọc được. Chưa hỗ trợ mesh nén (Draco, meshopt) và tệp tham chiếu bên ngoài.',
-      MODEL_TOO_LARGE: 'Model có quá nhiều hình học để tạo bản xem trước (hơn 2 triệu tam giác).',
+      MODEL_TOO_LARGE:
+        'Model quá lớn hoặc quá phức tạp để tạo bản xem trước (giới hạn gồm 256 MB, 2 triệu tam giác và 60 giây render).',
     },
     detailLabel: 'Chi tiết asset',
     selectPrompt: 'Chọn một asset để xem các phiên bản.',

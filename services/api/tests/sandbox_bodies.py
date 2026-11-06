@@ -31,3 +31,9 @@ def report_limits(source: str, target: str) -> None:
     cpu = resource.getrlimit(resource.RLIMIT_CPU)[0]
     memory = resource.getrlimit(resource.RLIMIT_AS)[0]
     Path(target).write_text(f"{cpu} {memory}")
+
+
+def exceed_cpu(source: str, target: str) -> None:
+    """Die the way the CPU-time limit kills."""
+    del source, target
+    os.kill(os.getpid(), signal.SIGXCPU)

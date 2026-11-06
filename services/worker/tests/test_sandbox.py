@@ -1,6 +1,7 @@
 import contextlib
 import io
 import logging
+import multiprocessing
 import os
 import resource
 import signal
@@ -9,6 +10,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -94,6 +96,30 @@ def test_a_child_killed_like_the_oom_killer_does_means_too_large(tmp_path: Path)
         run_child(
             tmp_path / "m.glb", tmp_path / "o.webp", seconds=30, body=sandbox_bodies.kill_self
         )
+
+
+def test_a_child_stopped_by_its_cpu_limit_means_too_large(tmp_path: Path) -> None:
+    with pytest.raises(ModelTooLargeError):
+        run_child(
+            tmp_path / "m.glb", tmp_path / "o.webp", seconds=30, body=sandbox_bodies.exceed_cpu
+        )
+
+
+def test_children_are_spawned_never_forked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    methods: list[str | None] = []
+    real = multiprocessing.get_context
+
+    def spy(method: str | None = None) -> Any:
+        methods.append(method)
+        return real(method)
+
+    monkeypatch.setattr("multiprocessing.get_context", spy)
+
+    run_child(
+        tmp_path / "m.glb", tmp_path / "o.webp", seconds=30, body=sandbox_bodies.report_limits
+    )
+
+    assert methods == ["spawn"]  # a fork would inherit the worker's threads and connections
 
 
 def test_a_child_that_writes_no_preview_is_a_crash_retried_as_transient(tmp_path: Path) -> None:
@@ -284,14 +310,15 @@ def _group_alive(pgid: int) -> bool:
     return True
 
 
-def test_a_render_child_stops_when_its_worker_is_killed_mid_render() -> None:
+def test_a_render_child_stops_when_its_worker_is_killed_mid_render(tmp_path: Path) -> None:
     tests = str(Path(__file__).parent)
     worker = subprocess.Popen(  # noqa: S603 - our own code, fixed arguments
         [sys.executable, "-c", _RENDER_SCRIPT.format(tests=tests)],
         stdout=subprocess.PIPE,
         text=True,
         start_new_session=True,
-        env={**os.environ, "PYTHONPATH": os.pathsep.join([*sys.path])},
+        # the killed worker cannot clean up: keep its model folder inside this test's tmp_path
+        env={**os.environ, "PYTHONPATH": os.pathsep.join([*sys.path]), "TMPDIR": str(tmp_path)},
     )
     try:
         assert worker.stdout is not None

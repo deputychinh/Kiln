@@ -25,9 +25,9 @@ from typing import IO
 from kiln_worker.constants import (
     MODEL_SANDBOX_CPU_SECONDS,
     MODEL_SANDBOX_MEMORY_BYTES,
-    MODEL_SANDBOX_PARENT_CHECK_SECONDS,
     MODEL_SANDBOX_SECONDS,
     MODEL_SANDBOX_STALE_SECONDS,
+    PARENT_CHECK_SECONDS,
 )
 from kiln_worker.errors import ModelTooLargeError, PreviewCrashedError, UnreadableModelError
 from kiln_worker.glb import read_glb
@@ -106,8 +106,12 @@ def limit_child() -> None:
             logger.warning("model preview runs without a memory limit (%s)", error)
 
 
-def _watch_parent(every: float = MODEL_SANDBOX_PARENT_CHECK_SECONDS) -> None:
-    """Exit at once if the worker that started this child dies."""
+def _watch_parent(every: float = PARENT_CHECK_SECONDS) -> None:
+    """Exit at once if the worker that started this child dies.
+
+    Unlike `process.watch_parent` (a worker finishes its job, then stops), a preview child exits
+    immediately: nobody is waiting for its result any more.
+    """
     parent = multiprocessing.parent_process()
     if parent is None:
         return
@@ -117,7 +121,7 @@ def _watch_parent(every: float = MODEL_SANDBOX_PARENT_CHECK_SECONDS) -> None:
             time.sleep(every)
         os._exit(_TOO_LARGE)  # nobody waits for this result any more
 
-    threading.Thread(target=watch, name="parent-watch", daemon=True).start()
+    threading.Thread(target=watch, name="preview-parent-watch", daemon=True).start()
 
 
 def _child_main(body: ChildBody, source: str, target: str) -> None:

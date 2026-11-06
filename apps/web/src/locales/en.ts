@@ -38,7 +38,7 @@ export const en: Copy = {
       UNREADABLE_MODEL:
         'This is not a glTF binary (.glb) Kiln can read. Compressed meshes (Draco, meshopt) and external files are not supported yet.',
       MODEL_TOO_LARGE:
-        'The model has too much geometry to preview (more than 2 million triangles).',
+        'The model is too large or too complex to preview (limits include 256 MB, 2 million triangles and 60 seconds of rendering).',
     },
     detailLabel: 'Asset details',
     selectPrompt: 'Select an asset to see its versions.',
