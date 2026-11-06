@@ -133,3 +133,41 @@ def test_migration_0003_backfills_existing_rows(database_url: str, alembic_confi
 
     assert reasons == {"failed": "PROCESSING_GAVE_UP", "processing": None}
     assert queued == 1
+
+
+def test_migration_0004_downgrade_maps_expired_uploads_to_a_reason_the_old_check_allows(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                " VALUES ('00000000-0000-7000-8000-000000000004', 'Gone', 'image', now(), now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO asset_versions (id, asset_id, number, status, failure_reason,"
+                " file_name, content_type, size_bytes, object_key, created_at, updated_at) VALUES"
+                " ('00000000-0000-7000-8000-000000000041', '00000000-0000-7000-8000-000000000004',"
+                " 1, 'failed', 'UPLOAD_EXPIRED', 'a.png', 'image/png', 1, 'assets/gone/v1',"
+                " now(), now())"
+            )
+        )
+        connection.execute(
+            text("INSERT INTO maintenance_runs (task, last_started_at) VALUES ('cleanup', now())")
+        )
+
+    command.downgrade(alembic_config, "0003_jobs_and_processing")
+    with engine.connect() as connection:
+        reason = connection.execute(text("SELECT failure_reason FROM asset_versions")).scalar_one()
+        tables = inspect(connection).get_table_names()
+    command.upgrade(alembic_config, "head")
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM asset_versions"))
+        connection.execute(text("DELETE FROM assets"))
+    engine.dispose()
+
+    assert reason == "PROCESSING_GAVE_UP"
+    assert "maintenance_runs" not in tables

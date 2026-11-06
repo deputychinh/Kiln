@@ -90,6 +90,8 @@ asset_versions = Table(
     CheckConstraint(
         "(status = 'failed') = (failure_reason IS NOT NULL)", name="failure_reason_when_failed"
     ),
+    # Maintenance finds abandoned uploads oldest first (KILN-22).
+    Index(None, "created_at", postgresql_where=text("status = 'pending_upload'")),
 )
 
 
@@ -129,4 +131,12 @@ jobs = Table(
     CheckConstraint("attempts >= 0", name="attempts_non_negative"),
     Index(None, "run_after", postgresql_where=text("status = 'queued'")),
     Index(None, "leased_until", postgresql_where=text("status = 'running'")),
+)
+
+
+maintenance_runs = Table(
+    "maintenance_runs",
+    metadata,
+    Column("task", Text, primary_key=True),
+    Column("last_started_at", DateTime(timezone=True), nullable=False),
 )

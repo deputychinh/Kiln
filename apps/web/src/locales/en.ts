@@ -34,6 +34,7 @@ export const en: Copy = {
       UNREADABLE_IMAGE: 'This is not a readable PNG, JPEG or WebP image.',
       IMAGE_TOO_LARGE: 'The image has too many pixels to preview.',
       PROCESSING_GAVE_UP: 'Processing failed several times. Upload the file again later.',
+      UPLOAD_EXPIRED: 'The upload was never completed. Upload the file again.',
     },
     detailLabel: 'Asset details',
     selectPrompt: 'Select an asset to see its versions.',

@@ -240,6 +240,7 @@ _PATH_TO = {
 # The life cycle from the story (AC3), written out so a change to the table fails a test.
 _EXPECTED_ALLOWED = {
     (VersionStatus.PENDING_UPLOAD, VersionStatus.PROCESSING),
+    (VersionStatus.PENDING_UPLOAD, VersionStatus.FAILED),  # an abandoned upload expires (KILN-22)
     (VersionStatus.PROCESSING, VersionStatus.READY),
     (VersionStatus.PROCESSING, VersionStatus.FAILED),
     (VersionStatus.FAILED, VersionStatus.PROCESSING),

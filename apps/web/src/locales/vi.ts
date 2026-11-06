@@ -34,6 +34,7 @@ export const vi: Copy = {
       UNREADABLE_IMAGE: 'Đây không phải ảnh PNG, JPEG hoặc WebP đọc được.',
       IMAGE_TOO_LARGE: 'Ảnh có quá nhiều điểm ảnh để tạo bản xem trước.',
       PROCESSING_GAVE_UP: 'Xử lý thất bại nhiều lần. Hãy tải tệp lên lại sau.',
+      UPLOAD_EXPIRED: 'Tệp chưa bao giờ được tải lên xong. Hãy tải lại tệp.',
     },
     detailLabel: 'Chi tiết asset',
     selectPrompt: 'Chọn một asset để xem các phiên bản.',

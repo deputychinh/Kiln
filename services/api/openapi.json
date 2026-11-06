@@ -942,7 +942,8 @@
           "UPLOAD_CHANGED",
           "UNREADABLE_IMAGE",
           "IMAGE_TOO_LARGE",
-          "PROCESSING_GAVE_UP"
+          "PROCESSING_GAVE_UP",
+          "UPLOAD_EXPIRED"
         ],
         "title": "FailureReason",
         "description": "Why a version ended `failed`; shown to people, so stable and human-mappable."

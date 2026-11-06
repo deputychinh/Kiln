@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Connection, Engine, Row, delete, select, update
+from sqlalchemy import Connection, Engine, Row, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 
@@ -72,10 +72,20 @@ class SqlIdempotencyStore:
         )
 
 
-def purge_expired_keys(engine: Engine, *, now: datetime) -> int:
-    """Delete keys older than the window; scheduled by the worker (KILN-4)."""
+def purge_expired_keys(engine: Engine, *, now: datetime | None = None, limit: int) -> int:
+    """Delete up to `limit` keys older than the window (oldest first); scheduled by the worker.
+
+    `now` defaults to the database clock; tests pass a fixed one.
+    """
+    cutoff = (func.now() if now is None else now) - _WINDOW
+    expired = (
+        select(idempotency_keys.c.key)
+        .where(idempotency_keys.c.created_at < cutoff)
+        .order_by(idempotency_keys.c.created_at)
+        .limit(limit)
+    )
     with engine.begin() as connection:
         result = connection.execute(
-            delete(idempotency_keys).where(idempotency_keys.c.created_at < now - _WINDOW)
+            delete(idempotency_keys).where(idempotency_keys.c.key.in_(expired.scalar_subquery()))
         )
     return result.rowcount

@@ -302,4 +302,25 @@ describe('AssetDetail', () => {
 
     expect(await screen.findByRole('heading', { name: 'rock_albedo' })).toHaveFocus();
   });
+
+  it('explains an upload that was never completed', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [
+        json(
+          aDetail({
+            thumbnail_url: null,
+            versions: [
+              aVersion({ status: 'failed', failure_reason: 'UPLOAD_EXPIRED', thumbnail_url: null }),
+            ],
+          }),
+        ),
+      ],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+
+    const detail = await screen.findByRole('article', { name: 'rock_albedo' });
+    expect(detail).toHaveTextContent('The upload was never completed. Upload the file again.');
+  });
 });

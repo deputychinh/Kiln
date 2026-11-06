@@ -19,7 +19,8 @@ MEDIA_TYPES: dict[str, tuple[AssetKind, str]] = {
     "model/gltf-binary": (AssetKind.MODEL, "glb"),
 }
 ALLOWED_TRANSITIONS: dict[VersionStatus, frozenset[VersionStatus]] = {
-    VersionStatus.PENDING_UPLOAD: frozenset({VersionStatus.PROCESSING}),
+    # An upload never completed is expired by maintenance (KILN-22).
+    VersionStatus.PENDING_UPLOAD: frozenset({VersionStatus.PROCESSING, VersionStatus.FAILED}),
     VersionStatus.PROCESSING: frozenset({VersionStatus.READY, VersionStatus.FAILED}),
     VersionStatus.FAILED: frozenset({VersionStatus.PROCESSING}),
     VersionStatus.READY: frozenset(),
@@ -53,6 +54,12 @@ IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
 IDEMPOTENT_REPLAYED_HEADER = "Idempotent-Replayed"
 IDEMPOTENCY_KEY_MAX_LENGTH = 255
 IDEMPOTENCY_WINDOW_HOURS = 24
+# Maintenance (KILN-22): a version still pending this long is abandoned, and staging objects this
+# old whose version moved on are garbage. Each sweep handles at most a batch per run.
+UPLOAD_ABANDONED_AFTER_HOURS = 24
+MAINTENANCE_BATCH_SIZE = 500
+MAINTENANCE_INTERVAL_SECONDS = 60 * 60
+MAINTENANCE_TASK = "cleanup"
 LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
 # Edge limits on JSON fields; generous so the domain reports the precise rule that failed.
 MAX_NAME_FIELD_LENGTH = 1_000
