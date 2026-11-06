@@ -18,6 +18,7 @@ from kiln_worker.constants import PARENT_CHECK_SECONDS, WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.enums import RunEnd
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.runner import build_worker
+from kiln_worker.sandbox import remove_stale_folders
 
 logger = logging.getLogger("kiln_worker")
 
@@ -36,6 +37,9 @@ def run_worker(
     stop: threading.Event,
 ) -> int:
     """The child's work: run until `stop` (exit 0) or until it should be recycled (exit 75)."""
+    removed = remove_stale_folders()
+    if removed:
+        logger.info("removed %d model folders left by a killed worker", removed)
     engine = build_engine(settings)
     worker = build_worker(
         engine,

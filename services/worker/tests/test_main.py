@@ -8,6 +8,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -237,3 +238,27 @@ def test_in_process_runs_have_no_supervisor_to_watch() -> None:
     watch_parent(halt, every=0.01)  # no spawned parent: nothing starts
 
     assert not any(t.name == "parent-watch" for t in threading.enumerate())
+
+
+@pytest.mark.usefixtures("engine")
+def test_a_starting_worker_removes_model_folders_a_killed_worker_left(
+    database_url: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+    leftover = tmp_path / "kiln-model-abc"
+    leftover.mkdir()
+    old = time.time() - 3600
+    os.utime(leftover, (old, old))
+    stop = threading.Event()
+    stop.set()
+
+    with caplog.at_level(logging.INFO, logger="kiln_worker"):
+        run_worker(
+            Settings(env=Environment.TEST, database_url=database_url), WorkerSettings(), stop
+        )
+
+    assert not leftover.exists()
+    assert "removed 1 model folders left by a killed worker" in caplog.text

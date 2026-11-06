@@ -59,3 +59,9 @@ MODEL_PITCH_DEGREES = 25.0  # positive tips the top towards the viewer
 # Model previews run in a child process (KILN-5): killed past these, the model is too large.
 MODEL_SANDBOX_SECONDS = 60.0
 MODEL_SANDBOX_MEMORY_BYTES = 2 * 1024 * 1024 * 1024  # address space; enforced on Linux
+# The child also limits itself (it may outlive a parent killed mid-render): CPU seconds, and
+# how often it checks that the worker is still alive.
+MODEL_SANDBOX_CPU_SECONDS = 65
+MODEL_SANDBOX_PARENT_CHECK_SECONDS = 1.0
+# Temporary model folders older than this are leftovers of a killed worker.
+MODEL_SANDBOX_STALE_SECONDS = 15 * 60

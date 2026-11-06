@@ -200,7 +200,7 @@ class Worker:
                 return FailureReason.UPLOAD_CHANGED  # replaced between HEAD and GET
             buffer.seek(0)
             try:
-                preview = render_glb_sandboxed(buffer.read())
+                preview = render_glb_sandboxed(buffer)
             except UnreadableModelError:
                 return FailureReason.UNREADABLE_MODEL
             except ModelTooLargeError:
