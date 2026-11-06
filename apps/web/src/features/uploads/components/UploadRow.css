@@ -40,10 +40,10 @@
 }
 
 .upload-row__note {
-  grid-area: error;
   margin: 0;
   font-size: var(--kiln-text-sm);
   color: var(--kiln-color-on-surface-muted);
+  grid-area: error;
 }
 
 .upload-row__actions {
