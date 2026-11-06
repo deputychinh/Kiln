@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
+import { withCardWidth } from '#storybook/decorators';
 import { Skeleton } from '#ui/components/Skeleton/Skeleton';
 import { SkeletonShape } from '#ui/enums/skeleton-shape.enum';
 
@@ -8,13 +9,7 @@ const meta = {
   component: Skeleton,
   argTypes: { shape: { control: 'inline-radio', options: Object.values(SkeletonShape) } },
   // A skeleton fills its container; give it the width of a gallery card.
-  decorators: [
-    (Story) => (
-      <div style={{ inlineSize: '12rem' }}>
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [withCardWidth],
 } satisfies Meta<typeof Skeleton>;
 
 export default meta;

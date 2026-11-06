@@ -5,6 +5,7 @@ import { BadgeTone } from '#ui/enums/badge-tone.enum';
 import './Badge.css';
 
 interface BadgeProps {
+  /** Reinforces the label's meaning with colour (never the only signal). */
   tone?: BadgeTone;
   /** The label; it carries the meaning on its own. */
   children: ReactNode;

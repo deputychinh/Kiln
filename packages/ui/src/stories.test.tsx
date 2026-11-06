@@ -1,6 +1,6 @@
 import { composeStories } from '@storybook/react';
 
-import { BROKEN_PREVIEW_SAMPLE } from '#ui/constants/story.constant';
+import { BROKEN_PREVIEW_SAMPLE } from '#storybook/sample.constant';
 import { BadgeTone } from '#ui/enums/badge-tone.enum';
 import { ButtonVariant } from '#ui/enums/button-variant.enum';
 import { SkeletonShape } from '#ui/enums/skeleton-shape.enum';

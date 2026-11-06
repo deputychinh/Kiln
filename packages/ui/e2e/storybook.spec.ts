@@ -101,34 +101,48 @@ for (const theme of THEMES) {
   });
 }
 
-// Every prop each component declares, as the autodocs table must list it (AC4); Button also
-// lists the native `onClick` its stories wire to an action.
-const DOCUMENTED_PROPS: Record<string, string[]> = {
-  'components-assetthumb--docs': ['src', 'alt', 'placeholder', 'isEager', 'onError'],
-  'components-badge--docs': ['tone', 'children'],
-  'components-button--docs': ['variant', 'children', 'disabled', 'type', 'onClick'],
-  'components-emptystate--docs': ['title', 'children', 'action'],
-  'components-errorstate--docs': [
-    'title',
-    'titleAs',
-    'message',
-    'retryLabel',
-    'onRetry',
-    'isRetrying',
-    'action',
-  ],
-  'components-skeleton--docs': ['shape'],
+// AC4: every docs page lists exactly its component's props. The component's own props must carry a
+// description from their JSDoc; Button also passes on native `disabled`/`type` and its stories wire
+// the native `onClick` to an action (React's types have no descriptions for those).
+const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
+  'components-assetthumb--docs': { own: ['src', 'alt', 'placeholder', 'isEager', 'onError'] },
+  'components-badge--docs': { own: ['tone', 'children'] },
+  'components-button--docs': {
+    own: ['variant', 'children'],
+    native: ['disabled', 'type', 'onClick'],
+  },
+  'components-emptystate--docs': { own: ['title', 'children', 'action'] },
+  'components-errorstate--docs': {
+    own: ['title', 'titleAs', 'message', 'retryLabel', 'onRetry', 'isRetrying', 'action'],
+  },
+  'components-skeleton--docs': { own: ['shape'] },
 };
 
-test('every docs page lists every prop of its component', async ({ page, request }) => {
+test('every docs page lists and describes every prop of its component', async ({
+  page,
+  request,
+}) => {
   const ids = await entryIds(request, 'docs');
   expect(ids.sort()).toEqual(Object.keys(DOCUMENTED_PROPS).sort());
   for (const id of ids) {
+    const { own, native = [] } = DOCUMENTED_PROPS[id] ?? { own: [] };
     await page.goto(`/iframe.html?id=${id}&viewMode=docs`);
-    const names = page.locator('.docblock-argstable-body > tr > td:first-child');
-    await expect(names.first()).toBeVisible();
-    const listed = (await names.allInnerTexts()).map((text) => text.replace(/\*$/, '').trim());
-    expect.soft(listed.sort(), id).toEqual([...(DOCUMENTED_PROPS[id] ?? [])].sort());
+    await expect(page.locator('.docblock-argstable-body > tr').first()).toBeVisible();
+    // A described row has the description block before the type summary in its second cell.
+    const rows = await page.locator('.docblock-argstable-body > tr').evaluateAll((trs) =>
+      trs.map((tr) => ({
+        name: (tr.children[0]?.textContent ?? '').replace(/\*$/, '').trim(),
+        isDescribed: (tr.children[1]?.children.length ?? 0) > 1,
+      })),
+    );
+    expect.soft(rows.map((row) => row.name).sort(), id).toEqual([...own, ...native].sort());
+    const undescribed = rows.filter((row) => own.includes(row.name) && !row.isDescribed);
+    expect
+      .soft(
+        undescribed.map((row) => row.name),
+        `${id} descriptions`,
+      )
+      .toEqual([]);
   }
 });
 

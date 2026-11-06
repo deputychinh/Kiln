@@ -12,3 +12,14 @@ body {
 .docs-story {
   background-color: var(--kiln-color-surface);
 }
+
+/* Story frames (decorators.tsx): a gallery card, 4 × the largest spacing step wide. */
+.story-frame {
+  inline-size: calc(var(--kiln-space-8) * 4);
+}
+
+.story-frame--raised {
+  padding: var(--kiln-space-2);
+  background-color: var(--kiln-color-surface-raised);
+  border-radius: var(--kiln-radius-lg);
+}

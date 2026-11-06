@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import './EmptyState.css';
 
 interface EmptyStateProps {
+  /** Says what is empty (a heading). */
   title: string;
   /** What this place is for and how to fill it. */
   children?: ReactNode;

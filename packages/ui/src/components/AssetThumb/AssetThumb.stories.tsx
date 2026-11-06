@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, waitFor, within } from 'storybook/test';
 
+import { withCardSurface } from '#storybook/decorators';
+import { BROKEN_PREVIEW_SAMPLE } from '#storybook/sample.constant';
 import { AssetThumb } from '#ui/components/AssetThumb/AssetThumb';
-import { BROKEN_PREVIEW_SAMPLE } from '#ui/constants/story.constant';
 
 // Inline sample previews: stories never fetch remote images.
 const SWATCH = `data:image/svg+xml,${encodeURIComponent(
@@ -16,21 +17,7 @@ const meta = {
   title: 'Components/AssetThumb',
   component: AssetThumb,
   args: { src: SWATCH, alt: 'crate_albedo.png', placeholder: 'Image', onError: fn() },
-  // As in the app: a gallery card's width, on the card's raised surface.
-  decorators: [
-    (Story) => (
-      <div
-        style={{
-          inlineSize: '12rem',
-          padding: 'var(--kiln-space-2)',
-          backgroundColor: 'var(--kiln-color-surface-raised)',
-          borderRadius: 'var(--kiln-radius-lg)',
-        }}
-      >
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [withCardSurface],
 } satisfies Meta<typeof AssetThumb>;
 
 export default meta;

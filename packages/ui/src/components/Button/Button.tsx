@@ -5,6 +5,7 @@ import { ButtonVariant } from '#ui/enums/button-variant.enum';
 import './Button.css';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** Primary for the main action of a view (44 px target), secondary or ghost for the rest. */
   variant?: ButtonVariant;
   /** The action in a verb or short phrase. */
   children: ReactNode;
