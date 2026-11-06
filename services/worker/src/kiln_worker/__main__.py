@@ -1,16 +1,17 @@
-"""Entry point: `python -m kiln_worker` (or `make worker`)."""
+"""Entry point: `python -m kiln_worker` (or `make worker`).
+
+The process is a small supervisor; the work happens in a child process it replaces after a
+number of jobs or once memory grows (KILN-25).
+"""
 
 import logging
-import signal
+import multiprocessing
 import threading
-from datetime import timedelta
 
 from kiln_api.config import Settings
-from kiln_api.container import build_engine, build_storage, guard_storage
 from kiln_worker.config import WorkerSettings
-from kiln_worker.runner import build_worker
-
-logger = logging.getLogger("kiln_worker")
+from kiln_worker.process import child_main, stop_on_signals
+from kiln_worker.supervisor import Child, Supervisor
 
 
 def main(
@@ -18,26 +19,20 @@ def main(
     worker_settings: WorkerSettings | None = None,
     stop: threading.Event | None = None,
 ) -> int:
-    """Run the worker until SIGTERM/SIGINT (or `stop`), finishing the current job first."""
+    """Supervise worker processes until SIGTERM/SIGINT (or `stop`)."""
     resolved = settings or Settings()
     options = worker_settings or WorkerSettings()
     logging.basicConfig(level=options.log_level)
     halt = stop or threading.Event()
-    for signum in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(signum, lambda *_: halt.set())
-    engine = build_engine(resolved)
-    worker = build_worker(
-        engine,
-        storage=guard_storage(build_storage(resolved), resolved),
-        maintenance_interval=timedelta(seconds=options.maintenance_interval_seconds),
-    )
-    logger.info("worker started; polling every %.1f s", options.poll_interval_seconds)
-    try:
-        worker.run(stop=halt, idle_seconds=options.poll_interval_seconds)
-    finally:
-        engine.dispose()
-    logger.info("worker stopped")
-    return 0
+    stop_on_signals(halt)
+    context = multiprocessing.get_context("spawn")
+
+    def start_child() -> Child:
+        child = context.Process(target=child_main, args=(resolved, options), name="kiln-worker")
+        child.start()
+        return child
+
+    return Supervisor(start_child, halt).run()
 
 
 if __name__ == "__main__":

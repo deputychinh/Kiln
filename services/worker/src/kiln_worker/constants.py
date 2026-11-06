@@ -25,3 +25,12 @@ IDLE_POLL_SECONDS = 1.0
 MAX_SOURCE_BYTES_BY_MEDIA_TYPE: dict[str, int] = {"image/webp": 64 * 1024 * 1024}
 # How often a worker asks the database whether a maintenance run is due (KILN-22).
 MAINTENANCE_CHECK_SECONDS = 60.0
+# Recycling (KILN-25): a fresh process after this many jobs or once peak memory passes this.
+WORKER_MAX_JOBS = 200
+WORKER_MAX_RSS_MB = 1024
+# Exit code of a worker process that asks to be replaced (EX_TEMPFAIL).
+WORKER_RECYCLE_EXIT_CODE = 75
+# Restarting a crashed worker waits 1, 2, 4 … s, at most this long.
+WORKER_RESTART_BACKOFF_MAX_SECONDS = 30.0
+# How often the supervisor checks whether its child exited or a stop was asked.
+SUPERVISOR_POLL_SECONDS = 0.2

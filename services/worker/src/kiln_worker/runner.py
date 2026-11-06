@@ -30,14 +30,17 @@ from kiln_worker.constants import (
     MAX_SOURCE_BYTES_BY_MEDIA_TYPE,
     SPOOL_MAX_BYTES,
 )
+from kiln_worker.enums import RunEnd
 from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
 from kiln_worker.heartbeat import LeaseHeartbeat, LeaseTiming
 from kiln_worker.maintenance import Maintenance, MaintenancePorts, MaintenanceReport
+from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
 logger = logging.getLogger("kiln_worker")
 
 _TIMING = LeaseTiming()
+_BYTES_PER_MB = 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,8 +81,19 @@ class Worker:
         self._timing = timing
         self._heartbeat: LeaseHeartbeat | None = None
 
-    def run(self, *, stop: threading.Event, idle_seconds: float = IDLE_POLL_SECONDS) -> None:
-        """Work until `stop` is set; never dies on an error, sleeps when idle or failing."""
+    def run(
+        self,
+        *,
+        stop: threading.Event,
+        idle_seconds: float = IDLE_POLL_SECONDS,
+        recycle: RecyclePolicy | None = None,
+    ) -> RunEnd:
+        """Work until `stop` is set or `recycle` says this process should be replaced.
+
+        Never dies on an error; sleeps when idle or failing; checks the recycle policy only
+        between jobs, so a job is never cut short.
+        """
+        jobs_done = 0
         while not stop.is_set():
             self.maintain_if_due()
             try:
@@ -89,6 +103,20 @@ class Worker:
                 worked = False
             if not worked:
                 stop.wait(idle_seconds)
+                continue
+            jobs_done += 1
+            if recycle is None:
+                continue
+            reason = recycle.reason(jobs_done)
+            if reason is not None:
+                logger.info(
+                    "worker recycling (%s) after %d jobs, peak memory %.0f MB",
+                    reason.value,
+                    jobs_done,
+                    recycle.rss() / _BYTES_PER_MB,
+                )
+                return RunEnd.RECYCLE
+        return RunEnd.STOPPED
 
     def maintain_if_due(self, *, now: float | None = None) -> MaintenanceReport | None:
         """Ask at most once a minute whether maintenance is due; its failures never stop jobs."""

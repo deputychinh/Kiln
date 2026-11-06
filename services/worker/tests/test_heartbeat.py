@@ -195,3 +195,12 @@ def test_an_extension_failing_after_the_job_ended_is_not_logged(
         started.wait(5)
 
     assert "lease extension failed" not in caplog.text
+
+
+def test_other_errors_are_logged_by_their_type(caplog: pytest.LogCaptureFixture) -> None:
+    queue = _Queue(RuntimeError("unexpected"))
+
+    with caplog.at_level(logging.WARNING, logger="kiln_worker"), _beat(queue):
+        time.sleep(0.05)
+
+    assert "lease extension failed (RuntimeError); retrying" in caplog.text

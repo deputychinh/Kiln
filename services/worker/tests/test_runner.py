@@ -20,7 +20,9 @@ from kiln_api.enums import Environment, FailureReason, JobStatus, VersionStatus
 from kiln_api.errors import InvalidStatusTransitionError
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.jobs import SqlJobQueue
+from kiln_worker.enums import RunEnd
 from kiln_worker.heartbeat import LeaseTiming
+from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.runner import Worker, build_worker
 from kiln_worker.thumbnail import make_thumbnail
 
@@ -732,3 +734,36 @@ def test_the_reaper_leaves_a_job_whose_owner_extended_it_after_the_reaper_looked
 
     assert _job_status(engine, version.id) == ("running", 5)
     assert SqlAssetRepository(engine).get_version(version.id).status is VersionStatus.PROCESSING
+
+
+def test_run_recycles_between_jobs_after_the_policy_says_so(
+    container: Container,
+    worker: Worker,
+    storage: FakeStorage,
+    engine: Engine,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    for _ in range(3):
+        _uploaded(container, storage, _png((64, 64)))
+    policy = RecyclePolicy(max_jobs=2, max_rss_bytes=10**12, rss=lambda: 300 * 1024 * 1024)
+
+    with caplog.at_level(logging.INFO, logger="kiln_worker"):
+        end = worker.run(stop=threading.Event(), idle_seconds=0.01, recycle=policy)
+
+    assert end is RunEnd.RECYCLE
+    with engine.connect() as connection:
+        statuses = sorted(connection.execute(text("SELECT status FROM jobs")).scalars())
+    assert statuses == ["done", "done", "queued"]  # two jobs, never one cut short
+    assert "worker recycling (max_jobs) after 2 jobs, peak memory 300 MB" in caplog.text
+
+
+def test_run_without_a_policy_keeps_working_until_asked_to_stop(
+    container: Container, worker: Worker, storage: FakeStorage, engine: Engine
+) -> None:
+    _uploaded(container, storage, _png((64, 64)))
+    stop = threading.Event()
+    threading.Timer(0.3, stop.set).start()
+
+    assert worker.run(stop=stop, idle_seconds=0.01) is RunEnd.STOPPED
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT status FROM jobs")).scalar_one() == "done"
