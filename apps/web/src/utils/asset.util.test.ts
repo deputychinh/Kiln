@@ -45,7 +45,7 @@ describe('keepSignedUrls', () => {
   });
 
   it('keeps the old URLs of the same objects while they stay valid', () => {
-    const kept = keepSignedUrls(old, resigned, NOW + 3 * 60_000);
+    const kept = keepSignedUrls(old, resigned, { now: NOW + 3 * 60_000 });
 
     expect(kept.thumbnail_url).toBe(old.thumbnail_url);
     expect(kept.versions[0]?.thumbnail_url).toBe(old.versions[0]?.thumbnail_url);
@@ -53,13 +53,21 @@ describe('keepSignedUrls', () => {
   });
 
   it('takes the new URLs once the old ones are about to expire (15-minute signatures)', () => {
-    const kept = keepSignedUrls(old, resigned, NOW + 14 * 60_000);
+    const kept = keepSignedUrls(old, resigned, { now: NOW + 14 * 60_000 });
 
     expect(kept.thumbnail_url).toBe(resigned.thumbnail_url);
   });
 
+  it('never keeps a URL the browser failed to load', () => {
+    const failed = new Set([old.thumbnail_url ?? '']);
+    const kept = keepSignedUrls(old, resigned, { failed, now: NOW + 3 * 60_000 });
+
+    expect(kept.thumbnail_url).toBe(resigned.thumbnail_url);
+    expect(kept.versions[0]?.thumbnail_url).toBe(resigned.versions[0]?.thumbnail_url);
+  });
+
   it('takes the new data for a first load or another asset', () => {
-    expect(keepSignedUrls(undefined, resigned, NOW)).toBe(resigned);
-    expect(keepSignedUrls(aDetail({ id: 'other' }), resigned, NOW)).toBe(resigned);
+    expect(keepSignedUrls(undefined, resigned, { now: NOW })).toBe(resigned);
+    expect(keepSignedUrls(aDetail({ id: 'other' }), resigned, { now: NOW })).toBe(resigned);
   });
 });

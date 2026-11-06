@@ -166,12 +166,16 @@ describe('AssetGallery', () => {
     expect(await screen.findByRole('link', { name: /tree_oak/ })).toBeInTheDocument();
   });
 
-  it('refetches signed URLs once when previews fail to load', async () => {
+  it('refreshes signed URLs once per asset when its preview fails, never in a loop', async () => {
     const fresh = { ...rock, thumbnail_url: 'http://s3.test/thumbs/rock.webp?sig=2' };
     const fetchMock = fakeApi({
       [LIST]: [
         json({ items: [rock], next_cursor: null }),
         json({ items: [fresh], next_cursor: null }),
+        json({
+          items: [{ ...rock, thumbnail_url: 'http://s3.test/thumbs/rock.webp?sig=3' }],
+          next_cursor: null,
+        }),
       ],
     });
 
@@ -183,7 +187,11 @@ describe('AssetGallery', () => {
       expect(within(list).getByRole('presentation')).toHaveAttribute('src', fresh.thumbnail_url),
     );
     fireEvent.error(within(list).getByRole('presentation'));
+    await waitFor(() => expect(within(list).queryByRole('presentation')).not.toBeInTheDocument());
     expect(countRequests(fetchMock, LIST)).toBe(2);
+    expect(
+      within(list).getByText('Image', { selector: '.asset-thumb__placeholder' }),
+    ).toBeInTheDocument();
   });
 
   it('does not refetch the list on window focus while it is fresh (5 minutes)', async () => {

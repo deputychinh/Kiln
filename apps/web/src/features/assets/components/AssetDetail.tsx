@@ -3,12 +3,11 @@ import { Link } from '@tanstack/react-router';
 import { type ReactElement, useEffect, useRef } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
-import { THUMB_REFRESH_MIN_MS, VERSION_STATUS_TONE } from '@/constants/assets.constant';
+import { VERSION_STATUS_TONE } from '@/constants/assets.constant';
 import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
 import { useAsset } from '@/features/assets/hooks/useAsset';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
 import { describeError, isNotFound } from '@/utils/error.util';
 import { formatBytes, formatDateTime } from '@/utils/format.util';
@@ -34,7 +33,7 @@ const BackLink = ({ isCompactOnly = false }: { isCompactOnly?: boolean }): React
 
 interface AssetBodyProps {
   asset: AssetDetailData;
-  onThumbError: () => void;
+  onThumbError: (src: string) => void;
   /** The last refresh failed, so what is shown may be out of date. */
   isStale: boolean;
 }
@@ -120,12 +119,23 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
 /** The selected asset: preview, facts and versions newest first, with all four states. */
 export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
   const copy = useCopy();
-  const asset = useAsset(assetId);
+  const { query: asset, reportBrokenThumb } = useAsset(assetId);
   const { refetch } = asset;
-  const refreshThumb = useThrottledCallback(() => void refetch(), THUMB_REFRESH_MIN_MS);
+  const isExpanded = useMediaQuery(EXPANDED_MEDIA_QUERY);
+  const paneRef = useRef<HTMLDivElement>(null);
 
+  // Below the expanded size class the detail replaces the list, so the activated card is gone:
+  // focus the pane at once (loading, error and not-found included); the heading takes over
+  // once the asset is shown.
+  useEffect(() => {
+    const pane = paneRef.current;
+    // Child effects run first: when the asset is cached, its heading already has focus.
+    if (!isExpanded && pane && !pane.contains(document.activeElement)) pane.focus();
+  }, [isExpanded]);
+
+  let content: ReactElement;
   if (asset.isPending) {
-    return (
+    content = (
       <div className="asset-detail" role="status">
         <span className="visually-hidden">{copy.assets.loadingAsset}</span>
         <Skeleton shape={SkeletonShape.Tile} />
@@ -133,9 +143,8 @@ export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
         <Skeleton />
       </div>
     );
-  }
-  if (asset.isLoadingError) {
-    return (
+  } else if (asset.isLoadingError) {
+    content = (
       <div className="asset-detail">
         {isNotFound(asset.error) ? (
           <ErrorState
@@ -155,8 +164,18 @@ export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
         )}
       </div>
     );
+  } else {
+    content = (
+      <AssetBody
+        asset={asset.data}
+        onThumbError={reportBrokenThumb}
+        isStale={asset.isRefetchError}
+      />
+    );
   }
   return (
-    <AssetBody asset={asset.data} onThumbError={refreshThumb} isStale={asset.isRefetchError} />
+    <div className="asset-detail__pane" ref={paneRef} tabIndex={-1}>
+      {content}
+    </div>
   );
 };

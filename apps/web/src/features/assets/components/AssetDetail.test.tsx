@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {
@@ -249,5 +249,56 @@ describe('AssetDetail', () => {
     await userEvent.click(await screen.findByRole('link', { name: 'All assets' }));
 
     await waitFor(() => expect(screen.getByRole('link', { name: /rock_albedo/ })).toHaveFocus());
+  });
+
+  it('shows the fresh preview after the hero image failed to load once', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: Date.parse('2026-11-06T12:00:00Z') });
+    const cover = (signedAt: string) => signedUrl(`thumbs/${asset.id}/v1.webp`, signedAt);
+    const fetchMock = fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [
+        json(aDetail({ thumbnail_url: cover('20261106T120000Z') })),
+        json(aDetail({ thumbnail_url: cover('20261106T120005Z') })),
+      ],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+    fireEvent.error(await screen.findByRole('img', { name: 'Preview of rock_albedo' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: 'Preview of rock_albedo' })).toHaveAttribute(
+        'src',
+        cover('20261106T120005Z'),
+      ),
+    );
+    // The object itself is broken: failing again does not start another refresh (no loop).
+    fireEvent.error(screen.getByRole('img', { name: 'Preview of rock_albedo' }));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(countRequests(fetchMock, DETAIL)).toBe(2);
+  });
+
+  it('focuses the detail pane on compact screens while loading or when not found', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [], next_cursor: null })],
+      '/api/v1/assets/': [problem(404, 'Asset not found', 'ASSET_NOT_FOUND')],
+    });
+
+    renderApp('/assets/nope');
+
+    await screen.findByRole('alert');
+    expect(document.activeElement).toHaveClass('asset-detail__pane');
+  });
+
+  it('focuses the heading, not the pane, when a cached asset opens again (compact)', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+    await userEvent.click(await screen.findByRole('link', { name: 'All assets' }));
+    await userEvent.click(await screen.findByRole('link', { name: /rock_albedo/ }));
+
+    expect(await screen.findByRole('heading', { name: 'rock_albedo' })).toHaveFocus();
   });
 });

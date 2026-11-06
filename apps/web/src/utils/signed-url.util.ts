@@ -11,7 +11,8 @@ export const signedUrlExpiresAt = (url: string): number | null => {
   return Date.UTC(year, month - 1, day, hour, minute, second) + seconds * 1000;
 };
 
-const withoutQuery = (url: string): string => url.split('?', 1)[0] ?? url;
+/** The object a signed URL points at, without its signature. */
+export const withoutQuery = (url: string): string => url.split('?', 1)[0] ?? url;
 
 /**
  * The URL to show: the previous one while it points at the same object and stays valid for

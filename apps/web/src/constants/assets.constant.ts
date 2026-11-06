@@ -14,8 +14,11 @@ export const PROCESSING_POLL_MAX_MS = 5 * 60_000;
 export const SIGNED_URL_MIN_REMAINING_MS = 2 * 60_000;
 /** How often relative times ("2 minutes ago") are recomputed. */
 export const RELATIVE_TIME_TICK_MS = 60_000;
-/** At most one refetch of signed URLs per minute when previews fail to load. */
-export const THUMB_REFRESH_MIN_MS = 60_000;
+/**
+ * A preview that fails to load refreshes its signed URL at most once per signature lifetime
+ * (15 min): enough to recover an expired URL, never a loop for an object that is gone.
+ */
+export const THUMB_REFRESH_PER_KEY_MS = 15 * 60_000;
 
 export const ASSET_LIST_QUERY_KEY = ['assets', 'list'] as const;
 export const assetDetailQueryKey = (id: string): readonly ['assets', 'detail', string] =>

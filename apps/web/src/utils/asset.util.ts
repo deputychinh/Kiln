@@ -22,18 +22,26 @@ export const processingPollInterval = (
     ? PROCESSING_POLL_MS
     : false;
 
-/** The new asset, with still-valid signed preview URLs of the same objects kept from the old one. */
+/**
+ * The new asset, with still-valid signed preview URLs of the same objects kept from the old one;
+ * a URL in `failed` (the browser could not load it) is never kept.
+ */
 export const keepSignedUrls = (
   previous: AssetDetail | undefined,
   next: AssetDetail,
-  now = Date.now(),
+  {
+    failed = new Set<string>(),
+    now = Date.now(),
+  }: { failed?: ReadonlySet<string>; now?: number } = {},
 ): AssetDetail => {
   if (!previous || previous.id !== next.id) return next;
+  const usable = (url: string | null | undefined): string | null | undefined =>
+    url && failed.has(url) ? null : url;
   const versions = new Map(previous.versions.map((version) => [version.id, version]));
   return {
     ...next,
     thumbnail_url: keepSignedUrl({
-      previous: previous.thumbnail_url,
+      previous: usable(previous.thumbnail_url),
       next: next.thumbnail_url,
       minRemainingMs: SIGNED_URL_MIN_REMAINING_MS,
       now,
@@ -41,7 +49,7 @@ export const keepSignedUrls = (
     versions: next.versions.map((version) => ({
       ...version,
       thumbnail_url: keepSignedUrl({
-        previous: versions.get(version.id)?.thumbnail_url,
+        previous: usable(versions.get(version.id)?.thumbnail_url),
         next: version.thumbnail_url,
         minRemainingMs: SIGNED_URL_MIN_REMAINING_MS,
         now,

@@ -1,11 +1,11 @@
 import { Button, ButtonVariant, EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
 import { type ReactElement, useEffect, useRef, useState } from 'react';
 
-import { ASSET_PAGE_SIZE, THUMB_REFRESH_MIN_MS } from '@/constants/assets.constant';
+import { ASSET_PAGE_SIZE, THUMB_REFRESH_PER_KEY_MS } from '@/constants/assets.constant';
 import { AssetCard } from '@/features/assets/components/AssetCard';
 import { useAssetPages } from '@/features/assets/hooks/useAssetPages';
 import { useCopy } from '@/hooks/useCopy';
-import { useThrottledCallback } from '@/hooks/useThrottledCallback';
+import { useKeyedThrottle } from '@/hooks/useKeyedThrottle';
 import { describeError } from '@/utils/error.util';
 
 import './AssetGallery.css';
@@ -32,7 +32,7 @@ export const AssetGallery = (): ReactElement => {
     target?.focus();
     setFocusAfterLoad(null);
   }, [focusAfterLoad]);
-  const refreshThumbs = useThrottledCallback(() => void refetch(), THUMB_REFRESH_MIN_MS);
+  const refreshOnce = useKeyedThrottle(THUMB_REFRESH_PER_KEY_MS);
 
   const title = <h1 className="asset-gallery__title">{copy.assets.title}</h1>;
 
@@ -85,7 +85,10 @@ export const AssetGallery = (): ReactElement => {
       <ul className="asset-gallery__grid" aria-label={copy.assets.title}>
         {assets.map((asset) => (
           <li key={asset.id} className="asset-gallery__item">
-            <AssetCard asset={asset} onThumbError={refreshThumbs} />
+            <AssetCard
+              asset={asset}
+              onThumbError={() => refreshOnce(asset.id, () => void refetch())}
+            />
           </li>
         ))}
       </ul>
