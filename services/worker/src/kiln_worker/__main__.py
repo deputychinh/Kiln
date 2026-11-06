@@ -12,6 +12,7 @@ from kiln_api.config import Settings
 from kiln_worker.config import WorkerSettings
 from kiln_worker.process import child_main, stop_on_signals
 from kiln_worker.supervisor import Child, Supervisor
+from kiln_worker.watchdog import JobBeacon
 
 
 def main(
@@ -27,7 +28,7 @@ def main(
     stop_on_signals(halt)
     context = multiprocessing.get_context("spawn")
     # When the child's running job started; the supervisor's backstop for a stuck child (KILN-28).
-    beacon = context.Value("d", 0.0)
+    beacon = JobBeacon(context)
 
     def start_child() -> Child:
         child = context.Process(

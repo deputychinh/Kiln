@@ -1,6 +1,7 @@
 """The job watchdog ends a worker process stuck on a job (KILN-28)."""
 
 import logging
+import multiprocessing
 import os
 import subprocess
 import sys
@@ -15,10 +16,12 @@ from job_builder import job
 from kiln_api.constants import JOB_HEARTBEAT_SECONDS, JOB_LEASE_SECONDS, JOB_MAX_RUNTIME_SECONDS
 from kiln_worker.constants import (
     SUPERVISOR_DEADLINE_MARGIN_SECONDS,
+    SUPERVISOR_LIVENESS_SECONDS,
+    SUPERVISOR_POLL_SECONDS,
     WATCHDOG_POLL_SECONDS,
     WORKER_OVERRAN_EXIT_CODE,
 )
-from kiln_worker.watchdog import JobWatchdog
+from kiln_worker.watchdog import JobBeacon, JobWatchdog
 
 POLL = 0.005
 
@@ -141,7 +144,7 @@ def test_a_process_blocked_in_native_code_is_ended_within_its_budget() -> None:
         """
         import select, socket, threading
         from job_builder import job
-        from kiln_worker.watchdog import JobWatchdog
+        from kiln_worker.watchdog import JobBeacon, JobWatchdog
         watchdog = JobWatchdog(
             max_runtime_seconds=0.3, stop=threading.Event(), stop_grace_seconds=10.0
         )
@@ -184,17 +187,21 @@ def test_a_stop_late_in_a_long_job_still_gives_it_the_whole_grace() -> None:
         assert exit_.called.wait(1)
 
 
-def test_the_running_job_is_published_to_the_supervisor_and_cleared_after() -> None:
-    class _Beacon:
-        value = 0.0
-
-    beacon = _Beacon()
+def test_the_running_job_and_signs_of_life_reach_the_supervisor() -> None:
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
     watchdog = JobWatchdog(stop=threading.Event(), beacon=beacon, poll_seconds=POLL)
+    running = job()
 
     before = time.monotonic()
-    with watchdog.watch(job()):
-        assert beacon.value >= before
-    assert beacon.value == 0.0
+    with watchdog.watch(running):
+        first = beacon.read()
+        time.sleep(POLL * 10)
+        later = beacon.read()
+
+    assert first.started >= before
+    assert first.job_id == str(running.id)
+    assert later.alive > first.alive  # the watchdog thread ticks while the job runs
+    assert beacon.read().started == 0.0
 
 
 def test_a_job_that_finished_at_the_last_moment_is_not_ended() -> None:
@@ -208,12 +215,22 @@ def test_a_job_that_finished_at_the_last_moment_is_not_ended() -> None:
     assert exit_.codes == []
 
 
-def test_every_deadline_falls_inside_the_lease_so_a_job_never_runs_twice() -> None:
-    """The last heartbeat extends the lease at least to max runtime - heartbeat + lease."""
-    lease_ends_no_earlier_than = JOB_MAX_RUNTIME_SECONDS - JOB_HEARTBEAT_SECONDS + JOB_LEASE_SECONDS
+def test_every_backstop_ends_a_stuck_job_before_its_lease_can_lapse() -> None:
+    """No job ever runs in two processes at once (KILN-28).
+
+    Alive but too long: the heartbeat runs until the maximum runtime, so the lease lasts at
+    least max runtime - heartbeat + lease. Frozen (GIL held, SIGSTOP) at any moment: the
+    heartbeat stops too, leaving at least lease - heartbeat; the supervisor must act on lost
+    liveness before that, whatever the job's runtime.
+    """
+    lease_after_last_beat = JOB_LEASE_SECONDS - JOB_HEARTBEAT_SECONDS
     in_process = JobWatchdog(stop=threading.Event()).max_runtime_seconds + WATCHDOG_POLL_SECONDS
-    supervisor = JOB_MAX_RUNTIME_SECONDS + SUPERVISOR_DEADLINE_MARGIN_SECONDS
+    supervisor_deadline = JOB_MAX_RUNTIME_SECONDS + SUPERVISOR_DEADLINE_MARGIN_SECONDS
+    supervisor_liveness = (
+        SUPERVISOR_LIVENESS_SECONDS + WATCHDOG_POLL_SECONDS + SUPERVISOR_POLL_SECONDS
+    )
 
     assert JobWatchdog(stop=threading.Event()).max_runtime_seconds == JOB_MAX_RUNTIME_SECONDS
-    assert in_process < lease_ends_no_earlier_than
-    assert supervisor < lease_ends_no_earlier_than
+    assert in_process < JOB_MAX_RUNTIME_SECONDS + lease_after_last_beat
+    assert supervisor_deadline < JOB_MAX_RUNTIME_SECONDS + lease_after_last_beat
+    assert supervisor_liveness < lease_after_last_beat

@@ -36,10 +36,14 @@ WORKER_OVERRAN_EXIT_CODE = 76
 JOB_STOP_GRACE_SECONDS = 60.0
 # How often the watchdog looks at the running job.
 WATCHDOG_POLL_SECONDS = 0.5
-# The supervisor kills a child still inside one job this long after its maximum runtime: the
-# backstop for a job that holds the GIL or a frozen process, which the in-process watchdog
-# cannot end. Well inside the lease (the last heartbeat leaves at least lease - heartbeat).
+# The supervisor's backstops for a child its own watchdog cannot end (native code holding the
+# GIL, a frozen process — the heartbeat stops too, so the lease lapses at most
+# lease - heartbeat = 200 s after the freeze): no sign of life for this long while in a job …
+SUPERVISOR_LIVENESS_SECONDS = 60.0
+# … or still in one job this long past its maximum runtime.
 SUPERVISOR_DEADLINE_MARGIN_SECONDS = 5.0
+# Internal: the code `Supervisor` uses for a child it killed as stuck (never a real exit code).
+WORKER_STUCK_CODE = -1000
 # The supervisor kills a child that has not exited this long after its stop grace.
 SUPERVISOR_KILL_MARGIN_SECONDS = 10.0
 # Restarting a crashed worker waits 1, 2, 4 … s, at most this long.

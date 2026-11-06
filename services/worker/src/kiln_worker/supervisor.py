@@ -12,16 +12,25 @@ from kiln_worker.constants import (
     JOB_STOP_GRACE_SECONDS,
     SUPERVISOR_DEADLINE_MARGIN_SECONDS,
     SUPERVISOR_KILL_MARGIN_SECONDS,
+    SUPERVISOR_LIVENESS_SECONDS,
     SUPERVISOR_POLL_SECONDS,
     WORKER_HEALTHY_UPTIME_SECONDS,
     WORKER_OVERRAN_EXIT_CODE,
     WORKER_RECYCLE_EXIT_CODE,
     WORKER_RESTART_BACKOFF_MAX_SECONDS,
     WORKER_RESTART_JITTER,
+    WORKER_STUCK_CODE,
 )
 from kiln_worker.watchdog import JobBeacon
 
 logger = logging.getLogger("kiln_worker")
+
+# Children replaced at once, without the crash backoff: recycled, or ended for a job's sake.
+_REPLACED_AT_ONCE: dict[int, tuple[int, str]] = {
+    WORKER_RECYCLE_EXIT_CODE: (logging.INFO, "worker recycled"),
+    WORKER_OVERRAN_EXIT_CODE: (logging.WARNING, "worker ended by its watchdog (a job overran)"),
+    WORKER_STUCK_CODE: (logging.WARNING, "stuck worker killed"),
+}
 
 
 class Child(Protocol):
@@ -62,6 +71,7 @@ class Supervisor:
         stop_grace_seconds: float = JOB_STOP_GRACE_SECONDS,
         job_beacon: JobBeacon | None = None,
         max_runtime_seconds: float = JOB_MAX_RUNTIME_SECONDS,
+        liveness_seconds: float = SUPERVISOR_LIVENESS_SECONDS,
         monotonic: Callable[[], float] = time.monotonic,
         jitter: Callable[[], float] = random.random,
     ) -> None:
@@ -72,6 +82,7 @@ class Supervisor:
         self._stop_timeout = stop_grace_seconds + SUPERVISOR_KILL_MARGIN_SECONDS
         self._beacon = job_beacon
         self._deadline = max_runtime_seconds + SUPERVISOR_DEADLINE_MARGIN_SECONDS
+        self._liveness = liveness_seconds
         self._monotonic = monotonic
         self._jitter = jitter
 
@@ -87,13 +98,10 @@ class Supervisor:
                 break
             if self._stop.is_set():
                 break  # the child got the same signal (Ctrl-C reaches the process group)
-            if code == WORKER_RECYCLE_EXIT_CODE:
+            if code in _REPLACED_AT_ONCE:  # the process was fine (or the job was at fault)
                 crashes = 0
-                logger.info("worker recycled; starting a fresh one")
-                continue
-            if code == WORKER_OVERRAN_EXIT_CODE:  # the process was healthy, the job was not
-                crashes = 0
-                logger.warning("worker ended by its watchdog (a job overran); starting a fresh one")
+                level, what = _REPLACED_AT_ONCE[code]
+                logger.log(level, "%s; starting a fresh one", what)
                 continue
             if self._monotonic() - started >= WORKER_HEALTHY_UPTIME_SECONDS:
                 crashes = 0  # a long healthy run forgives earlier crashes
@@ -110,7 +118,7 @@ class Supervisor:
 
     def _start(self) -> Child:
         if self._beacon is not None:
-            self._beacon.value = 0.0  # a killed child may have left its last job's start
+            self._beacon.idle()  # a killed child may have left its last job behind
         return self._start_child()
 
     def _stop_child(self, child: Child) -> None:
@@ -131,22 +139,27 @@ class Supervisor:
             child.join(self._poll_seconds)
             if child.exitcode is not None:
                 return child.exitcode
-            if self._is_stuck():
-                return self._kill_stuck(child)
+            reason = self._stuck_reason()
+            if reason is not None:
+                return self._kill_stuck(child, reason)
         return None
 
-    def _is_stuck(self) -> bool:
-        """The child has been inside one job past its deadline (its own watchdog could not act)."""
+    def _stuck_reason(self) -> str | None:
+        """Why the child counts as stuck in its job, or None (idle, or alive and in time)."""
         if self._beacon is None:
-            return False
-        job_started = self._beacon.value
-        return job_started > 0 and time.monotonic() - job_started >= self._deadline
+            return None
+        reading = self._beacon.read()
+        if reading.started <= 0:
+            return None
+        now = self._monotonic()
+        if now - reading.alive >= self._liveness:
+            return f"showed no sign of life for {now - reading.alive:.0f} s in job {reading.job_id}"
+        if now - reading.started >= self._deadline:
+            return f"still in job {reading.job_id} after {now - reading.started:.0f} s"
+        return None
 
-    def _kill_stuck(self, child: Child) -> int:
-        logger.error(
-            "worker stuck in one job for %.0f s (native code holding the GIL, or frozen); killed",
-            self._deadline,
-        )
+    def _kill_stuck(self, child: Child, reason: str) -> int:
+        logger.error("worker %s (native code holding the GIL, or frozen); killing it", reason)
         child.kill()
         child.join()
-        return WORKER_OVERRAN_EXIT_CODE
+        return WORKER_STUCK_CODE

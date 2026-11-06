@@ -4,12 +4,14 @@ import signal
 import threading
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from process_helpers import hold_the_gil_in_a_job
 
 from kiln_worker.constants import WORKER_OVERRAN_EXIT_CODE, WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.supervisor import Child, Supervisor
+from kiln_worker.watchdog import JobBeacon
 
 
 class _Child:
@@ -256,57 +258,91 @@ def test_a_child_that_ends_within_the_grace_is_not_killed() -> None:
     assert not child.killed
 
 
-class _Beacon:
-    def __init__(self, value: float = 0.0) -> None:
-        self.value = value
+def _beacon(*, started_ago: float | None, alive_ago: float = 0.0) -> JobBeacon:
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
+    if started_ago is not None:
+        now = time.monotonic()
+        beacon.started("job-1", now - started_ago)
+        beacon.alive(now - alive_ago)
+    return beacon
 
 
-def test_a_child_stuck_past_its_deadline_is_killed_and_replaced_at_once(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """KILN-28: the backstop for a job holding the GIL (the child's watchdog cannot end it)."""
+def _run_with(beacon: JobBeacon, child: _Child, **kwargs: Any) -> list[_Child]:
+    """Supervise `child` (then a healthy one until stopped); the beacon is set once it starts."""
     stop = threading.Event()
-    beacon = _Beacon()
-    stuck = _Child(None)
     started: list[_Child] = []
+    reading = beacon.read()
 
     def start() -> Child:
-        child = stuck if not started else _Child(None)
         if started:
             threading.Timer(0.05, stop.set).start()
-        else:
-            beacon.value = time.monotonic() - 61  # its job began 61 s ago
+            started.append(_Child(None))
+            return started[-1]
+        if reading.started > 0:  # the supervisor clears the beacon before each start
+            beacon.started(reading.job_id, reading.started)
+            beacon.alive(reading.alive)
         started.append(child)
+        threading.Timer(0.2, stop.set).start()
         return child
 
-    with caplog.at_level(logging.ERROR, logger="kiln_worker"):
-        Supervisor(start, stop, poll_seconds=0.01, job_beacon=beacon, max_runtime_seconds=55).run()
+    Supervisor(start, stop, poll_seconds=0.01, job_beacon=beacon, **kwargs).run()
+    return started
+
+
+def test_a_child_in_a_job_past_its_deadline_is_killed_and_replaced_at_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stuck = _Child(None)
+
+    with caplog.at_level(logging.WARNING, logger="kiln_worker"):
+        started = _run_with(_beacon(started_ago=61), stuck, max_runtime_seconds=55)
 
     assert stuck.killed
     assert len(started) == 2  # replaced without a crash backoff
-    assert beacon.value == 0.0  # the next child starts clean
-    assert "worker stuck in one job for 60 s" in caplog.text
+    assert "worker still in job job-1 after 61 s" in caplog.text
+    assert "stuck worker killed; starting a fresh one" in caplog.text
 
 
-def test_an_idle_or_young_job_is_never_killed_by_the_supervisor() -> None:
-    stop = threading.Event()
-    beacon = _Beacon()
+def test_a_child_that_shows_no_sign_of_life_is_killed_long_before_its_deadline(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """KILN-28: a GIL hold or a freeze stops the heartbeat too; the lease must not lapse first."""
+    stuck = _Child(None)
+
+    with caplog.at_level(logging.ERROR, logger="kiln_worker"):
+        _run_with(_beacon(started_ago=70, alive_ago=61), stuck, max_runtime_seconds=1_800)
+
+    assert stuck.killed
+    assert "showed no sign of life for 61 s in job job-1" in caplog.text
+
+
+@pytest.mark.parametrize(("started_ago", "alive_ago"), [(None, 0.0), (1_000.0, 0.0), (10.0, 30.0)])
+def test_an_idle_child_or_a_live_job_in_time_is_never_killed(
+    started_ago: float | None, alive_ago: float
+) -> None:
     child = _Child(None)
 
-    def start() -> Child:
-        beacon.value = time.monotonic()  # a job that just started
-        threading.Timer(0.1, stop.set).start()
-        return child
-
-    Supervisor(start, stop, poll_seconds=0.01, job_beacon=beacon, max_runtime_seconds=55).run()
+    _run_with(_beacon(started_ago=started_ago, alive_ago=alive_ago), child)
 
     assert not child.killed
 
 
-def test_a_real_child_holding_the_gil_is_killed_by_its_supervisor() -> None:
-    """The real thing: a spawned child stuck in libc with the GIL held ends near its deadline."""
+def test_the_beacon_is_cleared_before_each_child_starts() -> None:
+    beacon = _beacon(started_ago=5_000, alive_ago=5_000)  # left by a killed child
+    stop = threading.Event()
+
+    def start() -> Child:
+        assert beacon.read().started == 0.0
+        threading.Timer(0.05, stop.set).start()
+        return _Child(None)
+
+    Supervisor(start, stop, poll_seconds=0.01, job_beacon=beacon).run()
+
+
+def test_a_real_child_holding_the_gil_is_killed_on_lost_liveness() -> None:
+    """The real thing: a spawned child stuck in libc with the GIL held, a budget far away."""
     context = multiprocessing.get_context("spawn")
-    beacon = context.Value("d", 0.0)
+    beacon = JobBeacon(context)
     stop = threading.Event()
     children: list[Child] = []
 
@@ -320,7 +356,14 @@ def test_a_real_child_holding_the_gil_is_killed_by_its_supervisor() -> None:
         return child
 
     started = time.monotonic()
-    Supervisor(start, stop, poll_seconds=0.05, job_beacon=beacon, max_runtime_seconds=0.5).run()
+    Supervisor(
+        start,
+        stop,
+        poll_seconds=0.05,
+        job_beacon=beacon,
+        max_runtime_seconds=3_600,  # far beyond the test: only liveness can end it
+        liveness_seconds=1,
+    ).run()
 
     assert children[0].exitcode == -signal.SIGKILL
-    assert time.monotonic() - started < 20  # 0.5 s budget + 5 s margin, not the 60 s sleep
+    assert time.monotonic() - started < 20  # not the 60 s sleep

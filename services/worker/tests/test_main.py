@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import multiprocessing
 import os
 import signal
 import subprocess
@@ -22,7 +23,7 @@ from kiln_worker.constants import WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.enums import RunEnd
 from kiln_worker.process import child_main, run_worker, watch_parent
 from kiln_worker.runner import build_worker
-from kiln_worker.watchdog import JobWatchdog
+from kiln_worker.watchdog import JobBeacon, JobWatchdog
 
 
 @pytest.mark.usefixtures("engine")  # the loop may take a maintenance lease; clean it up
@@ -107,7 +108,7 @@ def test_the_worker_runs_its_jobs_under_a_watchdog_with_the_configured_grace(
     monkeypatch.setattr("kiln_worker.process.build_worker", spy)
     stop = threading.Event()
     stop.set()
-    beacon = _Beacon()
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
 
     run_worker(
         Settings(env=Environment.TEST, database_url=database_url),
@@ -139,12 +140,7 @@ def test_the_supervisor_gets_the_grace_and_the_beacon_its_children_write(
 
     assert main(worker_settings=WorkerSettings(job_stop_grace_seconds=23)) == 0
     assert captured["stop_grace_seconds"] == 23
-    beacon = captured["job_beacon"]
-    assert beacon.value == 0.0  # a shared double the spawned child writes
-
-
-class _Beacon:
-    value = 0.0
+    assert isinstance(captured["job_beacon"], JobBeacon)  # shared with every spawned child
 
 
 @pytest.mark.usefixtures("engine")
