@@ -35,15 +35,24 @@ def _reasons_check(reasons: str) -> None:
 def upgrade() -> None:
     """Allow the model reasons; send ready models without a preview back to processing."""
     _reasons_check(_NEW_REASONS)
-    # Until now the worker marked models ready without rendering anything (KILN-4).
+    # Until now the worker marked models ready without rendering anything (KILN-4): send them
+    # back for a preview. Their covers point at previews that do not exist yet, so clear them;
+    # the worker sets the cover again once a preview is rendered. Only finished jobs are
+    # re-queued, never one a worker is running.
+    op.execute(
+        "UPDATE assets SET cover_version_id = NULL, updated_at = now() WHERE kind = 'model'"
+        " AND cover_version_id IN (SELECT id FROM asset_versions WHERE status = 'ready')"
+    )
     op.execute(
         "UPDATE asset_versions SET status = 'processing', updated_at = now()"
         " WHERE status = 'ready' AND asset_id IN (SELECT id FROM assets WHERE kind = 'model')"
+        " AND id IN (SELECT version_id FROM jobs WHERE kind = 'thumbnail'"
+        " AND status IN ('done', 'dead'))"
     )
     op.execute(
         "UPDATE jobs SET status = 'queued', attempts = 0, run_after = now(),"
         " leased_until = NULL, last_error = NULL, updated_at = now()"
-        " WHERE kind = 'thumbnail' AND version_id IN ("
+        " WHERE kind = 'thumbnail' AND status IN ('done', 'dead') AND version_id IN ("
         "SELECT v.id FROM asset_versions v JOIN assets a ON a.id = v.asset_id"
         " WHERE a.kind = 'model' AND v.status = 'processing')"
     )

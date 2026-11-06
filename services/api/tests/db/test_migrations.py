@@ -217,9 +217,43 @@ def test_migration_0005_sends_ready_models_back_for_a_preview(
                 {"v": version},
             )
 
+    with engine.begin() as connection:  # covers set by the old worker; a third model is running
+        connection.execute(
+            text(
+                "UPDATE assets SET cover_version_id = '00000000-0000-7000-8000-0000000005a1'"
+                " WHERE id = '00000000-0000-7000-8000-000000000051'"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                " VALUES ('00000000-0000-7000-8000-000000000054', 'R', 'model', now(), now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO asset_versions (id, asset_id, number, status, file_name,"
+                " content_type, size_bytes, object_key, created_at, updated_at) VALUES"
+                " ('00000000-0000-7000-8000-0000000005a4', '00000000-0000-7000-8000-000000000054',"
+                " 1, 'processing', 'r', 'x', 1, 'assets/r/v1.glb', now(), now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO jobs (id, kind, version_id, status, attempts, run_after,"
+                " leased_until, created_at, updated_at) VALUES (gen_random_uuid(), 'thumbnail',"
+                " '00000000-0000-7000-8000-0000000005a4', 'running', 1, now(),"
+                " now() + interval '5 minutes', now(), now())"
+            )
+        )
+
     command.upgrade(alembic_config, "head")
 
     with engine.connect() as connection:
+        cover = connection.execute(
+            text("SELECT cover_version_id FROM assets WHERE id = :id"),
+            {"id": "00000000-0000-7000-8000-000000000051"},
+        ).scalar_one()
         versions: dict[str, str] = dict(
             connection.execute(text("SELECT file_name || id, status FROM asset_versions")).all()
         )
@@ -237,11 +271,14 @@ def test_migration_0005_sends_ready_models_back_for_a_preview(
     assert versions == {
         "a00000000-0000-7000-8000-0000000005a1": "processing",
         "a00000000-0000-7000-8000-0000000005a2": "ready",
+        "r00000000-0000-7000-8000-0000000005a4": "processing",
     }
     assert jobs == {
         "00000000-0000-7000-8000-0000000005a1": "queued:0",
         "00000000-0000-7000-8000-0000000005a2": "done:1",
+        "00000000-0000-7000-8000-0000000005a4": "running:1",  # a running job is left alone
     }
+    assert cover is None  # no cover pointing at a preview that does not exist yet
 
 
 def test_migration_0005_downgrade_maps_model_reasons_to_one_the_old_check_allows(
