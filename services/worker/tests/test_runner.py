@@ -225,6 +225,30 @@ def test_unreadable_or_oversized_models_fail_with_a_reason(
     assert thumbnail_key(failed) not in storage.blobs
 
 
+def test_a_model_file_over_the_size_limit_is_refused_without_downloading(
+    container: Container,
+    worker: Worker,
+    storage: FakeStorage,
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("kiln_worker.runner.MODEL_MAX_BYTES", 100)
+    version = _uploaded(container, storage, build_glb(), content_type="model/gltf-binary")
+    downloads: list[str] = []
+
+    def download(key: str, *_: Any, **__: Any) -> bool:
+        downloads.append(key)
+        return False
+
+    storage.download = download  # type: ignore[method-assign]
+
+    worker.run_once()
+
+    failed = SqlAssetRepository(engine).get_version(version.id)
+    assert failed.failure_reason is FailureReason.MODEL_TOO_LARGE
+    assert downloads == []
+
+
 def test_a_model_replaced_between_check_and_download_is_not_rendered(
     container: Container, worker: Worker, storage: FakeStorage, engine: Engine
 ) -> None:

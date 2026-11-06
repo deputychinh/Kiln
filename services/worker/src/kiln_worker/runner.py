@@ -28,6 +28,7 @@ from kiln_worker.constants import (
     IDLE_POLL_SECONDS,
     MAINTENANCE_CHECK_SECONDS,
     MAX_SOURCE_BYTES_BY_MEDIA_TYPE,
+    MODEL_MAX_BYTES,
     SPOOL_MAX_BYTES,
 )
 from kiln_worker.enums import RunEnd
@@ -185,6 +186,8 @@ class Worker:
         if stored is None or (version.etag is not None and stored.etag != version.etag):
             return FailureReason.UPLOAD_CHANGED
         if asset.kind is AssetKind.MODEL:
+            if version.size_bytes > MODEL_MAX_BYTES:
+                return FailureReason.MODEL_TOO_LARGE  # refused before download
             return self._render_model(version, stored.etag)
         if version.size_bytes > MAX_SOURCE_BYTES_BY_MEDIA_TYPE.get(
             version.content_type, version.size_bytes

@@ -42,6 +42,8 @@ WORKER_RESTART_JITTER = 0.25
 PARENT_CHECK_SECONDS = 1.0
 # Model previews (KILN-5): limits checked before any geometry is decoded.
 MODEL_MAX_TRIANGLES = 2_000_000
+MODEL_MAX_VERTICES = 6_000_000  # summed over the distinct position accessors read
+MODEL_MAX_BYTES = 256 * 1024 * 1024  # larger .glb files are refused before download
 MODEL_MAX_JSON_BYTES = 16 * 1024 * 1024
 MODEL_MAX_NODE_DEPTH = 64
 MODEL_MAX_INSTANCES = 10_000

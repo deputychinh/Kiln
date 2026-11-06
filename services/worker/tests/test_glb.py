@@ -1,19 +1,22 @@
 import json
 import math
 import struct
+import time
 from typing import Any
 
 import numpy as np
 import pytest
 from glb_builder import CUBE_INDICES, assemble, build_glb
 
-from kiln_worker.constants import MODEL_MAX_TRIANGLES
+from kiln_worker import glb as glb_module
+from kiln_worker.constants import MODEL_MAX_TRIANGLES, MODEL_MAX_VERTICES
 from kiln_worker.errors import ModelTooLargeError, UnreadableModelError
 from kiln_worker.glb import read_glb
 
 
 def _bounds(data: bytes) -> tuple[list[float], list[float]]:
-    points = read_glb(data).triangles.reshape(-1, 3)
+    mesh = read_glb(data)
+    points = mesh.triangles.reshape(-1, 3) + mesh.origin  # back to scene coordinates
     return points.min(axis=0).round(4).tolist(), points.max(axis=0).round(4).tolist()
 
 
@@ -102,7 +105,8 @@ def test_interleaved_positions_with_a_stride_are_read() -> None:
 
     mesh = read_glb(assemble(document, interleaved))
 
-    assert mesh.triangles.reshape(-1, 3).tolist() == [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+    points = mesh.triangles.reshape(-1, 3) + mesh.origin
+    assert points.round(4).tolist() == [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 
 
 def test_points_and_lines_are_skipped() -> None:
@@ -234,3 +238,160 @@ def test_a_very_deep_node_chain_is_refused() -> None:
 
     with pytest.raises(UnreadableModelError, match="too deep"):
         read_glb(build_glb(tweak=deep))
+
+
+def test_a_node_reached_twice_is_refused_however_the_graph_is_shaped() -> None:
+    def shared(document: dict[str, Any]) -> None:
+        document["nodes"] = [{"children": [1, 1]}, {"mesh": 0}]
+
+    with pytest.raises(UnreadableModelError, match="reached twice"):
+        read_glb(build_glb(tweak=shared))
+
+
+def test_a_doubling_node_graph_is_refused_at_once() -> None:
+    def doubling(document: dict[str, Any]) -> None:  # 2**40 paths if walked naively
+        document["nodes"] = [{"children": [i + 1, i + 1]} for i in range(40)] + [{"mesh": 0}]
+        document["scenes"] = [{"nodes": [0]}]
+
+    started = time.monotonic()
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=doubling))
+    assert time.monotonic() - started < 1
+
+
+def test_too_many_vertices_are_refused_before_decoding() -> None:
+    with pytest.raises(ModelTooLargeError, match="vertices"):
+        read_glb(build_glb(tweak=_set("accessors.0.count", MODEL_MAX_VERTICES + 1)))
+
+
+def test_instances_decode_each_accessor_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    reads: list[int] = []
+    real_read = glb_module._Reader._read
+
+    def counting(self: Any, index: int, *args: Any) -> Any:
+        reads.append(index)
+        return real_read(self, index, *args)
+
+    monkeypatch.setattr(glb_module._Reader, "_read", counting)
+
+    def twenty(document: dict[str, Any]) -> None:
+        document["nodes"] = [{"children": list(range(1, 21))}] + [
+            {"mesh": 0, "translation": [i * 3, 0, 0]} for i in range(20)
+        ]
+
+    mesh = read_glb(build_glb(tweak=twenty))
+
+    assert mesh.triangles.shape == (240, 3, 3)
+    assert sorted(reads) == [0, 1]  # positions and indices, once each
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        b"[" * 100_000 + b"]" * 100_000,  # nesting deeper than the parser allows
+        b'{"asset": {"version": "2.0"}, "scene": ' + b"9" * 5000 + b"}",  # an absurd integer
+        json.dumps({"nodes": [{"children": 5}]}).encode(),
+        json.dumps({"nodes": [{"children": [[1]]}]}).encode(),
+    ],
+)
+def test_malformed_structure_is_unreadable_not_a_crash(document: bytes) -> None:
+    with pytest.raises(UnreadableModelError):
+        read_glb(assemble(document))
+
+
+def test_an_index_type_that_is_not_a_number_is_unreadable() -> None:
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=_set("accessors.1.componentType", [1])))
+
+
+def test_a_misaligned_accessor_offset_is_refused() -> None:
+    def misaligned(document: dict[str, Any]) -> None:
+        document["bufferViews"][0]["byteLength"] += 4  # room enough: only alignment is wrong
+        document["accessors"][0]["byteOffset"] = 2
+
+    with pytest.raises(UnreadableModelError, match="accessor runs past its bufferView"):
+        read_glb(build_glb(tweak=misaligned))
+
+
+def test_a_stride_that_is_not_a_multiple_of_the_component_size_is_refused() -> None:
+    def odd_stride(document: dict[str, Any]) -> None:
+        document["bufferViews"][0]["byteLength"] = 14 * 7 + 12  # room enough for the stride
+        document["bufferViews"][0]["byteStride"] = 14
+
+    with pytest.raises(UnreadableModelError, match="bad byteStride"):
+        read_glb(build_glb(tweak=odd_stride))
+
+
+def test_a_second_buffer_is_never_read() -> None:
+    def second(document: dict[str, Any]) -> None:
+        document["buffers"].append({"byteLength": 4})
+        document["bufferViews"][0]["buffer"] = 1
+
+    with pytest.raises(UnreadableModelError, match="only the embedded binary buffer"):
+        read_glb(build_glb(tweak=second))
+
+
+def test_a_small_model_far_from_the_origin_keeps_its_shape() -> None:
+    def far(document: dict[str, Any]) -> None:
+        document["nodes"] = [{"mesh": 0, "translation": [1e7, 0, 0], "scale": [0.01, 0.01, 0.01]}]
+
+    mesh = read_glb(build_glb(tweak=far))
+
+    points = mesh.triangles.reshape(-1, 3)
+    assert np.ptp(points[:, 0]) == pytest.approx(0.02, rel=1e-3)  # float32 alone would lose it
+    assert mesh.origin[0] == pytest.approx(1e7)
+
+
+@pytest.mark.parametrize(
+    "extension",
+    [
+        "KHR_texture_basisu",
+        "EXT_texture_webp",
+        "KHR_texture_transform",
+        "KHR_materials_emissive_strength",
+    ],
+)
+def test_required_extensions_that_leave_geometry_alone_are_accepted(extension: str) -> None:
+    assert read_glb(build_glb(tweak=_set("extensionsRequired", [extension]))).triangles.shape == (
+        12,
+        3,
+        3,
+    )
+
+
+@pytest.mark.parametrize("required", [["EXT_meshopt_compression"], "KHR_draco", [7]])
+def test_other_required_extensions_are_refused(required: object) -> None:
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=_set("extensionsRequired", required)))
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        (5, [[0, 1, 2], [2, 1, 3], [2, 3, 4]]),  # strip: every other triangle flipped back
+        (6, [[0, 1, 2], [0, 2, 3], [0, 3, 4]]),  # fan around the first vertex
+    ],
+)
+def test_strips_and_fans_are_unrolled_into_triangles(mode: int, expected: list[list[int]]) -> None:
+    positions = [(float(i), float(i * i), 0.0) for i in range(5)]
+
+    def strip(document: dict[str, Any]) -> None:
+        document["meshes"][0]["primitives"][0]["mode"] = mode
+
+    mesh = read_glb(build_glb(positions=positions, indices=[0, 1, 2, 3, 4], tweak=strip))
+
+    points = (mesh.triangles.reshape(-1, 3) + mesh.origin).round(4)
+    vertex = {tuple(p): i for i, p in enumerate(np.array(positions))}
+    assert [
+        [vertex[tuple(p)] for p in triangle] for triangle in points.reshape(-1, 3, 3)
+    ] == expected
+
+
+def test_short_strips_and_fans_have_no_triangles() -> None:
+    def two_vertex_strip(document: dict[str, Any]) -> None:
+        document["meshes"][0]["primitives"][0]["mode"] = 5
+
+    with pytest.raises(UnreadableModelError, match="no triangles"):
+        read_glb(
+            build_glb(positions=[(0, 0, 0), (1, 0, 0)], indices=[0, 1], tweak=two_vertex_strip)
+        )

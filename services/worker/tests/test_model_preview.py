@@ -1,3 +1,4 @@
+import contextlib
 import io
 import time
 from typing import Any
@@ -63,7 +64,9 @@ def test_back_faces_never_show_through_a_closed_box() -> None:
     view = mesh.triangles @ _rotation().T.astype(np.float32)
     edge_a, edge_b = view[:, 1] - view[:, 0], view[:, 2] - view[:, 0]
     front = edge_a[:, 0] * edge_b[:, 1] - edge_a[:, 1] * edge_b[:, 0] >= 0
-    culled = Mesh(triangles=mesh.triangles[front])  # the right answer for a convex solid
+    culled = Mesh(
+        origin=np.zeros(3), triangles=mesh.triangles[front]
+    )  # the right answer for a convex solid
 
     full = np.asarray(_image(render_model(mesh))).astype(int)
     expected = np.asarray(_image(render_model(culled))).astype(int)
@@ -72,7 +75,9 @@ def test_back_faces_never_show_through_a_closed_box() -> None:
 
 
 def test_the_model_is_fitted_to_the_frame_whatever_its_size() -> None:
-    tiny = Mesh(triangles=(read_glb(build_glb()).triangles * 0.001).astype(np.float32))
+    tiny = Mesh(
+        origin=np.zeros(3), triangles=(read_glb(build_glb()).triangles * 0.001).astype(np.float32)
+    )
     image = _image(render_model(tiny))
 
     box = image.getchannel("A").getbbox()
@@ -84,13 +89,15 @@ def test_the_model_is_fitted_to_the_frame_whatever_its_size() -> None:
 def test_non_finite_vertices_are_dropped_and_nothing_drawable_is_refused() -> None:
     cube = read_glb(build_glb()).triangles.copy()
     cube[0, 0, 0] = np.inf
-    assert _image(render_model(Mesh(triangles=cube))).size == (512, 512)
+    assert _image(render_model(Mesh(origin=np.zeros(3), triangles=cube))).size == (512, 512)
 
     with pytest.raises(UnreadableModelError):
-        render_model(Mesh(triangles=np.full((2, 3, 3), np.nan, dtype=np.float32)))
+        render_model(
+            Mesh(origin=np.zeros(3), triangles=np.full((2, 3, 3), np.nan, dtype=np.float32))
+        )
     flat = np.zeros((4, 3, 3), dtype=np.float32)  # zero-area triangles only
     with pytest.raises(UnreadableModelError):
-        render_model(Mesh(triangles=flat))
+        render_model(Mesh(origin=np.zeros(3), triangles=flat))
 
 
 def test_dense_meshes_render_within_the_time_budget() -> None:
@@ -99,7 +106,16 @@ def test_dense_meshes_render_within_the_time_budget() -> None:
     triangles = (centres + rng.normal(0, 0.002, size=(200_000, 3, 3))).astype(np.float32)
 
     started = time.monotonic()
-    image = _image(render_model(Mesh(triangles=triangles)))
+    image = _image(render_model(Mesh(origin=np.zeros(3), triangles=triangles)))
 
     assert time.monotonic() - started < 5
     assert image.getchannel("A").getbbox() is not None
+
+
+@pytest.mark.parametrize("scale", [1e19, 1e38])
+def test_coordinates_near_the_float_limit_never_warn(scale: float) -> None:
+    huge = (read_glb(build_glb()).triangles * np.float32(scale)).astype(np.float32)
+
+    # filterwarnings=error turns any overflow warning into a failure here
+    with contextlib.suppress(UnreadableModelError):
+        render_model(Mesh(origin=np.zeros(3), triangles=huge))

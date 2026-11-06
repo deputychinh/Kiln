@@ -41,6 +41,12 @@ def _rotation() -> NDArray[np.float64]:
 
 
 def render_model(mesh: Mesh) -> bytes:
+    """See `_render`; extreme coordinates overflow to inf/nan quietly and are dropped there."""
+    with np.errstate(over="ignore", invalid="ignore"):
+        return _render(mesh)
+
+
+def _render(mesh: Mesh) -> bytes:
     """A 512 x 512 WebP with a transparent background, the model fitted to the frame.
 
     Memory stays near three float32 copies of the triangles: the view transform and the
