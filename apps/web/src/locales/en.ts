@@ -44,6 +44,8 @@ export const en: Copy = {
     updated: 'Updated',
     versionsTitle: 'Versions',
     versionLabel: (number) => `Version ${String(number)}`,
+    stale: 'Could not refresh, so this may be out of date.',
+    fileSummary: (name, size) => `${name} · ${size}`,
     loadingAsset: 'Loading asset…',
     loadAssetFailed: 'Could not load this asset',
     notFoundTitle: 'Asset not found',

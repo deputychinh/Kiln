@@ -14,6 +14,7 @@ import { routeTree } from '@/routeTree.gen';
 export const renderApp = (path: string): { router: RegisteredRouter; queryClient: QueryClient } => {
   const router = createRouter({
     routeTree,
+    scrollRestoration: true,
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   const queryClient = createQueryClient(0);

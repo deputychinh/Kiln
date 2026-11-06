@@ -35,9 +35,11 @@ const BackLink = ({ isCompactOnly = false }: { isCompactOnly?: boolean }): React
 interface AssetBodyProps {
   asset: AssetDetailData;
   onThumbError: () => void;
+  /** The last refresh failed, so what is shown may be out of date. */
+  isStale: boolean;
 }
 
-const AssetBody = ({ asset, onThumbError }: AssetBodyProps): ReactElement => {
+const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactElement => {
   const copy = useCopy();
   const isExpanded = useMediaQuery(EXPANDED_MEDIA_QUERY);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -46,9 +48,11 @@ const AssetBody = ({ asset, onThumbError }: AssetBodyProps): ReactElement => {
   // move focus to the heading so keyboard and screen-reader users land on the new content.
   useEffect(() => {
     if (!isExpanded) headingRef.current?.focus();
-  }, [asset.id, isExpanded]);
+  }, [isExpanded]);
 
   const kind = copy.assets.kind[asset.kind];
+  const Heading = isExpanded ? 'h2' : 'h1';
+  const Subheading = isExpanded ? 'h3' : 'h2';
   return (
     <article className="asset-detail" aria-labelledby="asset-detail-title">
       <BackLink isCompactOnly />
@@ -59,9 +63,20 @@ const AssetBody = ({ asset, onThumbError }: AssetBodyProps): ReactElement => {
         onError={onThumbError}
         isEager
       />
-      <h2 id="asset-detail-title" className="asset-detail__title" ref={headingRef} tabIndex={-1}>
+      {/* The page's main heading when the detail replaces the list; below the list's h1 otherwise. */}
+      <Heading
+        id="asset-detail-title"
+        className="asset-detail__title"
+        ref={headingRef}
+        tabIndex={-1}
+      >
         {asset.name}
-      </h2>
+      </Heading>
+      {isStale ? (
+        <p className="asset-detail__stale" role="status">
+          {copy.assets.stale}
+        </p>
+      ) : null}
       <dl className="asset-detail__facts">
         <dt>{copy.assets.kindLabel}</dt>
         <dd>{kind}</dd>
@@ -72,7 +87,7 @@ const AssetBody = ({ asset, onThumbError }: AssetBodyProps): ReactElement => {
           <RelativeTime iso={asset.updated_at} />
         </dd>
       </dl>
-      <h3 className="asset-detail__subtitle">{copy.assets.versionsTitle}</h3>
+      <Subheading className="asset-detail__subtitle">{copy.assets.versionsTitle}</Subheading>
       <ol className="asset-detail__versions">
         {[...asset.versions].reverse().map((version) => (
           <li key={version.id} className="asset-detail__version">
@@ -85,7 +100,10 @@ const AssetBody = ({ asset, onThumbError }: AssetBodyProps): ReactElement => {
               </Badge>
             </span>
             <span className="asset-detail__file">
-              {version.file_name} · {formatBytes(version.size_bytes, copy.locale)}
+              {copy.assets.fileSummary(
+                version.file_name,
+                formatBytes(version.size_bytes, copy.locale),
+              )}
             </span>
             {version.failure_reason ? (
               <span className="asset-detail__failure">
@@ -138,5 +156,7 @@ export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
       </div>
     );
   }
-  return <AssetBody asset={asset.data} onThumbError={refreshThumb} />;
+  return (
+    <AssetBody asset={asset.data} onThumbError={refreshThumb} isStale={asset.isRefetchError} />
+  );
 };

@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { createQueryClient } from '@/config/query-client';
 import { routeTree } from '@/routeTree.gen';
 
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, scrollRestoration: true });
 const queryClient = createQueryClient();
 
 declare module '@tanstack/react-router' {

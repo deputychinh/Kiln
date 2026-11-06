@@ -47,6 +47,10 @@ export const fakeApi = (routes: Record<string, Reply[]>): FetchMock => {
 
 const STAMP = '2026-11-06T08:00:00Z';
 
+/** A SigV4-style presigned URL of `key`, signed at `amzDate` for 15 minutes. */
+export const signedUrl = (key: string, amzDate: string): string =>
+  `http://s3.test/kiln/${key}?X-Amz-Date=${amzDate}&X-Amz-Expires=900&X-Amz-Signature=${amzDate}`;
+
 export const anAsset = (overrides: Partial<Asset> = {}): Asset => ({
   id: '0190f1c2-0000-7000-8000-000000000001',
   name: 'rock_albedo',

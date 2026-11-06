@@ -18,7 +18,12 @@ export const AssetCard = ({ asset, onThumbError }: AssetCardProps): ReactElement
   const copy = useCopy();
   const kind = copy.assets.kind[asset.kind];
   return (
-    <Link to="/assets/$assetId" params={{ assetId: asset.id }} className="asset-card">
+    <Link
+      to="/assets/$assetId"
+      params={{ assetId: asset.id }}
+      className="asset-card"
+      data-asset-id={asset.id}
+    >
       <AssetThumb
         src={asset.thumbnail_url ?? null}
         alt=""

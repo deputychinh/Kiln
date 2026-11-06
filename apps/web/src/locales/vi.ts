@@ -44,6 +44,8 @@ export const vi: Copy = {
     updated: 'Cập nhật',
     versionsTitle: 'Phiên bản',
     versionLabel: (number) => `Phiên bản ${String(number)}`,
+    stale: 'Không làm mới được, nên thông tin có thể đã cũ.',
+    fileSummary: (name, size) => `${name} · ${size}`,
     loadingAsset: 'Đang tải asset…',
     loadAssetFailed: 'Không tải được asset này',
     notFoundTitle: 'Không tìm thấy asset',

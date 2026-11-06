@@ -9,6 +9,7 @@ import {
   fakeApi,
   json,
   problem,
+  signedUrl,
   urlOf,
 } from '@/test/fake-api';
 import { renderApp } from '@/test/render-app';
@@ -62,7 +63,7 @@ describe('AssetDetail', () => {
     expect(versions[1]).toHaveTextContent('1.5 MB');
   });
 
-  it('moves focus to the heading when the detail replaces the list (compact)', async () => {
+  it('makes the asset name the page heading when the detail replaces the list (compact)', async () => {
     fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],
       [DETAIL]: [json(withVersions)],
@@ -70,7 +71,9 @@ describe('AssetDetail', () => {
 
     renderApp(`/assets/${asset.id}`);
 
-    expect(await screen.findByRole('heading', { name: 'rock_albedo' })).toHaveFocus();
+    const heading = await screen.findByRole('heading', { name: 'rock_albedo' });
+    expect(heading).toHaveFocus();
+    expect(heading.tagName).toBe('H1');
     expect(screen.getByRole('link', { name: 'All assets' })).toHaveAttribute('href', '/assets');
   });
 
@@ -83,7 +86,9 @@ describe('AssetDetail', () => {
 
     renderApp(`/assets/${asset.id}`);
 
-    expect(await screen.findByRole('heading', { name: 'rock_albedo' })).not.toHaveFocus();
+    const heading = await screen.findByRole('heading', { name: 'rock_albedo' });
+    expect(heading).not.toHaveFocus();
+    expect(heading.tagName).toBe('H2');
     const card = await screen.findByRole('link', { name: /rock_albedo/ });
     expect(card).toHaveAttribute('aria-current', 'page');
   });
@@ -167,5 +172,82 @@ describe('AssetDetail', () => {
     const detail = await screen.findByRole('article', { name: 'rock_albedo' });
     expect(within(detail).queryByRole('img')).not.toBeInTheDocument();
     await waitFor(() => expect(within(detail).getAllByText('Model').length).toBeGreaterThan(0));
+  });
+
+  it('keeps the hero image URL while polling re-signs the same preview', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: Date.parse('2026-11-06T12:00:00Z') });
+    const cover = (signedAt: string) => signedUrl(`thumbs/${asset.id}/v1.webp`, signedAt);
+    const polling = (signedAt: string) =>
+      aDetail({
+        thumbnail_url: cover(signedAt),
+        versions: [
+          aVersion({ thumbnail_url: cover(signedAt) }),
+          aVersion({ id: 'v2', number: 2, status: 'processing', thumbnail_url: null }),
+        ],
+      });
+    const fetchMock = fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(polling('20261106T120000Z')), json(polling('20261106T120003Z'))],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+    const image = await screen.findByRole('img', { name: 'Preview of rock_albedo' });
+    await vi.advanceTimersByTimeAsync(3_000);
+    await waitFor(() => expect(countRequests(fetchMock, DETAIL)).toBeGreaterThanOrEqual(2));
+
+    expect(screen.getByRole('img', { name: 'Preview of rock_albedo' })).toBe(image);
+    expect(image).toHaveAttribute('src', cover('20261106T120000Z'));
+  });
+
+  it('refreshes the gallery once processing ends, so the card gets its preview', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [
+        json(aDetail({ versions: [aVersion({ status: 'processing', thumbnail_url: null })] })),
+        json(aDetail()),
+      ],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+    await screen.findByRole('article', { name: 'rock_albedo' });
+    expect(countRequests(fetchMock, LIST)).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    await waitFor(() => expect(countRequests(fetchMock, LIST)).toBe(2));
+  });
+
+  it('says when a refresh failed and the detail may be out of date', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const down = problem(503, 'Database unavailable', 'DATABASE_UNAVAILABLE');
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [
+        json(aDetail({ versions: [aVersion({ status: 'processing', thumbnail_url: null })] })),
+        down,
+      ],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+    const detail = await screen.findByRole('article', { name: 'rock_albedo' });
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(await within(detail).findByRole('status')).toHaveTextContent(
+      'Could not refresh, so this may be out of date.',
+    );
+    expect(within(detail).getByText('Processing')).toBeInTheDocument();
+  });
+
+  it('returns focus to the card it came from when going back (compact)', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+    await userEvent.click(await screen.findByRole('link', { name: 'All assets' }));
+
+    await waitFor(() => expect(screen.getByRole('link', { name: /rock_albedo/ })).toHaveFocus());
   });
 });

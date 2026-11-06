@@ -79,6 +79,12 @@
   color: var(--kiln-color-on-surface-muted);
 }
 
+.asset-detail__stale {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-warning);
+}
+
 .asset-detail__failure {
   font-size: var(--kiln-text-sm);
   color: var(--kiln-color-danger);

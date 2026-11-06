@@ -28,6 +28,8 @@ export interface Copy {
     updated: string;
     versionsTitle: string;
     versionLabel: (number: number) => string;
+    stale: string;
+    fileSummary: (name: string, size: string) => string;
     loadingAsset: string;
     loadAssetFailed: string;
     notFoundTitle: string;

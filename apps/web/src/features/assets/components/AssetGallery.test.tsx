@@ -1,3 +1,4 @@
+import { focusManager } from '@tanstack/react-query';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -107,7 +108,8 @@ describe('AssetGallery', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Load more' }));
 
-    expect(await screen.findByRole('link', { name: /tree_oak/ })).toBeInTheDocument();
+    // The button goes away on the last page; focus lands on the first new card, not the body.
+    await waitFor(() => expect(screen.getByRole('link', { name: /tree_oak/ })).toHaveFocus());
     expect(screen.getByRole('link', { name: /rock_albedo/ })).toBeInTheDocument();
     expect(countRequests(fetchMock, PAGE_2)).toBe(1);
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
@@ -129,6 +131,9 @@ describe('AssetGallery', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Could not load more assets');
+    await waitFor(() =>
+      expect(within(alert).getByRole('button', { name: 'Try again' })).toHaveFocus(),
+    );
     expect(screen.getByRole('link', { name: /rock_albedo/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
 
@@ -179,5 +184,21 @@ describe('AssetGallery', () => {
     );
     fireEvent.error(within(list).getByRole('presentation'));
     expect(countRequests(fetchMock, LIST)).toBe(2);
+  });
+
+  it('does not refetch the list on window focus while it is fresh (5 minutes)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = fakeApi({ [LIST]: [json({ items: [rock], next_cursor: null })] });
+
+    renderApp('/assets');
+    await screen.findByRole('link', { name: /rock_albedo/ });
+    await vi.advanceTimersByTimeAsync(4 * 60_000);
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(countRequests(fetchMock, LIST)).toBe(1);
+    focusManager.setFocused(undefined);
+    vi.useRealTimers();
   });
 });

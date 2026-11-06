@@ -1,5 +1,5 @@
 import { Button, ButtonVariant, EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
-import type { ReactElement } from 'react';
+import { type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { ASSET_PAGE_SIZE, THUMB_REFRESH_MIN_MS } from '@/constants/assets.constant';
 import { AssetCard } from '@/features/assets/components/AssetCard';
@@ -17,6 +17,21 @@ export const AssetGallery = (): ReactElement => {
   const copy = useCopy();
   const pages = useAssetPages();
   const { refetch } = pages;
+  const galleryRef = useRef<HTMLDivElement>(null);
+  // After "Load more": the index of the first new card, or 'error' for the retry button.
+  const [focusAfterLoad, setFocusAfterLoad] = useState<number | 'error' | null>(null);
+
+  // "Load more" disappears on the last page and is replaced by an error on failure; either way
+  // move focus somewhere useful (once the new cards are rendered) instead of the page body.
+  useEffect(() => {
+    if (focusAfterLoad === null || !galleryRef.current) return;
+    const target =
+      focusAfterLoad === 'error'
+        ? galleryRef.current.querySelector<HTMLElement>('[role="alert"] button')
+        : galleryRef.current.querySelectorAll<HTMLElement>('.asset-card')[focusAfterLoad];
+    target?.focus();
+    setFocusAfterLoad(null);
+  }, [focusAfterLoad]);
   const refreshThumbs = useThrottledCallback(() => void refetch(), THUMB_REFRESH_MIN_MS);
 
   const title = <h1 className="asset-gallery__title">{copy.assets.title}</h1>;
@@ -58,8 +73,14 @@ export const AssetGallery = (): ReactElement => {
       </div>
     );
   }
+  const loadMore = async (): Promise<void> => {
+    const shownBefore = assets.length;
+    const result = await pages.fetchNextPage();
+    setFocusAfterLoad(result.isError ? 'error' : shownBefore);
+  };
+
   return (
-    <div className="asset-gallery">
+    <div className="asset-gallery" ref={galleryRef}>
       {title}
       <ul className="asset-gallery__grid" aria-label={copy.assets.title}>
         {assets.map((asset) => (
@@ -76,7 +97,7 @@ export const AssetGallery = (): ReactElement => {
           title={copy.assets.loadMoreFailed}
           message={describeError(pages.error, copy)}
           retryLabel={copy.assets.retry}
-          onRetry={() => void pages.fetchNextPage()}
+          onRetry={() => void loadMore()}
           isRetrying={pages.isFetchingNextPage}
         />
       ) : null}
@@ -87,7 +108,7 @@ export const AssetGallery = (): ReactElement => {
             // aria-disabled, not disabled: the button keeps focus while the next page loads.
             aria-disabled={pages.isFetchingNextPage}
             onClick={() => {
-              if (!pages.isFetchingNextPage) void pages.fetchNextPage();
+              if (!pages.isFetchingNextPage) void loadMore();
             }}
           >
             {pages.isFetchingNextPage ? copy.assets.loadingMore : copy.assets.loadMore}
