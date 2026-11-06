@@ -7,8 +7,10 @@ import time
 from collections.abc import Callable
 from typing import Protocol
 
+from kiln_api.constants import JOB_MAX_RUNTIME_SECONDS
 from kiln_worker.constants import (
     JOB_STOP_GRACE_SECONDS,
+    SUPERVISOR_DEADLINE_MARGIN_SECONDS,
     SUPERVISOR_KILL_MARGIN_SECONDS,
     SUPERVISOR_POLL_SECONDS,
     WORKER_HEALTHY_UPTIME_SECONDS,
@@ -17,6 +19,7 @@ from kiln_worker.constants import (
     WORKER_RESTART_BACKOFF_MAX_SECONDS,
     WORKER_RESTART_JITTER,
 )
+from kiln_worker.watchdog import JobBeacon
 
 logger = logging.getLogger("kiln_worker")
 
@@ -57,6 +60,8 @@ class Supervisor:
         *,
         poll_seconds: float = SUPERVISOR_POLL_SECONDS,
         stop_grace_seconds: float = JOB_STOP_GRACE_SECONDS,
+        job_beacon: JobBeacon | None = None,
+        max_runtime_seconds: float = JOB_MAX_RUNTIME_SECONDS,
         monotonic: Callable[[], float] = time.monotonic,
         jitter: Callable[[], float] = random.random,
     ) -> None:
@@ -65,6 +70,8 @@ class Supervisor:
         self._stop = stop
         self._poll_seconds = poll_seconds
         self._stop_timeout = stop_grace_seconds + SUPERVISOR_KILL_MARGIN_SECONDS
+        self._beacon = job_beacon
+        self._deadline = max_runtime_seconds + SUPERVISOR_DEADLINE_MARGIN_SECONDS
         self._monotonic = monotonic
         self._jitter = jitter
 
@@ -73,7 +80,7 @@ class Supervisor:
         crashes = 0
         while not self._stop.is_set():
             started = self._monotonic()
-            child = self._start_child()
+            child = self._start()
             code = self._wait(child)
             if code is None:  # stop was asked while the child ran
                 self._stop_child(child)
@@ -101,6 +108,11 @@ class Supervisor:
         logger.info("supervisor stopped")
         return 0
 
+    def _start(self) -> Child:
+        if self._beacon is not None:
+            self._beacon.value = 0.0  # a killed child may have left its last job's start
+        return self._start_child()
+
     def _stop_child(self, child: Child) -> None:
         """Ask the child to stop; kill it if it outlives its grace (it should end itself)."""
         logger.info("stopping: waiting for the worker to finish its current job")
@@ -119,4 +131,22 @@ class Supervisor:
             child.join(self._poll_seconds)
             if child.exitcode is not None:
                 return child.exitcode
+            if self._is_stuck():
+                return self._kill_stuck(child)
         return None
+
+    def _is_stuck(self) -> bool:
+        """The child has been inside one job past its deadline (its own watchdog could not act)."""
+        if self._beacon is None:
+            return False
+        job_started = self._beacon.value
+        return job_started > 0 and time.monotonic() - job_started >= self._deadline
+
+    def _kill_stuck(self, child: Child) -> int:
+        logger.error(
+            "worker stuck in one job for %.0f s (native code holding the GIL, or frozen); killed",
+            self._deadline,
+        )
+        child.kill()
+        child.join()
+        return WORKER_OVERRAN_EXIT_CODE

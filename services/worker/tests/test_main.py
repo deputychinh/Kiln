@@ -22,6 +22,7 @@ from kiln_worker.constants import WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.enums import RunEnd
 from kiln_worker.process import child_main, run_worker, watch_parent
 from kiln_worker.runner import build_worker
+from kiln_worker.watchdog import JobWatchdog
 
 
 @pytest.mark.usefixtures("engine")  # the loop may take a maintenance lease; clean it up
@@ -92,6 +93,61 @@ def test_the_worker_guards_its_storage_and_passes_the_recycle_policy(
 
 
 @pytest.mark.usefixtures("engine")
+def test_the_worker_runs_its_jobs_under_a_watchdog_with_the_configured_grace(
+    database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KILN-28: the production process wires the watchdog, its grace and the shared beacon."""
+    built: dict[str, Any] = {}
+    real_build = build_worker
+
+    def spy(engine: Any, **kwargs: Any) -> Any:
+        built.update(kwargs)
+        return real_build(engine, **kwargs)
+
+    monkeypatch.setattr("kiln_worker.process.build_worker", spy)
+    stop = threading.Event()
+    stop.set()
+    beacon = _Beacon()
+
+    run_worker(
+        Settings(env=Environment.TEST, database_url=database_url),
+        WorkerSettings(job_stop_grace_seconds=17),
+        stop,
+        beacon,
+    )
+
+    watchdog = built["watchdog"]
+    assert isinstance(watchdog, JobWatchdog)
+    assert watchdog._grace == 17
+    assert watchdog._beacon is beacon
+
+
+def test_the_supervisor_gets_the_grace_and_the_beacon_its_children_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class _Supervisor:
+        def __init__(self, start_child: Any, stop: Any, **kwargs: Any) -> None:
+            captured.update(kwargs, start_child=start_child, stop=stop)
+
+        def run(self) -> int:
+            return 0
+
+    monkeypatch.setattr("kiln_worker.__main__.Supervisor", _Supervisor)
+    monkeypatch.setattr("kiln_worker.__main__.stop_on_signals", lambda _halt: None)
+
+    assert main(worker_settings=WorkerSettings(job_stop_grace_seconds=23)) == 0
+    assert captured["stop_grace_seconds"] == 23
+    beacon = captured["job_beacon"]
+    assert beacon.value == 0.0  # a shared double the spawned child writes
+
+
+class _Beacon:
+    value = 0.0
+
+
+@pytest.mark.usefixtures("engine")
 def test_sigterm_stops_the_supervisor_and_its_spawned_worker(
     database_url: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -116,8 +172,10 @@ def test_sigterm_stops_the_supervisor_and_its_spawned_worker(
     assert "supervisor stopped" in caplog.text
 
 
-@pytest.mark.parametrize("field", ["worker_max_jobs", "worker_max_rss_mb"])
-def test_recycle_settings_must_be_positive(field: str) -> None:
+@pytest.mark.parametrize(
+    "field", ["worker_max_jobs", "worker_max_rss_mb", "job_stop_grace_seconds"]
+)
+def test_recycle_and_grace_settings_must_be_positive(field: str) -> None:
     with pytest.raises(ValueError, match="greater than 0"):
         WorkerSettings.model_validate({field: 0})
 

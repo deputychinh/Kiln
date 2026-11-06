@@ -26,13 +26,20 @@ def main(
     halt = stop or threading.Event()
     stop_on_signals(halt)
     context = multiprocessing.get_context("spawn")
+    # When the child's running job started; the supervisor's backstop for a stuck child (KILN-28).
+    beacon = context.Value("d", 0.0)
 
     def start_child() -> Child:
-        child = context.Process(target=child_main, args=(resolved, options), name="kiln-worker")
+        child = context.Process(
+            target=child_main, args=(resolved, options, beacon), name="kiln-worker"
+        )
         child.start()
         return child
 
-    return Supervisor(start_child, halt, stop_grace_seconds=options.job_stop_grace_seconds).run()
+    supervisor = Supervisor(
+        start_child, halt, stop_grace_seconds=options.job_stop_grace_seconds, job_beacon=beacon
+    )
+    return supervisor.run()
 
 
 if __name__ == "__main__":

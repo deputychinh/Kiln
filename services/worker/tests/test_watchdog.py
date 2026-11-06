@@ -12,7 +12,12 @@ from pathlib import Path
 import pytest
 from job_builder import job
 
-from kiln_worker.constants import WORKER_OVERRAN_EXIT_CODE
+from kiln_api.constants import JOB_HEARTBEAT_SECONDS, JOB_LEASE_SECONDS, JOB_MAX_RUNTIME_SECONDS
+from kiln_worker.constants import (
+    SUPERVISOR_DEADLINE_MARGIN_SECONDS,
+    WATCHDOG_POLL_SECONDS,
+    WORKER_OVERRAN_EXIT_CODE,
+)
 from kiln_worker.watchdog import JobWatchdog
 
 POLL = 0.005
@@ -68,7 +73,7 @@ def test_a_job_past_its_runtime_ends_the_process_with_the_overran_code(
 
     assert exit_.codes == [WORKER_OVERRAN_EXIT_CODE]
     assert f"job {running.id} for version {running.version_id}" in caplog.text
-    assert "ran past its 60 s budget" in caplog.text
+    assert "ran 60.0 s, past its 60.0 s budget" in caplog.text
     assert "(attempt 2)" in caplog.text
 
 
@@ -102,7 +107,7 @@ def test_a_stop_gives_the_running_job_its_grace_then_ends_the_process(
         assert exit_.called.wait(1)
 
     assert exit_.codes == [WORKER_OVERRAN_EXIT_CODE]
-    assert "did not finish within the 10 s stop grace" in caplog.text
+    assert "did not finish within the 10.0 s stop grace" in caplog.text
 
 
 def test_a_job_that_finishes_within_the_stop_grace_ends_normally() -> None:
@@ -161,3 +166,54 @@ def test_a_process_blocked_in_native_code_is_ended_within_its_budget() -> None:
 def _child_env() -> dict[str, str]:
     tests = str(Path(__file__).parents[2] / "api" / "tests")  # where job_builder lives
     return {**os.environ, "PYTHONPATH": os.pathsep.join([tests, os.environ.get("PYTHONPATH", "")])}
+
+
+def test_a_stop_late_in_a_long_job_still_gives_it_the_whole_grace() -> None:
+    """The grace counts from the stop, not from the job start (a 20-minute job gets 10 s too)."""
+    clock, exit_, stop = _Clock(), _Exit(), threading.Event()
+
+    with _watchdog(clock, exit_, stop, max_runtime=1_800).watch(job()):
+        clock.now += 1_200
+        time.sleep(POLL * 5)
+        stop.set()
+        time.sleep(POLL * 5)
+        clock.now += 9.9
+        time.sleep(POLL * 5)
+        assert exit_.codes == []
+        clock.now += 0.1
+        assert exit_.called.wait(1)
+
+
+def test_the_running_job_is_published_to_the_supervisor_and_cleared_after() -> None:
+    class _Beacon:
+        value = 0.0
+
+    beacon = _Beacon()
+    watchdog = JobWatchdog(stop=threading.Event(), beacon=beacon, poll_seconds=POLL)
+
+    before = time.monotonic()
+    with watchdog.watch(job()):
+        assert beacon.value >= before
+    assert beacon.value == 0.0
+
+
+def test_a_job_that_finished_at_the_last_moment_is_not_ended() -> None:
+    clock, exit_ = _Clock(), _Exit()
+    watchdog = _watchdog(clock, exit_, threading.Event())
+    finished = threading.Event()
+    finished.set()
+
+    watchdog._end(job(), finished, "ran 60.0 s, past its 60.0 s budget")
+
+    assert exit_.codes == []
+
+
+def test_every_deadline_falls_inside_the_lease_so_a_job_never_runs_twice() -> None:
+    """The last heartbeat extends the lease at least to max runtime - heartbeat + lease."""
+    lease_ends_no_earlier_than = JOB_MAX_RUNTIME_SECONDS - JOB_HEARTBEAT_SECONDS + JOB_LEASE_SECONDS
+    in_process = JobWatchdog(stop=threading.Event()).max_runtime_seconds + WATCHDOG_POLL_SECONDS
+    supervisor = JOB_MAX_RUNTIME_SECONDS + SUPERVISOR_DEADLINE_MARGIN_SECONDS
+
+    assert JobWatchdog(stop=threading.Event()).max_runtime_seconds == JOB_MAX_RUNTIME_SECONDS
+    assert in_process < lease_ends_no_earlier_than
+    assert supervisor < lease_ends_no_earlier_than

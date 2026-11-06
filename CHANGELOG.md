@@ -6,7 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Added
 
-- A hung job no longer blocks its worker (KILN-28): a watchdog ends the worker process (exit 76) when a job reaches its 30-minute maximum runtime, before its lease can expire, or has not finished 60 s after a stop (`KILN_JOB_STOP_GRACE_SECONDS`); the supervisor starts a fresh process at once and kills a child that outlives its grace, so shutdowns are bounded too.
+- A hung job no longer blocks its worker (KILN-28): a watchdog ends the worker process (exit 76) when a job reaches its 30-minute maximum runtime, before its lease can expire, or has not finished 60 s after a stop (`KILN_JOB_STOP_GRACE_SECONDS`); the supervisor starts a fresh process at once, kills a child stuck in one job 5 s past the runtime (native code holding the GIL, a frozen process) and kills a child that outlives its stop grace, so shutdowns are bounded too. Give the worker a stop timeout of at least 70 s.
 
 ## [0.1.0] - 2026-11-06
 

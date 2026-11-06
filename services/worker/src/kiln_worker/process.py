@@ -19,7 +19,7 @@ from kiln_worker.enums import RunEnd
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.runner import build_worker
 from kiln_worker.sandbox import remove_stale_folders
-from kiln_worker.watchdog import JobWatchdog
+from kiln_worker.watchdog import JobBeacon, JobWatchdog
 
 logger = logging.getLogger("kiln_worker")
 
@@ -36,6 +36,7 @@ def run_worker(
     settings: Settings,
     options: WorkerSettings,
     stop: threading.Event,
+    beacon: JobBeacon | None = None,
 ) -> int:
     """The child's work: run until `stop` (exit 0) or until it should be recycled (exit 75).
 
@@ -49,7 +50,9 @@ def run_worker(
         engine,
         storage=guard_storage(build_storage(settings), settings),
         maintenance_interval=timedelta(seconds=options.maintenance_interval_seconds),
-        watchdog=JobWatchdog(stop=stop, stop_grace_seconds=options.job_stop_grace_seconds),
+        watchdog=JobWatchdog(
+            stop=stop, stop_grace_seconds=options.job_stop_grace_seconds, beacon=beacon
+        ),
     )
     policy = RecyclePolicy(
         max_jobs=options.worker_max_jobs, max_rss_bytes=options.worker_max_rss_mb * _BYTES_PER_MB
@@ -78,10 +81,12 @@ def watch_parent(halt: threading.Event, *, every: float = PARENT_CHECK_SECONDS) 
     threading.Thread(target=watch, name="parent-watch", daemon=True).start()
 
 
-def child_main(settings: Settings, options: WorkerSettings) -> None:
+def child_main(
+    settings: Settings, options: WorkerSettings, beacon: JobBeacon | None = None
+) -> None:
     """Body of a spawned worker process."""
     logging.basicConfig(level=options.log_level)
     halt = threading.Event()
     stop_on_signals(halt)
     watch_parent(halt)
-    sys.exit(run_worker(settings, options, halt))
+    sys.exit(run_worker(settings, options, halt, beacon))
