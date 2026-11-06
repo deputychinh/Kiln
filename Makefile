@@ -65,4 +65,7 @@ test: ## Unit, database and component tests with coverage (needs `make up`)
 e2e: ## Browser journeys (Playwright) against the production build
 	npm run e2e --workspace apps/web
 
+e2e-ui: ## Every Storybook story in both themes through axe (builds Storybook first)
+	npm run e2e --workspace packages/ui
+
 ci: lint test build ## Everything CI runs

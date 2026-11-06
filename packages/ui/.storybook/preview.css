@@ -1,0 +1,14 @@
+/* The app's base text and surface (apps/web/src/styles/base.css), so stories look as they do there. */
+body {
+  margin: 0;
+  font-family: var(--kiln-font-sans);
+  font-size: var(--kiln-text-md);
+  line-height: var(--kiln-leading-normal);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface);
+}
+
+/* Docs pages keep Storybook's own chrome; each story example follows the selected token theme. */
+.docs-story {
+  background-color: var(--kiln-color-surface);
+}

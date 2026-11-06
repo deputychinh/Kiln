@@ -4,5 +4,13 @@
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom/vitest"],
     "paths": { "#ui/*": ["./src/*"] }
   },
-  "include": ["src", "vitest.config.ts", "vitest.setup.ts"]
+  "include": [
+    "src",
+    ".storybook/*.ts",
+    ".storybook/*.tsx",
+    "e2e",
+    "vitest.config.ts",
+    "vitest.setup.ts",
+    "playwright.config.ts"
+  ]
 }

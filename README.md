@@ -46,7 +46,7 @@ More: [architecture](docs/architecture/README.md) · [decisions](docs/adr) · [c
 
 ## Quality
 
-`make ci` runs lint, typecheck, tests and builds for every part (thresholds in `docs/testing.md`); GitHub Actions runs the same. `make e2e` runs Playwright with axe accessibility checks against the production build and the real API. Commits follow Conventional Commits, enforced by husky + commitlint, and a release ships every week with a changelog.
+`make ci` runs lint, typecheck, tests and builds for every part (thresholds in `docs/testing.md`); GitHub Actions runs the same. `make e2e` runs Playwright with axe accessibility checks against the production build and the real API; `make e2e-ui` runs axe over every Storybook story in both themes. Commits follow Conventional Commits, enforced by husky + commitlint, and a release ships every week with a changelog.
 
 ## Structure
 

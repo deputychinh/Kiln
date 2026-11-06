@@ -9,9 +9,12 @@
     "./tokens.css": "./src/tokens/tokens.css"
   },
   "scripts": {
-    "lint": "eslint . --max-warnings 0 && stylelint \"src/**/*.css\"",
+    "lint": "eslint . --max-warnings 0 && stylelint \"src/**/*.css\" \".storybook/*.css\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "storybook": "storybook dev --port 6006 --no-open",
+    "build": "storybook build --quiet --output-dir storybook-static",
+    "e2e": "playwright test"
   },
   "peerDependencies": {
     "react": "^19.0.0"

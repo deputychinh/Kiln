@@ -39,6 +39,10 @@ Contrast: body text ≥ 4.5:1, large text and control borders ≥ 3:1, in both t
 
 Every component has a story for each state, role-based tests, and no hard-coded strings (copy comes in through props).
 
+## Storybook
+
+`make storybook` (port 6006) shows every component in each state with autodocs, a **Theme** toolbar (dark default, light) and the accessibility panel. Stories live next to the component (`<Name>/<Name>.stories.tsx`, CSF 3, `satisfies Meta<typeof Name>`); sample copy and images are inline (no remote URLs). `make test` fails when a component folder has no stories; `make e2e-ui` runs axe over every story in both themes (KILN-7). Publishing it is KILN-20.
+
 ## Budgets
 
 - Accessibility: WCAG 2.2 AA; targets ≥ 24 px (2.5.8); focus not obscured (2.4.11); an alternative to every drag (2.5.7: a file button beside the dropzone, buttons for the compare slider).

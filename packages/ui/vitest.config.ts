@@ -11,7 +11,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/index.ts', 'src/**/*.test.{ts,tsx}', 'src/**/*.enum.ts'],
+      exclude: [
+        'src/**/index.ts',
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.stories.tsx',
+        'src/**/*.enum.ts',
+      ],
       thresholds: { lines: 80 },
     },
   },

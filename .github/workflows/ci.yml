@@ -49,6 +49,8 @@ jobs:
       - run: npm run typecheck --workspaces --if-present
       - run: npm test --workspaces --if-present
       - run: npm run build --workspaces --if-present
+      - name: Storybook stories pass axe in both themes (KILN-7)
+        run: npx playwright install --with-deps chromium && npm run e2e --workspace packages/ui
       - run: npx prettier --check .
       - name: commitlint
         run: |
