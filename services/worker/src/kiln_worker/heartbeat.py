@@ -19,6 +19,7 @@ from kiln_api.constants import (
 )
 from kiln_api.domain.jobs import Job
 from kiln_api.enums import ErrorCode
+from kiln_api.errors import DomainError
 from kiln_api.ports import JobQueue
 
 logger = logging.getLogger("kiln_worker")
@@ -110,19 +111,26 @@ class LeaseHeartbeat:
             try:
                 extended = self._jobs.extend(self._job, lease=self._lease, now=self._queue_now())
             except Exception as error:
-                cause = _cause(error)
-                logger.warning("job %s: lease extension failed (%s); retrying", self._job.id, cause)
+                if self._stop.is_set():
+                    return  # the job ended while this extension was failing: nothing to retry
+                logger.warning(
+                    "job %s: lease extension failed (%s); retrying", self._job.id, _cause(error)
+                )
                 continue
             if not extended:
                 if self._stop.is_set():
                     return  # refused because the job just finished: not a lost claim
                 self.lost = True
-                logger.warning("job %s: lease lost; another worker owns it now", self._job.id)
+                logger.warning(
+                    "job %s: lease expired or taken over; no longer extending it", self._job.id
+                )
                 return
 
 
 def _cause(error: Exception) -> str:
-    """A stable code for the logs: the domain code, or DATABASE_UNAVAILABLE for driver errors."""
+    """A stable code for the logs: a domain error's code, DATABASE_UNAVAILABLE for driver errors."""
     if isinstance(error, SQLAlchemyError):
         return ErrorCode.DATABASE_UNAVAILABLE.value
-    return getattr(error, "cause_code", "") or type(error).__name__
+    if isinstance(error, DomainError):
+        return error.code.value
+    return type(error).__name__

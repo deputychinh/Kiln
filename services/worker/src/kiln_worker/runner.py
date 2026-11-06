@@ -210,9 +210,11 @@ class Worker:
         self._give_up(job, cause)
         return f"gave up ({cause})"
 
-    def _give_up(self, job: Job, cause: str) -> None:
+    def _give_up(self, job: Job, cause: str, *, reaping: bool = False) -> None:
+        """Bury the job and fail its version; `reaping` = found expired by another worker."""
         with self._unit_of_work() as tx:
-            if not tx.jobs.bury(job, error=cause, now=self._queue_now()):
+            write = tx.jobs.reap if reaping else tx.jobs.bury
+            if not write(job, error=cause, now=self._queue_now()):
                 return
             version = tx.assets.get_version(job.version_id)
             if version.status is not VersionStatus.PROCESSING:
@@ -233,7 +235,7 @@ class Worker:
         exhausted = self._jobs.exhausted_jobs(max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
         for job in exhausted:
             logger.warning("job %s exhausted its attempts while leased; burying", job.id)
-            self._give_up(job, "crashed on every attempt")
+            self._give_up(job, "crashed on every attempt", reaping=True)
 
 
 class _LeaseLostError(Exception):

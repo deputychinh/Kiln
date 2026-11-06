@@ -85,7 +85,7 @@ def test_a_refused_extension_means_the_lease_is_lost_and_stops_the_heartbeat(
 
     assert heartbeat.lost is True
     assert len(queue.calls) == 2
-    assert caplog.text.count("lease lost") == 1
+    assert caplog.text.count("lease expired or taken over") == 1
 
 
 def test_a_hung_job_stops_being_extended_after_the_maximum_runtime(
@@ -113,7 +113,7 @@ def test_a_database_hiccup_is_logged_and_the_next_tick_extends_again(
         with heartbeat:
             time.sleep(0.1)
 
-    assert "lease extension failed (DatabaseUnavailableError); retrying" in caplog.text
+    assert "lease extension failed (DATABASE_UNAVAILABLE); retrying" in caplog.text
     assert len(queue.calls) >= 2
     assert heartbeat.lost is False
 
@@ -160,7 +160,7 @@ def test_a_refusal_after_the_job_finished_is_not_reported_as_a_lost_claim(
             queue.started.wait(5)
 
     assert heartbeat.lost is False
-    assert "lease lost" not in caplog.text
+    assert "lease expired or taken over" not in caplog.text
 
 
 def test_stopping_twice_is_harmless() -> None:
@@ -177,3 +177,21 @@ def test_database_errors_are_logged_with_a_stable_code(caplog: pytest.LogCapture
         time.sleep(0.05)
 
     assert "lease extension failed (DATABASE_UNAVAILABLE); retrying" in caplog.text
+
+
+def test_an_extension_failing_after_the_job_ended_is_not_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    started = threading.Event()
+
+    class _FailsLate:
+        def extend(self, _job: Any, *, lease: timedelta, now: datetime | None = None) -> bool:
+            del lease, now
+            started.set()
+            time.sleep(0.05)  # the job ends meanwhile
+            raise DatabaseUnavailableError
+
+    with caplog.at_level(logging.WARNING, logger="kiln_worker"), _beat(_FailsLate()):  # type: ignore[arg-type]
+        started.wait(5)
+
+    assert "lease extension failed" not in caplog.text

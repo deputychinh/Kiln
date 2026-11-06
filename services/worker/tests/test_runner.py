@@ -644,7 +644,91 @@ def test_the_heartbeat_stops_before_the_outcome_is_written(
             finished.clear()
 
     assert not any(extensions_after_finish)
-    assert "lease lost" not in caplog.text
+    assert "lease expired or taken over" not in caplog.text
     with engine.connect() as connection:
         statuses = connection.execute(text("SELECT status FROM jobs")).scalars().all()
     assert statuses == ["done"] * 5
+
+
+@pytest.mark.parametrize("outcome", ["retry", "close"])
+def test_the_heartbeat_also_stops_before_a_retry_or_a_skip_is_written(
+    container: Container,
+    storage: FakeStorage,
+    engine: Engine,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+) -> None:
+    eager = LeaseTiming(
+        lease=timedelta(minutes=5), heartbeat_seconds=0.0005, max_runtime_seconds=60
+    )
+    worker = build_worker(engine, storage=storage, timing=eager)
+    version = _uploaded(container, storage, _png((64, 64)))
+    if outcome == "retry":
+        storage.available = False  # the render fails: the job is requeued
+    else:
+        with engine.begin() as connection:  # the version moved on: the job is closed unrun
+            connection.execute(
+                text("UPDATE asset_versions SET status = 'ready' WHERE id = :id"),
+                {"id": version.id},
+            )
+    written = threading.Event()
+    extensions_after_write: list[bool] = []
+    method = "retry" if outcome == "retry" else "finish"
+    real_write, real_extend = getattr(SqlJobQueue, method), SqlJobQueue.extend
+
+    def write_then_linger(self: SqlJobQueue, job: Any, **kwargs: Any) -> bool:
+        done: bool = real_write(self, job, **kwargs)
+        written.set()
+        time.sleep(0.05)  # a heartbeat still running would tick here and be refused
+        return done
+
+    def watched_extend(self: SqlJobQueue, job: Any, **kwargs: Any) -> bool:
+        extensions_after_write.append(written.is_set())
+        return real_extend(self, job, **kwargs)
+
+    monkeypatch.setattr(SqlJobQueue, method, write_then_linger)
+    monkeypatch.setattr(SqlJobQueue, "extend", watched_extend)
+
+    with caplog.at_level(logging.WARNING, logger="kiln_worker"):
+        assert worker.run_once() is True
+
+    assert written.is_set()
+    assert not any(extensions_after_write)
+    assert "lease expired or taken over" not in caplog.text
+
+
+def test_the_reaper_leaves_a_job_whose_owner_extended_it_after_the_reaper_looked(
+    container: Container,
+    worker: Worker,
+    storage: FakeStorage,
+    clock: FixedClock,
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version = _uploaded(container, storage, _png((64, 64)))
+    with engine.begin() as connection:  # last attempt, lease just expired
+        connection.execute(
+            text(
+                "UPDATE jobs SET status = 'running', attempts = 5, leased_until = :expired"
+                " WHERE version_id = :id"
+            ),
+            {"expired": clock.now() - timedelta(seconds=1), "id": version.id},
+        )
+    real_exhausted = SqlJobQueue.exhausted_jobs
+
+    def owner_extends_meanwhile(self: SqlJobQueue, **kwargs: Any) -> Any:
+        found = real_exhausted(self, **kwargs)
+        with engine.begin() as connection:  # the owner's heartbeat lands after the read
+            connection.execute(
+                text("UPDATE jobs SET leased_until = :alive WHERE version_id = :id"),
+                {"alive": clock.now() + timedelta(minutes=5), "id": version.id},
+            )
+        return found
+
+    monkeypatch.setattr(SqlJobQueue, "exhausted_jobs", owner_extends_meanwhile)
+
+    worker.run_once()
+
+    assert _job_status(engine, version.id) == ("running", 5)
+    assert SqlAssetRepository(engine).get_version(version.id).status is VersionStatus.PROCESSING
