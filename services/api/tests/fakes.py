@@ -23,6 +23,8 @@ class FakeStorage:
         self.force_source_gone = False
         self.ensure_calls = 0
         self.delete_available = True
+        self.modified: dict[str, datetime] = {}
+        self.list_available = True
 
     def ensure_bucket(self) -> None:
         self.ensure_calls += 1
@@ -68,13 +70,22 @@ class FakeStorage:
         self.objects.pop(key, None)
         self.blobs.pop(key, None)
 
-    def put(self, key: str, size_bytes: int, content_type: str, data: bytes | None = None) -> None:
+    def put(
+        self,
+        key: str,
+        size_bytes: int,
+        content_type: str,
+        data: bytes | None = None,
+        *,
+        modified_at: datetime | None = None,
+    ) -> None:
         etag = f'"{len(self.objects)}-{size_bytes}"'
         self.objects[key] = StoredObject(
             size_bytes=size_bytes, content_type=content_type, etag=etag
         )
         if data is not None:
             self.blobs[key] = data
+        self.modified[key] = modified_at or datetime.now(UTC)
 
     def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
         self._check()
@@ -86,6 +97,17 @@ class FakeStorage:
     def upload(self, key: str, data: bytes, content_type: str) -> None:
         self._check()
         self.put(key, len(data), content_type, data)
+
+    def list_keys(self, prefix: str, *, older_than: datetime, limit: int) -> list[str]:
+        self._check()
+        if not self.list_available:
+            raise StorageUnavailableError
+        old = sorted(
+            key
+            for key in self.objects
+            if key.startswith(prefix) and self.modified.get(key, older_than) < older_than
+        )
+        return old[:limit]
 
     def presign_download(self, key: str, ttl_seconds: int) -> str:
         return f"http://storage.test/kiln-assets/{key}?ttl={ttl_seconds}"

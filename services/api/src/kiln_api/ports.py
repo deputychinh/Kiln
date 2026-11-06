@@ -78,6 +78,10 @@ class ObjectStorage(Protocol):
         """Remove `key`; a missing key is not an error."""
         ...
 
+    def list_keys(self, prefix: str, *, older_than: datetime, limit: int) -> list[str]:
+        """Up to `limit` keys under `prefix` last modified before `older_than`."""
+        ...
+
 
 class Clock(Protocol):
     """Source of the current time (UTC)."""

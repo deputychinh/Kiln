@@ -210,3 +210,53 @@ def test_a_download_error_other_than_412_is_reported_as_unavailable(
 
     with pytest.raises(StorageUnavailableError):
         storage.download("assets/a.png", io.BytesIO(), if_match='"x"')
+
+
+def test_listing_keeps_only_old_keys_and_stops_at_the_limit(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    cutoff = datetime(2026, 11, 5, tzinfo=UTC)
+    old, young = cutoff - timedelta(seconds=1), cutoff
+    stubber.add_response(
+        "list_objects_v2",
+        {
+            "Contents": [
+                {"Key": "uploads/a/1", "LastModified": old},
+                {"Key": "uploads/a/2", "LastModified": young},
+                {"Key": "uploads/a/3", "LastModified": old},
+            ],
+            "IsTruncated": True,
+            "NextContinuationToken": "t",
+        },
+        {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 3},
+    )
+    stubber.add_response(
+        "list_objects_v2",
+        {
+            "Contents": [
+                {"Key": "uploads/b/4", "LastModified": old},
+                {"Key": "uploads/b/5", "LastModified": old},
+            ],
+            "IsTruncated": False,
+        },
+        {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 3, "ContinuationToken": "t"},
+    )
+
+    # Pages until three old keys are found; young ones are skipped, the rest is not read.
+    assert storage.list_keys("uploads/", older_than=cutoff, limit=3) == [
+        "uploads/a/1",
+        "uploads/a/3",
+        "uploads/b/4",
+    ]
+
+
+def test_listing_errors_are_reported_as_unavailable(
+    stubbed: tuple[S3ObjectStorage, Stubber],
+) -> None:
+    storage, stubber = stubbed
+    stubber.add_client_error("list_objects_v2", service_error_code="SlowDown", http_status_code=503)
+
+    with pytest.raises(StorageUnavailableError) as raised:
+        storage.list_keys("uploads/", older_than=datetime.now(UTC), limit=10)
+    assert raised.value.cause_code == "SlowDown"

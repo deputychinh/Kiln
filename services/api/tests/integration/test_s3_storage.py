@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import httpx2
 import pytest
@@ -321,3 +322,23 @@ def test_a_download_with_a_stale_etag_is_refused_by_the_real_server(settings: Se
     accepted = storage.download(key, io.BytesIO(), if_match=fresh.etag)
 
     assert (refused, accepted) == (False, True)
+
+
+def test_listing_finds_old_objects_under_a_prefix_only(settings: Settings) -> None:
+    storage = build_storage(settings)
+    storage.ensure_bucket()
+    prefix = f"uploads/{uuid.uuid4()}/"
+    for name in ("a", "b", "c"):
+        storage.upload(f"{prefix}{name}", b"x", "application/octet-stream")
+    storage.upload(f"thumbs/{uuid.uuid4()}.webp", b"x", "image/webp")
+    later = datetime.now(UTC) + timedelta(minutes=1)
+
+    assert sorted(storage.list_keys(prefix, older_than=later, limit=10)) == [
+        f"{prefix}a",
+        f"{prefix}b",
+        f"{prefix}c",
+    ]
+    assert len(storage.list_keys(prefix, older_than=later, limit=2)) == 2
+    assert (
+        storage.list_keys(prefix, older_than=datetime.now(UTC) - timedelta(hours=1), limit=10) == []
+    )

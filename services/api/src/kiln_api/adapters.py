@@ -1,5 +1,6 @@
 """Adapters for ports that talk to external systems (object storage)."""
 
+from datetime import datetime
 from http import HTTPStatus
 from typing import IO, TYPE_CHECKING
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 
 _MISSING = {str(HTTPStatus.NOT_FOUND.value), "NoSuchKey", "NoSuchBucket", "NotFound"}
 _DOWNLOAD_CHUNK_BYTES = 1024 * 1024
+_LIST_PAGE_MAX = 1000  # the S3 maximum for ListObjectsV2
 _PRECONDITION_FAILED = {str(HTTPStatus.PRECONDITION_FAILED.value), "PreconditionFailed"}
 
 
@@ -121,6 +123,25 @@ class S3ObjectStorage:
             self._client.delete_object(Bucket=self._bucket, Key=key)
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
+
+    def list_keys(self, prefix: str, *, older_than: datetime, limit: int) -> list[str]:
+        """Page through `ListObjectsV2` under `prefix`, stopping once `limit` old keys are found."""
+        keys: list[str] = []
+        try:
+            pages = self._client.get_paginator("list_objects_v2").paginate(
+                Bucket=self._bucket,
+                Prefix=prefix,
+                PaginationConfig={"PageSize": min(limit, _LIST_PAGE_MAX)},
+            )
+            for page in pages:
+                for item in page.get("Contents", []):
+                    if item["LastModified"] < older_than:
+                        keys.append(item["Key"])
+                        if len(keys) >= limit:
+                            return keys
+        except (BotoCoreError, ClientError) as error:
+            raise _unavailable(error) from error
+        return keys
 
     def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
         """Stream with the work client; with `if_match`, refuse an object that changed (412)."""
