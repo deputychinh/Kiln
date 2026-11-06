@@ -32,6 +32,10 @@ OBJECT_KEY_PREFIX = "assets"
 THUMBNAIL_KEY_PREFIX = "thumbs"
 DOWNLOAD_URL_TTL_SECONDS = 15 * 60
 JOB_LEASE_SECONDS = 5 * 60
+# A running job extends its lease every third of it (KILN-24), and stops after this long, so a
+# hung job's lease expires and it is retried or buried like a crashed one.
+JOB_HEARTBEAT_SECONDS = JOB_LEASE_SECONDS / 3
+JOB_MAX_RUNTIME_SECONDS = 30 * 60
 JOB_MAX_ATTEMPTS = 5
 JOB_BACKOFF_BASE_SECONDS = 5
 # Signed forms write only to a staging key; completion copies to the final key (immutable).

@@ -183,6 +183,10 @@ class JobQueue(Protocol):
         """Expired running jobs with no attempts left, to bury them."""
         ...
 
+    def extend(self, job: Job, *, lease: timedelta, now: datetime | None = None) -> bool:
+        """Push the claimed job's lease to `now + lease`; False if this claim no longer owns it."""
+        ...
+
     def finish(self, job: Job, *, now: datetime | None = None) -> bool:
         """Mark a claimed job done."""
         ...

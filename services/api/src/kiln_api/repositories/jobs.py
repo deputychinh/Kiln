@@ -133,6 +133,11 @@ class SqlJobQueue:
             ).all()
         return [_job(row) for row in rows]
 
+    def extend(self, job: Job, *, lease: timedelta, now: datetime | None = None) -> bool:
+        """Push the claimed job's lease to `now + lease`; False if this claim no longer owns it."""
+        at = _clock(now)
+        return self._set(job, now=now, status=JobStatus.RUNNING, leased_until=at + lease)
+
     def finish(self, job: Job, *, now: datetime | None = None) -> bool:
         """Mark the claimed job done; False if this claim no longer owns it."""
         return self._set(job, now=now, status=JobStatus.DONE, leased_until=None)

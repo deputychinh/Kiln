@@ -194,3 +194,37 @@ def test_the_oldest_runnable_job_is_claimed_first(engine: Engine) -> None:
 
     assert first is not None
     assert first.id == older != newer
+
+
+def _leased_until(engine: Engine, job_id: UUID) -> datetime:
+    with engine.connect() as connection:
+        value: datetime = connection.execute(
+            text("SELECT leased_until FROM jobs WHERE id = :id"), {"id": job_id}
+        ).scalar_one()
+    return value
+
+
+def test_extending_moves_the_lease_and_keeps_the_job_running(engine: Engine) -> None:
+    job_id = _enqueue(engine)
+    queue = SqlJobQueue(engine)
+    job = _claim(queue)
+    assert job is not None
+
+    assert queue.extend(job, lease=LEASE, now=T0 + timedelta(minutes=4)) is True
+
+    assert _leased_until(engine, job_id) == T0 + timedelta(minutes=9)
+    assert _claim(queue, T0 + timedelta(minutes=6)) is None  # not expired any more
+    assert queue.finish(job, now=T0 + timedelta(minutes=7)) is True  # the claim still owns it
+
+
+def test_a_stale_claim_cannot_extend_a_reclaimed_or_finished_job(engine: Engine) -> None:
+    _enqueue(engine)
+    queue = SqlJobQueue(engine)
+    first = _claim(queue)
+    assert first is not None
+    second = _claim(queue, T0 + LEASE + timedelta(seconds=1))  # the first lease expired
+    assert second is not None
+
+    assert queue.extend(first, lease=LEASE, now=T0 + LEASE + timedelta(seconds=2)) is False
+    assert queue.finish(second, now=T0 + LEASE + timedelta(seconds=3)) is True
+    assert queue.extend(second, lease=LEASE, now=T0 + LEASE + timedelta(seconds=4)) is False
