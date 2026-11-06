@@ -147,7 +147,9 @@ class SqlJobQueue:
                     jobs.c.status == JobStatus.RUNNING.value,
                     jobs.c.attempts == job.attempts,
                     # An expired lease may already be reclaimed or reaped as exhausted by another
-                    # worker (a read, then a guarded write): never bring it back to life.
+                    # worker (a read, then a guarded write): never bring it back to life. If this
+                    # update waits on a row lock held by such a writer, Postgres re-checks the
+                    # changed row and the attempt/status guards refuse it.
                     jobs.c.leased_until >= at,
                 )
                 .values(leased_until=at + lease, updated_at=at)
