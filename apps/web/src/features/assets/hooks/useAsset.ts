@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   ASSET_LIST_QUERY_KEY,
   assetDetailQueryKey,
-  THUMB_REFRESH_PER_KEY_MS,
+  THUMB_REFRESH_WINDOW_MS,
 } from '@/constants/assets.constant';
 import { getAsset } from '@/features/assets/services/assets.service';
 import { useKeyedThrottle } from '@/hooks/useKeyedThrottle';
@@ -28,7 +28,7 @@ export const useAsset = (
   const queryClient = useQueryClient();
   const processingSinceRef = useRef<number | null>(null);
   const failedUrlsRef = useRef(new Set<string>());
-  const refreshOnce = useKeyedThrottle(THUMB_REFRESH_PER_KEY_MS);
+  const refreshOnce = useKeyedThrottle(THUMB_REFRESH_WINDOW_MS);
   const query = useQuery({
     queryKey: assetDetailQueryKey(id),
     queryFn: ({ signal }) => getAsset(id, signal),

@@ -15,10 +15,11 @@ export const SIGNED_URL_MIN_REMAINING_MS = 2 * 60_000;
 /** How often relative times ("2 minutes ago") are recomputed. */
 export const RELATIVE_TIME_TICK_MS = 60_000;
 /**
- * A preview that fails to load refreshes its signed URL at most once per signature lifetime
- * (15 min): enough to recover an expired URL, never a loop for an object that is gone.
+ * Previews that fail to load refresh their signed URLs at most once per signature lifetime
+ * (15 min) — once for the whole gallery list, once per preview object in the detail: enough to
+ * recover expired URLs, never a loop for an object that is gone.
  */
-export const THUMB_REFRESH_PER_KEY_MS = 15 * 60_000;
+export const THUMB_REFRESH_WINDOW_MS = 15 * 60_000;
 
 export const ASSET_LIST_QUERY_KEY = ['assets', 'list'] as const;
 export const assetDetailQueryKey = (id: string): readonly ['assets', 'detail', string] =>

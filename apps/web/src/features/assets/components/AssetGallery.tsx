@@ -1,10 +1,10 @@
 import { Button, ButtonVariant, EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
-import { type ReactElement, useEffect, useRef, useState } from 'react';
+import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ASSET_LIST_QUERY_KEY,
   ASSET_PAGE_SIZE,
-  THUMB_REFRESH_PER_KEY_MS,
+  THUMB_REFRESH_WINDOW_MS,
 } from '@/constants/assets.constant';
 import { AssetCard } from '@/features/assets/components/AssetCard';
 import { useAssetPages } from '@/features/assets/hooks/useAssetPages';
@@ -36,11 +36,25 @@ export const AssetGallery = (): ReactElement => {
     target?.focus();
     setFocusAfterLoad(null);
   }, [focusAfterLoad]);
-  const refreshOnce = useKeyedThrottle(THUMB_REFRESH_PER_KEY_MS);
+  const refreshOnce = useKeyedThrottle(THUMB_REFRESH_WINDOW_MS);
+  const isFetching = pages.isFetching;
+  const pendingRefreshRef = useRef(false);
   // One shared refresh re-signs every preview of the list, however many cards fail at once
-  // (a storage outage, or lazy cards scrolled into view after the signatures expired).
-  const refreshThumbs = (): void =>
+  // (a storage outage, or lazy cards scrolled into view after the signatures expired). While a
+  // page is loading, a refetch would be a no-op, so it waits instead of using up the window.
+  const refreshThumbs = useCallback((): void => {
+    if (isFetching) {
+      pendingRefreshRef.current = true;
+      return;
+    }
     refreshOnce(ASSET_LIST_QUERY_KEY.join('/'), () => void refetch({ cancelRefetch: false }));
+  }, [isFetching, refetch, refreshOnce]);
+
+  useEffect(() => {
+    if (isFetching || !pendingRefreshRef.current) return;
+    pendingRefreshRef.current = false;
+    refreshThumbs();
+  }, [isFetching, refreshThumbs]);
 
   const title = <h1 className="asset-gallery__title">{copy.assets.title}</h1>;
 

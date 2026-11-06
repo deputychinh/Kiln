@@ -211,6 +211,28 @@ describe('AssetGallery', () => {
     expect(countRequests(fetchMock, LIST)).toBe(2);
   });
 
+  it('defers a preview refresh while the next page loads, then runs it once', async () => {
+    let release: (response: Response) => void = () => undefined;
+    const fetchMock = fakeApi({ [LIST]: [json({ items: [rock], next_cursor: 'c1' })] });
+    fetchMock.mockImplementation((input) =>
+      urlOf(input).endsWith(PAGE_2)
+        ? new Promise((resolve) => {
+            release = resolve;
+          })
+        : Promise.resolve(json({ items: [rock], next_cursor: 'c1' })),
+    );
+
+    renderApp('/assets');
+    await userEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+    await screen.findByRole('button', { name: 'Loading more…' });
+    fireEvent.error(screen.getByRole('presentation'));
+    expect(countRequests(fetchMock, LIST)).toBe(1);
+
+    release(json({ items: [tree], next_cursor: null }));
+
+    await waitFor(() => expect(countRequests(fetchMock, LIST)).toBe(2));
+  });
+
   it('does not refetch the list on window focus while it is fresh (5 minutes)', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const fetchMock = fakeApi({ [LIST]: [json({ items: [rock], next_cursor: null })] });
