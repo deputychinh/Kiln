@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from itertools import batched, islice
+from itertools import batched, chain, islice
 from uuid import UUID
 
 from kiln_api.constants import (
@@ -161,12 +161,10 @@ class Maintenance:
         Only deletions count toward the batch; keys that must stay are skipped without counting,
         and the listing is cut after `MAINTENANCE_SCAN_LIMIT` keys so the run stays bounded.
         """
-        keys = islice(
-            self._storage.iter_keys(
-                f"{UPLOAD_KEY_PREFIX}/", older_than=self._clock.now() - _ABANDONED_AFTER
-            ),
-            MAINTENANCE_SCAN_LIMIT,
+        pages = self._storage.iter_key_pages(
+            f"{UPLOAD_KEY_PREFIX}/", older_than=self._clock.now() - _ABANDONED_AFTER
         )
+        keys = islice(chain.from_iterable(pages), MAINTENANCE_SCAN_LIMIT)
         for chunk in batched(_kiln_staging_keys(keys), MAINTENANCE_LOOKUP_CHUNK):
             waiting = self._waiting_versions([version_id for _, version_id in chunk])
             for key, version_id in chunk:

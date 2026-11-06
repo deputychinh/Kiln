@@ -78,8 +78,11 @@ class ObjectStorage(Protocol):
         """Remove `key`; a missing key is not an error."""
         ...
 
-    def iter_keys(self, prefix: str, *, older_than: datetime) -> Iterator[str]:
-        """Keys under `prefix` last modified before `older_than`, fetched page by page as read."""
+    def iter_key_pages(self, prefix: str, *, older_than: datetime) -> Iterator[list[str]]:
+        """Pages of keys under `prefix` last modified before `older_than`.
+
+        Each step fetches exactly one listing page (one network call); a page may be empty.
+        """
         ...
 
 

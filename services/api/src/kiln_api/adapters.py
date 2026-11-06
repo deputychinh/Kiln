@@ -125,16 +125,18 @@ class S3ObjectStorage:
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
 
-    def iter_keys(self, prefix: str, *, older_than: datetime) -> Iterator[str]:
-        """Page through `ListObjectsV2` under `prefix` lazily: the caller decides when to stop."""
+    def iter_key_pages(self, prefix: str, *, older_than: datetime) -> Iterator[list[str]]:
+        """Page through `ListObjectsV2` under `prefix` lazily: one request per step."""
         try:
             pages = self._client.get_paginator("list_objects_v2").paginate(
                 Bucket=self._bucket, Prefix=prefix, PaginationConfig={"PageSize": _LIST_PAGE_MAX}
             )
             for page in pages:
-                for item in page.get("Contents", []):
-                    if item["LastModified"] < older_than:
-                        yield item["Key"]
+                yield [
+                    item["Key"]
+                    for item in page.get("Contents", [])
+                    if item["LastModified"] < older_than
+                ]
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
 

@@ -12,6 +12,7 @@ from kiln_api.constants import (
     STORAGE_BREAKER_FAILURES,
     STORAGE_BULKHEAD_WAIT_SECONDS,
     STORAGE_MAX_CONCURRENT,
+    STORAGE_MAX_CONCURRENT_LIMIT,
 )
 from kiln_api.enums import Environment
 
@@ -35,7 +36,9 @@ class Settings(BaseSettings):
     # Circuit breaker and bulkhead around storage (KILN-23).
     storage_breaker_failures: int = Field(default=STORAGE_BREAKER_FAILURES, gt=0)
     storage_breaker_cooldown_seconds: float = Field(default=STORAGE_BREAKER_COOLDOWN_SECONDS, gt=0)
-    storage_max_concurrent: int = Field(default=STORAGE_MAX_CONCURRENT, gt=0)
+    storage_max_concurrent: int = Field(
+        default=STORAGE_MAX_CONCURRENT, gt=0, le=STORAGE_MAX_CONCURRENT_LIMIT
+    )
     storage_bulkhead_wait_seconds: float = Field(default=STORAGE_BULKHEAD_WAIT_SECONDS, gt=0)
 
 

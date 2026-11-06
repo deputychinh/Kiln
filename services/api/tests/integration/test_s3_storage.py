@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from itertools import chain
 
 import httpx2
 import pytest
@@ -340,12 +341,19 @@ def test_listing_finds_old_objects_under_a_prefix_only(settings: Settings) -> No
     storage.upload(f"thumbs/{uuid.uuid4()}.webp", b"x", "image/webp")
     later = datetime.now(UTC) + timedelta(minutes=1)
 
-    assert sorted(storage.iter_keys(prefix, older_than=later)) == [
+    assert sorted(chain.from_iterable(storage.iter_key_pages(prefix, older_than=later))) == [
         f"{prefix}a",
         f"{prefix}b",
         f"{prefix}c",
     ]
-    assert list(storage.iter_keys(prefix, older_than=datetime.now(UTC) - timedelta(hours=1))) == []
+    assert (
+        list(
+            chain.from_iterable(
+                storage.iter_key_pages(prefix, older_than=datetime.now(UTC) - timedelta(hours=1))
+            )
+        )
+        == []
+    )
 
 
 def test_a_storage_endpoint_that_refuses_connections_opens_the_circuit(

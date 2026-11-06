@@ -183,7 +183,7 @@ def test_every_network_call_goes_through_the_guard() -> None:
         lambda: guarded.delete("k"),
         lambda: guarded.upload("k", b"x", "image/png"),
         lambda: guarded.download("k", __import__("io").BytesIO()),
-        lambda: list(guarded.iter_keys("uploads/", older_than=datetime.now(UTC))),
+        lambda: list(guarded.iter_key_pages("uploads/", older_than=datetime.now(UTC))),
     ]
     for call in calls:
         with pytest.raises(StorageUnavailableError):
@@ -195,9 +195,9 @@ def test_every_network_call_goes_through_the_guard() -> None:
     guarded.ping()
     guarded.upload("k", b"x", "image/png")
     guarded.delete("k")
-    assert list(guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))) == [
-        "uploads/x"
-    ]
+    assert list(
+        guarded.iter_key_pages("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))
+    ) == [["uploads/x"]]
 
 
 def test_a_full_bulkhead_rejects_after_the_wait_without_opening_the_circuit() -> None:
@@ -414,49 +414,131 @@ def test_a_bug_in_a_call_is_not_counted_against_storage() -> None:
 def test_a_listing_failure_counts_and_a_listing_trial_closes_the_circuit() -> None:
     storage = FakeStorage()
     storage.put("uploads/a", 1, "image/png")
-    storage.put("uploads/b", 1, "image/png")
     ticks = _Clock()
     breaker = CircuitBreaker(failures=1, cooldown=30.0, monotonic=ticks)
     guarded = GuardedStorage(storage, breaker, max_concurrent=1, wait_seconds=0.05)
     later = datetime(9999, 1, 1, tzinfo=UTC)
     storage.list_available = False
     with pytest.raises(StorageUnavailableError):
-        list(guarded.iter_keys("uploads/", older_than=later))
+        list(guarded.iter_key_pages("uploads/", older_than=later))
     assert _state(breaker) is CircuitState.OPEN
 
     ticks.now += 30.0
     storage.list_available = True
-    listing = guarded.iter_keys("uploads/", older_than=later)
-    assert next(listing) == "uploads/a"  # the first step is the trial and succeeds
+    pages = guarded.iter_key_pages("uploads/", older_than=later)
+    assert next(pages) == ["uploads/a"]  # the first page fetch is the trial and succeeds
     assert _state(breaker) is CircuitState.CLOSED
-    listing.close()
+    pages.close()
 
 
-def test_a_reader_can_call_storage_between_listing_steps_with_a_single_slot() -> None:
+def test_only_page_fetches_count_not_the_keys_read_from_a_page(breaker: CircuitBreaker) -> None:
     storage = FakeStorage()
+    storage.page_size = 2
+    for key in ("uploads/a", "uploads/b", "uploads/c"):
+        storage.put(key, 1, "image/png")
+    guarded = GuardedStorage(storage, breaker, max_concurrent=4, wait_seconds=0.01)
+    later = datetime(9999, 1, 1, tzinfo=UTC)
+
+    pages = list(guarded.iter_key_pages("uploads/", older_than=later))
+
+    assert pages == [["uploads/a", "uploads/b"], ["uploads/c"]]
+    assert storage.pages_fetched == 2
+    # Failures in between pages are not wiped out by keys handed out from a fetched page.
+    storage.available = False
+    for _ in range(3):
+        with pytest.raises(StorageUnavailableError):
+            guarded.delete("k")
+    assert _state(breaker) is CircuitState.OPEN
+
+
+def test_a_reader_can_call_storage_between_listing_pages_with_a_single_slot() -> None:
+    storage = FakeStorage()
+    storage.page_size = 1
     for key in ("uploads/a", "uploads/b", "uploads/c"):
         storage.put(key, 1, "image/png")
     guarded, _ = _guarded(storage, slots=1, wait=0.01)
 
-    for key in guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC)):
-        guarded.delete(key)  # no slot is held while the reader works
+    for page in guarded.iter_key_pages("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC)):
+        for key in page:
+            guarded.delete(key)  # no slot is held while the reader works
 
     assert storage.objects == {}
 
 
 def test_stopping_a_listing_early_closes_the_underlying_listing() -> None:
     storage = FakeStorage()
+    storage.page_size = 1
     for key in ("uploads/a", "uploads/b"):
         storage.put(key, 1, "image/png")
     guarded, _ = _guarded(storage)
 
-    listing = guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))
-    next(listing)
+    pages = guarded.iter_key_pages("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))
+    next(pages)
     assert storage.open_listings == 1
-    listing.close()
+    pages.close()
 
-    assert storage.listed == 1
-    assert storage.open_listings == 0  # the storage-side listing was closed too
+    assert storage.pages_fetched == 1
+    assert storage.open_listings == 0
+
+
+def test_a_failed_trial_tells_the_client_the_new_cooldown() -> None:
+    storage = FakeStorage()
+    storage.available = False
+    ticks = _Clock()
+    breaker = CircuitBreaker(failures=1, cooldown=30.0, monotonic=ticks)
+    guarded = GuardedStorage(storage, breaker, max_concurrent=4, wait_seconds=0.01)
+    with pytest.raises(StorageUnavailableError):
+        guarded.head("k")
+    ticks.now += 30.0
+
+    with pytest.raises(StorageUnavailableError) as trial:
+        guarded.head("k")
+
+    assert trial.value.retry_after_seconds == 30
+
+
+def test_the_start_up_bucket_check_never_opens_the_circuit() -> None:
+    storage = FakeStorage()
+    storage.available = False
+    guarded, breaker = _guarded(storage, failures=1)
+
+    for _ in range(3):
+        with pytest.raises(StorageUnavailableError):
+            guarded.ensure_bucket()
+
+    assert _state(breaker) is CircuitState.CLOSED
+
+
+def test_a_saturated_bulkhead_warns_at_most_once_a_minute(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    storage = FakeStorage()
+    ticks = _Clock()
+    breaker = CircuitBreaker(failures=5, cooldown=30.0)
+    guarded = GuardedStorage(storage, breaker, max_concurrent=1, wait_seconds=0.01, monotonic=ticks)
+    entered, release = threading.Event(), threading.Event()
+
+    def slow() -> None:
+        entered.set()
+        release.wait(5)
+
+    storage.on_head = slow
+    holder = threading.Thread(target=lambda: guarded.head("slow"))
+    holder.start()
+    entered.wait(5)
+    storage.on_head = None
+    try:
+        with caplog.at_level(logging.WARNING, logger="kiln_api"):
+            for advance in (0.0, 30.0, 30.0):
+                ticks.now += advance
+                with pytest.raises(StorageUnavailableError):
+                    guarded.head("k")
+    finally:
+        release.set()
+        holder.join(5)
+
+    warnings = [r for r in caplog.records if "bulkhead full" in r.getMessage()]
+    assert len(warnings) == 2  # at 0 s and at 60 s, not at 30 s
 
 
 @pytest.mark.parametrize(
@@ -471,3 +553,9 @@ def test_stopping_a_listing_early_closes_the_underlying_listing() -> None:
 def test_resilience_settings_must_be_positive(field: str) -> None:
     with pytest.raises(ValidationError):
         Settings.model_validate({field: 0})
+
+
+def test_the_bulkhead_must_leave_threads_for_requests_not_on_storage() -> None:
+    assert Settings.model_validate({"storage_max_concurrent": 32}).storage_max_concurrent == 32
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"storage_max_concurrent": 33})

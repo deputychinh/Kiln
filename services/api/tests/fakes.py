@@ -27,6 +27,8 @@ class FakeStorage:
         self.list_available = True
         self.listed = 0
         self.open_listings = 0
+        self.page_size = 1000
+        self.pages_fetched = 0
 
     def ensure_bucket(self) -> None:
         self.ensure_calls += 1
@@ -100,16 +102,22 @@ class FakeStorage:
         self._check()
         self.put(key, len(data), content_type, data)
 
-    def iter_keys(self, prefix: str, *, older_than: datetime) -> Iterator[str]:
-        self._check()
-        if not self.list_available:
-            raise StorageUnavailableError
+    def iter_key_pages(self, prefix: str, *, older_than: datetime) -> Iterator[list[str]]:
         self.open_listings += 1
         try:
-            for key in sorted(self.objects):  # S3 lists in key order
-                if key.startswith(prefix) and self.modified.get(key, older_than) < older_than:
-                    self.listed += 1
-                    yield key
+            keys = sorted(k for k in self.objects if k.startswith(prefix))  # S3 lists in key order
+            for start in range(0, max(len(keys), 1), self.page_size):
+                self._check()
+                if not self.list_available:
+                    raise StorageUnavailableError
+                self.pages_fetched += 1
+                page = [
+                    key
+                    for key in keys[start : start + self.page_size]
+                    if self.modified.get(key, older_than) < older_than
+                ]
+                self.listed += len(page)
+                yield page
         finally:
             self.open_listings -= 1
 

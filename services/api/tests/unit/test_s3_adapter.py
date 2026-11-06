@@ -3,7 +3,6 @@ import io
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from itertools import islice
 
 import boto3
 import pytest
@@ -244,12 +243,11 @@ def test_listing_yields_only_old_keys_page_by_page(
         {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 1000, "ContinuationToken": "t"},
     )
 
-    # Lazy: the second page is fetched only when read; young keys are skipped; the caller stops.
-    assert list(islice(storage.iter_keys("uploads/", older_than=cutoff), 3)) == [
-        "uploads/a/1",
-        "uploads/a/3",
-        "uploads/b/4",
-    ]
+    # One request per page, fetched only when read; young keys are dropped from each page.
+    pages = storage.iter_key_pages("uploads/", older_than=cutoff)
+    assert next(pages) == ["uploads/a/1", "uploads/a/3"]
+    assert next(pages) == ["uploads/b/4", "uploads/b/5"]
+    assert next(pages, None) is None
 
 
 def test_listing_errors_are_reported_as_unavailable(
@@ -259,5 +257,5 @@ def test_listing_errors_are_reported_as_unavailable(
     stubber.add_client_error("list_objects_v2", service_error_code="SlowDown", http_status_code=503)
 
     with pytest.raises(StorageUnavailableError) as raised:
-        list(storage.iter_keys("uploads/", older_than=datetime.now(UTC)))
+        list(storage.iter_key_pages("uploads/", older_than=datetime.now(UTC)))
     assert raised.value.cause_code == "SlowDown"

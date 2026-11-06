@@ -336,7 +336,6 @@ def test_the_staging_scan_is_bounded_and_looks_versions_up_in_chunks(
 
     assert report is not None
     assert report.deleted_objects == 5  # the sixth waits for the next run
-    assert storage.listed == 5
     assert orphans[-1] in storage.objects
     assert lookups == [2, 2, 1]
 

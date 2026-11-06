@@ -22,6 +22,7 @@ from kiln_api.ports import ObjectStorage, SignedPost, StoredObject
 logger = logging.getLogger("kiln_api")
 
 _BULKHEAD_RETRY_AFTER_SECONDS = 1
+_SATURATION_WARNING_EVERY_SECONDS = 60.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,13 +100,13 @@ class CircuitBreaker:
         logger.info("storage circuit closed: storage answers again")
 
     def record_failure(self, ticket: Ticket, cause: str) -> bool:
-        """The call holding `ticket` failed because of storage; True if this opened the circuit."""
+        """The call holding `ticket` failed because of storage; True if the circuit (re)opened."""
         with self._lock:
             if ticket.generation != self._generation:
                 return False
             if ticket.is_trial:
                 self._open()  # the trial failed: another cool-down, no new warning
-                return False
+                return True
             self._consecutive_failures += 1
             if self._consecutive_failures < self._threshold:
                 return False
@@ -160,12 +161,17 @@ class GuardedStorage:
         *,
         max_concurrent: int,
         wait_seconds: float,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         """Wrap `inner`; at most `max_concurrent` calls run at once, others wait `wait_seconds`."""
         self._inner = inner
         self._breaker = breaker
+        self._max_concurrent = max_concurrent
         self._slots = threading.BoundedSemaphore(max_concurrent)
         self._wait_seconds = wait_seconds
+        self._monotonic = monotonic
+        self._warn_lock = threading.Lock()
+        self._last_saturation_warning: float | None = None
 
     @contextmanager
     def _call(self, *, counts: bool = True) -> Iterator[None]:
@@ -173,6 +179,7 @@ class GuardedStorage:
         ticket = self._breaker.acquire()
         if not self._slots.acquire(timeout=self._wait_seconds):
             self._breaker.release(ticket)  # storage was never asked
+            self._warn_saturated()
             raise StorageUnavailableError(
                 cause_code=FastFailCause.BULKHEAD_FULL,
                 retry_after_seconds=_BULKHEAD_RETRY_AFTER_SECONDS,
@@ -196,13 +203,28 @@ class GuardedStorage:
         finally:
             self._slots.release()
 
+    def _warn_saturated(self) -> None:
+        """One warning per minute at most while the bulkhead turns calls away."""
+        now = self._monotonic()
+        with self._warn_lock:
+            if self._last_saturation_warning is not None and (
+                now - self._last_saturation_warning < _SATURATION_WARNING_EVERY_SECONDS
+            ):
+                return
+            self._last_saturation_warning = now
+        logger.warning(
+            "storage bulkhead full: %d calls already waiting on storage; refusing more",
+            self._max_concurrent,
+        )
+
     def _guarded[T](self, call: Callable[[], T]) -> T:
         with self._call():
             return call()
 
     def ensure_bucket(self) -> None:
-        """See `ObjectStorage.ensure_bucket`."""
-        self._guarded(self._inner.ensure_bucket)
+        """See `ObjectStorage.ensure_bucket`; a start-up probe (1 s client), so never counted."""
+        with self._call(counts=False):
+            self._inner.ensure_bucket()
 
     def presign_upload(
         self, *, key: str, content_type: str, size_bytes: int, ttl_seconds: int
@@ -243,16 +265,15 @@ class GuardedStorage:
         """See `ObjectStorage.delete`."""
         self._guarded(lambda: self._inner.delete(key))
 
-    def iter_keys(self, prefix: str, *, older_than: datetime) -> Generator[str]:
-        """See `ObjectStorage.iter_keys`; each step is its own guarded call.
+    def iter_key_pages(self, prefix: str, *, older_than: datetime) -> Generator[list[str]]:
+        """See `ObjectStorage.iter_key_pages`; each page fetch is one guarded call.
 
-        A page is fetched inside some of those steps; between steps no slot is held, so the
-        reader may make other storage calls (deletes) while it walks the listing.
+        No slot is held between pages, so the reader may call storage (deletes) meanwhile.
         """
-        keys = self._inner.iter_keys(prefix, older_than=older_than)
+        pages = self._inner.iter_key_pages(prefix, older_than=older_than)
         while True:
             with self._call():
-                key = next(keys, None)
-            if key is None:
+                page = next(pages, None)
+            if page is None:
                 return
-            yield key
+            yield page
