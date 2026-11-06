@@ -14,7 +14,7 @@ interface AssetThumbProps {
   /** Above-the-fold previews (the detail hero) load eagerly. */
   isEager?: boolean;
   /** Called once per failing URL, e.g. to fetch fresh signed URLs. */
-  onError?: () => void;
+  onError?: (src: string) => void;
 }
 
 /** A square preview with a fixed intrinsic size, so loading it never shifts the layout. */
@@ -40,7 +40,7 @@ export const AssetThumb = ({
           decoding="async"
           onError={() => {
             setFailedSrc(src);
-            onError?.();
+            onError?.(src);
           }}
         />
       ) : (

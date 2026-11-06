@@ -41,6 +41,7 @@ describe('AssetThumb', () => {
     fireEvent.error(screen.getByRole('img', { name: 'Rock' }));
 
     expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith('https://s3.test/old.webp');
     expect(screen.getByText('Image')).toBeInTheDocument();
 
     rerender(
