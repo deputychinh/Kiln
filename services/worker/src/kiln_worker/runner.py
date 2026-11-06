@@ -146,14 +146,14 @@ class Worker:
     def run_once(self) -> bool:
         """Bury exhausted jobs, then claim and process one job; False when nothing ran."""
         self._bury_exhausted()
-        job = self._jobs.claim(
-            lease=self._timing.lease, max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now()
-        )
+        # The supervisor watches the claim too: a freeze right after it must not go unseen.
+        claiming = self._watchdog.claiming() if self._watchdog else nullcontext()
+        with claiming:
+            job = self._jobs.claim(
+                lease=self._timing.lease, max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now()
+            )
         if job is None:
             return False
-        logger.info(
-            "job %s for version %s: started (attempt %d)", job.id, job.version_id, job.attempts
-        )
         started = time.monotonic()
         heartbeat = LeaseHeartbeat(self._jobs, job, timing=self._timing, queue_now=self._queue_now)
         self._heartbeat = heartbeat
@@ -162,6 +162,12 @@ class Worker:
             # at its maximum runtime, before the lease can expire (KILN-28).
             guard = self._watchdog.watch(job) if self._watchdog else nullcontext()
             with guard, heartbeat:
+                logger.info(
+                    "job %s for version %s: started (attempt %d)",
+                    job.id,
+                    job.version_id,
+                    job.attempts,
+                )
                 outcome = self._handle(job)
         finally:
             self._heartbeat = None

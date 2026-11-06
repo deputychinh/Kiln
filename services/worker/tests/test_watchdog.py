@@ -242,3 +242,15 @@ def test_every_backstop_ends_a_stuck_job_before_its_lease_can_lapse() -> None:
         lease_after_last_beat
         > SUPERVISOR_LIVENESS_SECONDS + JOB_STOP_GRACE_MAX_SECONDS + SUPERVISOR_KILL_MARGIN_SECONDS
     )
+
+
+def test_a_claim_in_progress_is_shown_to_the_supervisor_and_cleared_after() -> None:
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
+    watchdog = JobWatchdog(stop=threading.Event(), beacon=beacon)
+
+    with watchdog.claiming():
+        during = beacon.read()
+
+    assert during.started > 0
+    assert during.job_id == "(claiming a job)"
+    assert beacon.read().started == 0.0

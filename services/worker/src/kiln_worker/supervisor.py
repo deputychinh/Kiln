@@ -14,6 +14,7 @@ from kiln_worker.constants import (
     SUPERVISOR_KILL_MARGIN_SECONDS,
     SUPERVISOR_LIVENESS_SECONDS,
     SUPERVISOR_POLL_SECONDS,
+    SUPERVISOR_REAP_SECONDS,
     WORKER_HEALTHY_UPTIME_SECONDS,
     WORKER_OVERRAN_EXIT_CODE,
     WORKER_RECYCLE_EXIT_CODE,
@@ -137,8 +138,15 @@ class Supervisor:
             logger.error(
                 "worker still running %.0f s after the stop; killing it", self._stop_timeout
             )
-            child.kill()
-            child.join()
+            self._kill(child)
+
+    @staticmethod
+    def _kill(child: Child) -> None:
+        """SIGKILL, then a bounded wait: a child in uninterruptible sleep must not hang us."""
+        child.kill()
+        child.join(SUPERVISOR_REAP_SECONDS)
+        if child.exitcode is None:
+            logger.error("killed worker not gone after %.0f s; moving on", SUPERVISOR_REAP_SECONDS)
 
     def _wait(self, child: Child) -> int | None:
         """The child's exit code, or None if stop was asked first."""
@@ -169,6 +177,5 @@ class Supervisor:
 
     def _kill_stuck(self, child: Child, reason: str) -> int:
         logger.error("worker %s (native code holding the GIL, or frozen); killing it", reason)
-        child.kill()
-        child.join()
+        self._kill(child)
         return WORKER_STUCK_CODE

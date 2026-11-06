@@ -854,7 +854,7 @@ def test_a_hung_job_ends_the_worker_process_through_its_watchdog(
     release = threading.Event()
     ended: list[int] = []
 
-    def hang(*_args: Any, **_kwargs: Any) -> bool:
+    def hang(*_args: object, **_kwargs: object) -> bool:
         release.wait(10)  # a read that never returns, until the watchdog fires
         raise ConnectionError
 

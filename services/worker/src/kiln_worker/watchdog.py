@@ -32,6 +32,7 @@ from kiln_worker.constants import (
 logger = logging.getLogger("kiln_worker")
 
 _JOB_ID_LENGTH = 36  # a UUID in text form
+_CLAIMING = "(claiming a job)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +122,21 @@ class JobWatchdog:
     def beacon(self) -> JobBeacon | None:
         """Where this process shows its supervisor the running job and that it is alive."""
         return self._beacon
+
+    @contextmanager
+    def claiming(self) -> Iterator[None]:
+        """Show the supervisor a claim in progress, so a freeze around it is seen too.
+
+        The claim is one bounded database call (statement and connect timeouts), far shorter
+        than the liveness window; `watch` takes over the beacon once a job is claimed.
+        """
+        if self._beacon is not None:
+            self._beacon.started(_CLAIMING, time.monotonic())
+        try:
+            yield
+        finally:
+            if self._beacon is not None:
+                self._beacon.idle()
 
     @contextmanager
     def watch(self, job: Job) -> Iterator[None]:

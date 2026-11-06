@@ -351,7 +351,10 @@ def test_a_child_that_shows_no_sign_of_life_is_killed_long_before_its_deadline(
     assert "showed no sign of life for 61 s in job job-1" in caplog.text
 
 
-@pytest.mark.parametrize(("started_ago", "alive_ago"), [(None, 0.0), (1_000.0, 0.0), (10.0, 30.0)])
+@pytest.mark.parametrize(
+    ("started_ago", "alive_ago"),
+    [(None, 0.0), (1_000.0, 0.0), (10.0, 30.0), (10.0, 100.0)],  # last: a new job, old life
+)
 def test_an_idle_child_or_a_live_job_in_time_is_never_killed(
     started_ago: float | None, alive_ago: float
 ) -> None:
@@ -402,3 +405,18 @@ def test_a_real_child_holding_the_gil_is_killed_on_lost_liveness() -> None:
 
     assert children[0].exitcode == -signal.SIGKILL
     assert time.monotonic() - started < 20  # not the 60 s sleep
+
+
+def test_a_killed_child_that_cannot_die_does_not_hang_the_supervisor(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A process in uninterruptible sleep ignores SIGKILL until the kernel lets it go."""
+    monkeypatch.setattr("kiln_worker.supervisor.SUPERVISOR_REAP_SECONDS", 0.05)
+    undying = _Child(None)
+    undying.kill = lambda: setattr(undying, "killed", True)  # type: ignore[method-assign]
+
+    with caplog.at_level(logging.ERROR, logger="kiln_worker"):
+        _run_with(_beacon(started_ago=70, alive_ago=61), undying)
+
+    assert undying.killed
+    assert "killed worker not gone after 0 s; moving on" in caplog.text

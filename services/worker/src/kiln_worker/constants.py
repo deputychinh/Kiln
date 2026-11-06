@@ -45,6 +45,9 @@ WATCHDOG_POLL_SECONDS = 0.5
 SUPERVISOR_LIVENESS_SECONDS = 60.0
 # … or still in one job this long past its maximum runtime.
 SUPERVISOR_DEADLINE_MARGIN_SECONDS = 5.0
+# How long the supervisor waits for a killed child to be reaped before it moves on (a process in
+# uninterruptible sleep cannot die until the kernel lets it).
+SUPERVISOR_REAP_SECONDS = 10.0
 # Internal: the code `Supervisor` uses for a child it killed as stuck (never a real exit code).
 WORKER_STUCK_CODE = -1000
 # The supervisor kills a child that has not exited this long after its stop grace.

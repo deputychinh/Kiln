@@ -187,6 +187,51 @@ def test_the_stop_grace_is_capped_so_a_frozen_job_never_outlives_its_lease() -> 
         WorkerSettings(job_stop_grace_seconds=121)
 
 
+def test_a_spawned_child_hands_its_beacon_to_the_worker(
+    database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without the beacon the supervisor's liveness check is blind in production (KILN-28)."""
+    received: list[object] = []
+
+    def fake_run_worker(*args: object) -> int:
+        received.extend(args)
+        return 0
+
+    monkeypatch.setattr("kiln_worker.process.run_worker", fake_run_worker)
+    monkeypatch.setattr("kiln_worker.process.stop_on_signals", lambda _: None)
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
+
+    with pytest.raises(SystemExit):
+        child_main(
+            Settings(env=Environment.TEST, database_url=database_url), WorkerSettings(), beacon
+        )
+
+    assert received[3] is beacon
+
+
+def test_main_starts_children_with_the_beacon_it_watches(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _Supervisor:
+        def __init__(
+            self, start_child: Callable[[], Child], stop: threading.Event, **kwargs: object
+        ) -> None:
+            captured.update(kwargs, start_child=start_child, stop=stop)
+
+        def run(self) -> int:
+            return 0
+
+    monkeypatch.setattr("kiln_worker.__main__.Supervisor", _Supervisor)
+    monkeypatch.setattr("kiln_worker.__main__.stop_on_signals", lambda _halt: None)
+    monkeypatch.setattr(multiprocessing.context.SpawnProcess, "start", lambda _self: None)
+    main(worker_settings=WorkerSettings())
+
+    start_child = captured["start_child"]
+    assert callable(start_child)
+    child = start_child()  # built, not started
+    assert child._args[2] is captured["job_beacon"]
+
+
 def test_a_spawned_child_exits_with_the_worker_s_code(
     database_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
