@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, type Locator, type Page, test, type TestInfo } from '@playwright/test';
 
-import { seedImageAsset } from './support/seed';
+import { seedImageAsset, seedModelAsset } from './support/seed';
 
 /** Unique across parallel projects and runs (desktop and mobile seed at the same millisecond). */
 const uniqueName = (prefix: string, testInfo: TestInfo): string =>
@@ -55,6 +55,27 @@ test('an uploaded image appears in the gallery with its preview and opens to its
     // Expanded: list and detail side by side; the open card is marked current.
     await expect(cardOf(page, asset.id)).toHaveAttribute('aria-current', 'page');
   }
+});
+
+test('a published glTF model gets a rendered preview in the gallery and the detail', async ({
+  page,
+  request,
+}, testInfo) => {
+  const asset = await seedModelAsset(request, uniqueName('crate', testInfo));
+
+  await expect(async () => {
+    await page.goto('/assets');
+    await expect(cardOf(page, asset.id).locator('img')).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(cardOf(page, asset.id)).toContainText('Model');
+
+  await cardOf(page, asset.id).click();
+  const detail = page.getByRole('article', { name: asset.name });
+  await expect(detail.getByText('Ready')).toBeVisible();
+  const preview = detail.getByRole('img', { name: `Preview of ${asset.name}` });
+  await expect(preview).toBeVisible();
+  expect(await preview.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(512);
+  await page.screenshot({ path: `test-results/screens/model-${testInfo.project.name}.png` });
 });
 
 test('the gallery can be used with the keyboard alone', async ({ page, request }, testInfo) => {
