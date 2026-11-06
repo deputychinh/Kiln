@@ -21,6 +21,7 @@ from kiln_worker.constants import (
     MODEL_MAX_INSTANCES,
     MODEL_MAX_JSON_BYTES,
     MODEL_MAX_NODE_DEPTH,
+    MODEL_MAX_OBJECTS,
     MODEL_MAX_TRIANGLES,
     MODEL_MAX_VERTICES,
 )
@@ -129,10 +130,14 @@ def _split(data: bytes) -> tuple[dict[str, Any], memoryview]:
 
 
 def _chunks(data: memoryview, length: int) -> list[tuple[int, memoryview]]:
-    """The (type, bytes) chunks after the header, each checked against the file length."""
+    """The JSON chunk and, if present, the BIN chunk, each checked against the file length.
+
+    glTF allows one JSON and at most one BIN chunk; anything after them (extension chunks,
+    padding, or millions of empty chunks meant to exhaust memory) is never read.
+    """
     chunks: list[tuple[int, memoryview]] = []
     offset = _HEADER.size
-    while offset < length:
+    while offset < length and len(chunks) < 2:  # noqa: PLR2004 - JSON and BIN
         if offset + _CHUNK_HEADER.size > length:
             msg = "truncated chunk header"
             raise UnreadableModelError(msg)
@@ -158,6 +163,9 @@ def _items(document: dict[str, Any], name: str) -> list[Any]:
     if not isinstance(value, list):
         msg = f"{name} is not a list"
         raise _fail(msg)
+    if len(value) > MODEL_MAX_OBJECTS:
+        msg = f"{len(value)} {name}"
+        raise ModelTooLargeError(msg)
     return value
 
 
@@ -202,6 +210,9 @@ class _Reader:
         if not self._nodes:  # meshes without a scene graph
             for mesh in range(len(self._meshes)):
                 found.extend((p, np.identity(4)) for p in self._primitives(mesh))
+                if len(found) > MODEL_MAX_INSTANCES:
+                    msg = "too many mesh instances"
+                    raise ModelTooLargeError(msg)
         return found
 
     def _children(self, node: object) -> list[int]:

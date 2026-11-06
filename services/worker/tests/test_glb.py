@@ -2,6 +2,7 @@ import json
 import math
 import struct
 import time
+import tracemalloc
 from typing import Any
 
 import numpy as np
@@ -9,7 +10,7 @@ import pytest
 from glb_builder import CUBE_INDICES, assemble, build_glb
 
 from kiln_worker import glb as glb_module
-from kiln_worker.constants import MODEL_MAX_TRIANGLES, MODEL_MAX_VERTICES
+from kiln_worker.constants import MODEL_MAX_OBJECTS, MODEL_MAX_TRIANGLES, MODEL_MAX_VERTICES
 from kiln_worker.errors import ModelTooLargeError, UnreadableModelError
 from kiln_worker.glb import read_glb
 
@@ -395,3 +396,98 @@ def test_short_strips_and_fans_have_no_triangles() -> None:
         read_glb(
             build_glb(positions=[(0, 0, 0), (1, 0, 0)], indices=[0, 1], tweak=two_vertex_strip)
         )
+
+
+def test_chunks_after_json_and_bin_are_never_read() -> None:
+    cube = build_glb()
+    junk = struct.pack("<II", 0, 0x12345678) * 1_000_000  # a million empty chunks
+    data = struct.pack("<III", 0x46546C67, 2, len(cube) + len(junk)) + cube[12:] + junk
+
+    tracemalloc.start()
+    try:
+        mesh = read_glb(data)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert mesh.triangles.shape == (12, 3, 3)
+    assert peak < 5 * 1024 * 1024  # a view per chunk would hold hundreds of MB
+
+
+def test_a_chunk_longer_than_the_file_is_refused() -> None:
+    cube = build_glb()
+    json_size = struct.unpack_from("<I", cube, 12)[0]
+    lying = bytearray(cube)
+    struct.pack_into("<I", lying, 12, json_size + 1_000)  # JSON chunk claims more than exists
+
+    with pytest.raises(UnreadableModelError, match="chunk runs past the end"):
+        read_glb(bytes(lying))
+
+
+@pytest.mark.parametrize("name", ["nodes", "meshes", "accessors", "bufferViews", "scenes"])
+def test_overlong_object_lists_are_refused_as_too_large(name: str) -> None:
+    def overlong(document: dict[str, Any]) -> None:
+        document[name] = [{}] * (MODEL_MAX_OBJECTS + 1)
+
+    with pytest.raises(ModelTooLargeError, match=name):
+        read_glb(build_glb(tweak=overlong))
+
+
+def test_a_stride_above_the_gltf_maximum_is_refused() -> None:
+    def wide(document: dict[str, Any]) -> None:
+        document["bufferViews"][0]["byteLength"] = 256 * 7 + 12
+        document["bufferViews"][0]["byteStride"] = 256
+        document["buffers"][0]["byteLength"] = 256 * 7 + 12
+
+    with pytest.raises(UnreadableModelError, match="bad byteStride"):
+        read_glb(build_glb(tweak=wide, binary_padding=256 * 7 + 12))
+
+
+def test_more_instances_than_allowed_are_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(glb_module, "MODEL_MAX_INSTANCES", 2)
+
+    def three(document: dict[str, Any]) -> None:
+        document["nodes"] = [{"children": [1, 2, 3]}, {"mesh": 0}, {"mesh": 0}, {"mesh": 0}]
+
+    with pytest.raises(ModelTooLargeError, match="instances"):
+        read_glb(build_glb(tweak=three))
+
+
+def test_more_instances_than_allowed_without_nodes_are_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(glb_module, "MODEL_MAX_INSTANCES", 2)
+
+    def three_meshes(document: dict[str, Any]) -> None:
+        del document["scenes"], document["scene"], document["nodes"]
+        document["meshes"] = document["meshes"] * 3
+
+    with pytest.raises(ModelTooLargeError, match="instances"):
+        read_glb(build_glb(tweak=three_meshes))
+
+
+def test_rotations_are_normalised_before_use() -> None:
+    half = math.sqrt(0.5)
+    unit = _bounds(build_glb(tweak=_node(rotation=[0, 0, half, half])))
+    scaled = _bounds(build_glb(tweak=_node(rotation=[0, 0, 3.0, 3.0])))  # same rotation, length 4.2
+
+    assert scaled == unit
+
+
+def test_counts_must_be_integers_not_booleans() -> None:
+    with pytest.raises(UnreadableModelError, match="bad count"):
+        read_glb(build_glb(tweak=_set("accessors.1.count", True)))
+
+
+def test_required_quantization_is_accepted_when_positions_are_floats() -> None:
+    mesh = read_glb(build_glb(tweak=_set("extensionsRequired", ["KHR_mesh_quantization"])))
+
+    assert mesh.triangles.shape == (12, 3, 3)
+
+
+def test_a_fan_of_two_vertices_has_no_triangles() -> None:
+    def fan(document: dict[str, Any]) -> None:
+        document["meshes"][0]["primitives"][0]["mode"] = 6
+
+    with pytest.raises(UnreadableModelError, match="no triangles"):
+        read_glb(build_glb(positions=[(0, 0, 0), (1, 0, 0)], indices=[0, 1], tweak=fan))

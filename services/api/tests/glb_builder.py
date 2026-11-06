@@ -37,6 +37,7 @@ def build_glb(
     *,
     index_type: int = 5125,
     tweak: Callable[[dict[str, Any]], None] | None = None,
+    binary_padding: int = 0,
 ) -> bytes:
     """One mesh in one node of one scene; `tweak` may rewrite the JSON before assembly."""
     position_bytes = b"".join(struct.pack("<3f", *p) for p in positions)
@@ -66,6 +67,9 @@ def build_glb(
         "scenes": [{"nodes": [0]}],
         "scene": 0,
     }
+    if binary_padding > len(binary):  # room for tweaks that lengthen the first view
+        binary += b"\x00" * (binary_padding - len(binary))
+        document["buffers"][0]["byteLength"] = len(binary)
     if tweak is not None:
         tweak(document)
     return assemble(document, binary)

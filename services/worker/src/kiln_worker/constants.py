@@ -47,6 +47,10 @@ MODEL_MAX_BYTES = 256 * 1024 * 1024  # larger .glb files are refused before down
 MODEL_MAX_JSON_BYTES = 16 * 1024 * 1024
 MODEL_MAX_NODE_DEPTH = 64
 MODEL_MAX_INSTANCES = 10_000
+# Longest node, mesh, accessor, buffer-view or scene list read from the JSON.
+MODEL_MAX_OBJECTS = 100_000
+# Drawing stops and the model is refused as too large past this (heavy overdraw).
+MODEL_RENDER_SECONDS = 20.0
 # Rendering: drawn at twice the size, then downsampled (anti-aliasing).
 MODEL_SUPERSAMPLE = 2
 MODEL_FILL_RATIO = 0.86

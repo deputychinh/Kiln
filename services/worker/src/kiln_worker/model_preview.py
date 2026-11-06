@@ -2,6 +2,8 @@
 
 import io
 import math
+import time
+from collections.abc import Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -10,12 +12,13 @@ from PIL import Image, ImageDraw
 from kiln_worker.constants import (
     MODEL_FILL_RATIO,
     MODEL_PITCH_DEGREES,
+    MODEL_RENDER_SECONDS,
     MODEL_SUPERSAMPLE,
     MODEL_YAW_DEGREES,
     THUMBNAIL_MAX_SIDE,
     THUMBNAIL_QUALITY,
 )
-from kiln_worker.errors import UnreadableModelError
+from kiln_worker.errors import ModelTooLargeError, UnreadableModelError
 from kiln_worker.glb import Mesh
 
 _SURFACE = np.array([196.0, 198.0, 204.0])  # neutral, slightly cool grey
@@ -40,13 +43,13 @@ def _rotation() -> NDArray[np.float64]:
     return np.asarray(tilt @ turn, dtype=np.float64)
 
 
-def render_model(mesh: Mesh) -> bytes:
+def render_model(mesh: Mesh, *, monotonic: Callable[[], float] = time.monotonic) -> bytes:
     """See `_render`; extreme coordinates overflow to inf/nan quietly and are dropped there."""
     with np.errstate(over="ignore", invalid="ignore"):
-        return _render(mesh)
+        return _render(mesh, monotonic)
 
 
-def _render(mesh: Mesh) -> bytes:
+def _render(mesh: Mesh, monotonic: Callable[[], float]) -> bytes:
     """A 512 x 512 WebP with a transparent background, the model fitted to the frame.
 
     Memory stays near three float32 copies of the triangles: the view transform and the
@@ -75,7 +78,11 @@ def _render(mesh: Mesh) -> bytes:
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
     drawn = 0
+    deadline = monotonic() + MODEL_RENDER_SECONDS
     for start in range(0, len(order), _CHUNK):
+        if monotonic() > deadline:  # heavy overdraw: huge overlapping triangles by the million
+            msg = f"drawing took more than {MODEL_RENDER_SECONDS:.0f} s"
+            raise ModelTooLargeError(msg)
         chunk = view[order[start : start + _CHUNK]]
         drawn += _draw(draw, chunk, centre=centre, scale=scale, size=size)
     if not drawn:

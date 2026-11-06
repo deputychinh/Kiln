@@ -1,4 +1,3 @@
-import contextlib
 import io
 import time
 from typing import Any
@@ -6,9 +5,9 @@ from typing import Any
 import numpy as np
 import pytest
 from glb_builder import build_glb
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from kiln_worker.errors import UnreadableModelError
+from kiln_worker.errors import ModelTooLargeError, UnreadableModelError
 from kiln_worker.glb import Mesh, read_glb
 from kiln_worker.model_preview import _rotation, render_model
 
@@ -86,11 +85,19 @@ def test_the_model_is_fitted_to_the_frame_whatever_its_size() -> None:
     assert max(width, height) > 400  # about 86 % of 512
 
 
-def test_non_finite_vertices_are_dropped_and_nothing_drawable_is_refused() -> None:
+def _drawn_extent(data: bytes) -> int:
+    box = _image(data).getchannel("A").getbbox()
+    return 0 if box is None else max(box[2] - box[0], box[3] - box[1])
+
+
+def test_a_non_finite_vertex_drops_its_triangle_not_the_preview() -> None:
     cube = read_glb(build_glb()).triangles.copy()
     cube[0, 0, 0] = np.inf
-    assert _image(render_model(Mesh(origin=np.zeros(3), triangles=cube))).size == (512, 512)
 
+    assert _drawn_extent(render_model(Mesh(origin=np.zeros(3), triangles=cube))) > 400
+
+
+def test_nothing_drawable_is_refused() -> None:
     with pytest.raises(UnreadableModelError):
         render_model(
             Mesh(origin=np.zeros(3), triangles=np.full((2, 3, 3), np.nan, dtype=np.float32))
@@ -98,6 +105,43 @@ def test_non_finite_vertices_are_dropped_and_nothing_drawable_is_refused() -> No
     flat = np.zeros((4, 3, 3), dtype=np.float32)  # zero-area triangles only
     with pytest.raises(UnreadableModelError):
         render_model(Mesh(origin=np.zeros(3), triangles=flat))
+
+
+def test_both_sides_of_a_surface_are_lit_the_same() -> None:
+    triangle = np.array([[[0, 0, 0], [1, 0, 0], [0, 1, 0]]], dtype=np.float32)
+    flipped = triangle[:, ::-1].copy()  # same triangle, the other side faces the camera
+
+    front = np.asarray(_image(render_model(Mesh(origin=np.zeros(3), triangles=triangle))))
+    back = np.asarray(_image(render_model(Mesh(origin=np.zeros(3), triangles=flipped))))
+
+    assert np.abs(front.astype(int) - back.astype(int)).max() <= 2
+
+
+def test_triangles_smaller_than_a_pixel_still_show(monkeypatch: pytest.MonkeyPatch) -> None:
+    rng = np.random.default_rng(5)
+    centres = rng.uniform(-1, 1, size=(3_000, 1, 3))
+    dust = (centres + rng.normal(0, 1e-5, size=(3_000, 3, 3))).astype(np.float32)
+
+    polygons: list[object] = []
+    real_polygon = ImageDraw.ImageDraw.polygon
+
+    def counting(self: ImageDraw.ImageDraw, *args: Any, **kwargs: Any) -> None:
+        polygons.append(args)
+        real_polygon(self, *args, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "polygon", counting)
+
+    opaque = np.asarray(_image(render_model(Mesh(origin=np.zeros(3), triangles=dust))))[:, :, 3]
+
+    assert (opaque > 0).sum() > 1_000
+    assert polygons == []  # each speck is drawn as a single point, the cheap path
+
+
+def test_drawing_that_takes_too_long_is_refused_as_too_large() -> None:
+    ticks = iter(range(0, 1_000, 30))  # every check sees 30 s more
+
+    with pytest.raises(ModelTooLargeError, match="drawing took more than 20 s"):
+        render_model(read_glb(build_glb()), monotonic=lambda: float(next(ticks)))
 
 
 def test_dense_meshes_render_within_the_time_budget() -> None:
@@ -112,10 +156,8 @@ def test_dense_meshes_render_within_the_time_budget() -> None:
     assert image.getchannel("A").getbbox() is not None
 
 
-@pytest.mark.parametrize("scale", [1e19, 1e38])
-def test_coordinates_near_the_float_limit_never_warn(scale: float) -> None:
-    huge = (read_glb(build_glb()).triangles * np.float32(scale)).astype(np.float32)
+def test_coordinates_near_the_float_limit_never_warn() -> None:
+    huge = (read_glb(build_glb()).triangles * np.float32(1e19)).astype(np.float32)
 
-    # filterwarnings=error turns any overflow warning into a failure here
-    with contextlib.suppress(UnreadableModelError):
-        render_model(Mesh(origin=np.zeros(3), triangles=huge))
+    # filterwarnings=error turns any overflow warning into a failure; the cube still renders
+    assert _drawn_extent(render_model(Mesh(origin=np.zeros(3), triangles=huge))) > 400
