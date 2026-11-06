@@ -173,6 +173,21 @@ class SqlJobQueue:
         """Stop retrying the claimed job; False if this claim no longer owns it."""
         return self._set(job, now=now, status=JobStatus.DEAD, leased_until=None, last_error=error)
 
+    def reap(self, job: Job, *, error: str, now: datetime | None = None) -> bool:
+        """Bury an exhausted job found by `exhausted_jobs`, only if its lease is still expired.
+
+        `exhausted_jobs` is a plain read: the worker that owns the job may extend its lease in
+        between (KILN-24), and then the job is alive, not crashed.
+        """
+        return self._set(
+            job,
+            now=now,
+            status=JobStatus.DEAD,
+            only_if=jobs.c.leased_until < _clock(now),
+            leased_until=None,
+            last_error=error,
+        )
+
     def counts(self) -> dict[JobStatus, int]:
         """Jobs per status, for monitoring."""
         with self._write() as connection:
@@ -181,15 +196,26 @@ class SqlJobQueue:
             ).all()
         return {JobStatus(status): count for status, count in rows}
 
-    def _set(self, job: Job, *, now: datetime | None, status: JobStatus, **values: object) -> bool:
+    def _set(
+        self,
+        job: Job,
+        *,
+        now: datetime | None,
+        status: JobStatus,
+        only_if: ColumnElement[bool] | None = None,
+        **values: object,
+    ) -> bool:
+        guards = [
+            jobs.c.id == job.id,
+            jobs.c.status == JobStatus.RUNNING.value,
+            jobs.c.attempts == job.attempts,
+        ]
+        if only_if is not None:
+            guards.append(only_if)
         with self._write() as connection:
             result = connection.execute(
                 update(jobs)
-                .where(
-                    jobs.c.id == job.id,
-                    jobs.c.status == JobStatus.RUNNING.value,
-                    jobs.c.attempts == job.attempts,
-                )
+                .where(*guards)
                 .values(status=status.value, updated_at=_clock(now), **values)
             )
         return result.rowcount == 1

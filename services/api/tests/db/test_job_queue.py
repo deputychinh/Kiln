@@ -238,3 +238,31 @@ def test_an_expired_lease_is_never_extended_even_if_nobody_reclaimed_it(engine: 
 
     assert queue.extend(job, lease=LEASE, now=T0 + LEASE) is True  # still valid at its last instant
     assert queue.extend(job, lease=LEASE, now=T0 + 2 * LEASE + timedelta(seconds=1)) is False
+
+
+def test_a_reaper_never_buries_a_job_whose_lease_was_extended_after_it_looked(
+    engine: Engine,
+) -> None:
+    _enqueue(engine)
+    queue = SqlJobQueue(engine)
+    job = _claim(queue)
+    assert job is not None
+    seen_at = T0 + LEASE + timedelta(seconds=1)
+    exhausted = queue.exhausted_jobs(max_attempts=1, now=seen_at)  # the reaper reads: expired
+    assert [j.id for j in exhausted] == [job.id]
+
+    assert queue.extend(job, lease=LEASE, now=T0 + LEASE) is True  # the owner's late tick lands
+
+    assert queue.reap(exhausted[0], error="crashed", now=seen_at) is False
+    assert queue.finish(job, now=seen_at) is True  # the owner still finishes its work
+
+
+def test_a_reaper_buries_a_job_whose_lease_is_still_expired(engine: Engine) -> None:
+    _enqueue(engine)
+    queue = SqlJobQueue(engine)
+    job = _claim(queue)
+    assert job is not None
+
+    assert queue.reap(job, error="crashed", now=T0 + LEASE) is False  # not expired yet
+    assert queue.reap(job, error="crashed", now=T0 + LEASE + timedelta(seconds=1)) is True
+    assert queue.counts()[JobStatus.DEAD] == 1

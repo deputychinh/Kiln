@@ -199,6 +199,10 @@ class JobQueue(Protocol):
         """Mark a claimed job dead."""
         ...
 
+    def reap(self, job: Job, *, error: str, now: datetime | None = None) -> bool:
+        """Mark an exhausted job dead, only if its lease is still expired when written."""
+        ...
+
 
 class Transaction(Protocol):
     """Repositories that share one database transaction."""
