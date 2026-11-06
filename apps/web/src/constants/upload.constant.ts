@@ -21,3 +21,5 @@ export const completionsPath = (versionId: string): string =>
   `/api/v1/asset-versions/${encodeURIComponent(versionId)}/completions`;
 /** The `code` of an `ApiError` raised when storage itself refuses the file (e.g. an expired form). */
 export const STORAGE_REJECTED_CODE = 'STORAGE_REJECTED';
+/** The API's `code` when a completion was already recorded (a retry after a lost reply). */
+export const ALREADY_COMPLETE_CODE = 'INVALID_STATUS_TRANSITION';

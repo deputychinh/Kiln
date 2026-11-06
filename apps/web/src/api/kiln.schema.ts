@@ -4,988 +4,959 @@
  */
 
 export interface paths {
-  '/health': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health
+         * @description Report that the process is alive; never touches dependencies.
+         */
+        get: operations["health_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Health
-     * @description Report that the process is alive; never touches dependencies.
-     */
-    get: operations['health_health_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/ready': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ready
+         * @description Report that the database and storage answer (503 problem details otherwise).
+         */
+        get: operations["ready_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Ready
-     * @description Report that the database and storage answer (503 problem details otherwise).
-     */
-    get: operations['ready_ready_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/health': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health
+         * @description Report that the process is alive; never touches dependencies.
+         */
+        get: operations["health_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Health
-     * @description Report that the process is alive; never touches dependencies.
-     */
-    get: operations['health_api_v1_health_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/ready': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ready
+         * @description Report that the database and storage answer (503 problem details otherwise).
+         */
+        get: operations["ready_api_v1_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Ready
-     * @description Report that the database and storage answer (503 problem details otherwise).
-     */
-    get: operations['ready_api_v1_ready_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/assets': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Assets
+         * @description List assets newest first; `limit` is 1 to 100.
+         */
+        get: operations["list_assets_api_v1_assets_get"];
+        put?: never;
+        /**
+         * Create Asset
+         * @description Create an asset with version 1 and return the signed upload form.
+         */
+        post: operations["create_asset_api_v1_assets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * List Assets
-     * @description List assets newest first; `limit` is 1 to 100.
-     */
-    get: operations['list_assets_api_v1_assets_get'];
-    put?: never;
-    /**
-     * Create Asset
-     * @description Create an asset with version 1 and return the signed upload form.
-     */
-    post: operations['create_asset_api_v1_assets_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/assets/{asset_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Asset
+         * @description Return an asset with its first 500 versions by number.
+         */
+        get: operations["get_asset_api_v1_assets__asset_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Asset
-     * @description Return an asset with its first 500 versions by number.
-     */
-    get: operations['get_asset_api_v1_assets__asset_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/assets/{asset_id}/versions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/assets/{asset_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Version
+         * @description Add the next version of an asset and return its signed upload form.
+         */
+        post: operations["add_version_api_v1_assets__asset_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Add Version
-     * @description Add the next version of an asset and return its signed upload form.
-     */
-    post: operations['add_version_api_v1_assets__asset_id__versions_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/asset-versions/{version_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/asset-versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Version
+         * @description Return one version.
+         */
+        get: operations["get_version_api_v1_asset_versions__version_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Version
-     * @description Return one version.
-     */
-    get: operations['get_version_api_v1_asset_versions__version_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/asset-versions/{version_id}/completions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/v1/asset-versions/{version_id}/completions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Upload
+         * @description Confirm the file arrived intact and start processing; safe to repeat.
+         */
+        post: operations["complete_upload_api_v1_asset_versions__version_id__completions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Complete Upload
-     * @description Confirm the file arrived intact and start processing; safe to repeat.
-     */
-    post: operations['complete_upload_api_v1_asset_versions__version_id__completions_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /**
-     * AssetDetailOut
-     * @description An asset with its versions by number.
-     */
-    AssetDetailOut: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Name */
-      name: string;
-      kind: components['schemas']['AssetKind'];
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /**
-       * Updated At
-       * Format: date-time
-       */
-      updated_at: string;
-      /**
-       * Thumbnail Url
-       * @description Preview of the newest ready version (signed, 15 minutes).
-       */
-      thumbnail_url?: string | null;
-      /** Versions */
-      versions: components['schemas']['VersionOut'][];
+    schemas: {
+        /**
+         * AssetDetailOut
+         * @description An asset with its versions by number.
+         */
+        AssetDetailOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            kind: components["schemas"]["AssetKind"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Thumbnail Url
+             * @description Preview of the newest ready version (signed, 15 minutes).
+             */
+            thumbnail_url?: string | null;
+            /** Versions */
+            versions: components["schemas"]["VersionOut"][];
+        };
+        /**
+         * AssetKind
+         * @description What an asset holds; decides how it is previewed.
+         * @enum {string}
+         */
+        AssetKind: "image" | "model";
+        /**
+         * AssetOut
+         * @description An asset.
+         */
+        AssetOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            kind: components["schemas"]["AssetKind"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Thumbnail Url
+             * @description Preview of the newest ready version (signed, 15 minutes).
+             */
+            thumbnail_url?: string | null;
+        };
+        /**
+         * AssetPageOut
+         * @description A newest-first page; pass `next_cursor` back to get the next one.
+         */
+        AssetPageOut: {
+            /** Items */
+            items: components["schemas"]["AssetOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /**
+         * CreateAssetRequest
+         * @description A new asset and its first file.
+         */
+        CreateAssetRequest: {
+            /** File Name */
+            file_name: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * FailureReason
+         * @description Why a version ended `failed`; shown to people, so stable and human-mappable.
+         * @enum {string}
+         */
+        FailureReason: "UPLOAD_CHANGED" | "UNREADABLE_IMAGE" | "IMAGE_TOO_LARGE" | "PROCESSING_GAVE_UP" | "UPLOAD_EXPIRED" | "UNREADABLE_MODEL" | "MODEL_TOO_LARGE";
+        /**
+         * HealthResponse
+         * @description Probe result.
+         */
+        HealthResponse: {
+            status: components["schemas"]["HealthStatus"];
+            /** Version */
+            version: string;
+        };
+        /**
+         * HealthStatus
+         * @description Result of a health or readiness probe.
+         * @enum {string}
+         */
+        HealthStatus: "ok";
+        /**
+         * PendingUploadOut
+         * @description A created asset or version waiting for its file.
+         */
+        PendingUploadOut: {
+            asset: components["schemas"]["AssetOut"];
+            version: components["schemas"]["VersionOut"];
+            /** @description Signed form for the file. A first creation always has one; a replay has null once the version left pending_upload. */
+            upload: components["schemas"]["UploadOut"] | null;
+        };
+        /**
+         * UploadDeclaration
+         * @description What the client is about to upload.
+         */
+        UploadDeclaration: {
+            /** File Name */
+            file_name: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /**
+         * UploadOut
+         * @description POST the file as multipart form data: every field, then `file`, to `url`.
+         */
+        UploadOut: {
+            /** Url */
+            url: string;
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
+         * VersionOut
+         * @description One version; the storage key stays internal.
+         */
+        VersionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Asset Id
+             * Format: uuid
+             */
+            asset_id: string;
+            /** Number */
+            number: number;
+            status: components["schemas"]["VersionStatus"];
+            /** File Name */
+            file_name: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description Why processing failed; set only when status is failed. */
+            failure_reason?: components["schemas"]["FailureReason"] | null;
+            /**
+             * Thumbnail Url
+             * @description Preview once the version is ready (signed, 15 minutes).
+             */
+            thumbnail_url?: string | null;
+        };
+        /**
+         * VersionStatus
+         * @description Life cycle of one uploaded version.
+         * @enum {string}
+         */
+        VersionStatus: "pending_upload" | "processing" | "ready" | "failed";
+        /**
+         * ErrorCode
+         * @description Stable error codes returned in the `code` field of problem details.
+         * @enum {string}
+         */
+        ErrorCode: "NOT_FOUND" | "VALIDATION_FAILED" | "INTERNAL" | "ASSET_NOT_FOUND" | "ASSET_VERSION_NOT_FOUND" | "INVALID_ASSET_NAME" | "INVALID_FILE_NAME" | "INVALID_FILE_SIZE" | "UNSUPPORTED_MEDIA_TYPE" | "ASSET_KIND_MISMATCH" | "INVALID_STATUS_TRANSITION" | "INVALID_CURSOR" | "UPLOAD_NOT_FOUND" | "UPLOAD_MISMATCH" | "STORAGE_UNAVAILABLE" | "DATABASE_UNAVAILABLE" | "DATABASE_BUSY" | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE" | "INVALID_IDEMPOTENCY_KEY" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_KEY_IN_USE";
+        /**
+         * FieldError
+         * @description One invalid field of a request.
+         */
+        FieldError: {
+            /** Loc */
+            loc: (string | number)[];
+            /** Msg */
+            msg: string;
+        };
+        /**
+         * Problem
+         * @description Every error response: `code` is stable, the rest is for people.
+         */
+        Problem: {
+            /**
+             * Type
+             * @default about:blank
+             */
+            type: string;
+            /** Title */
+            title: string;
+            /** Status */
+            status: number;
+            /** Detail */
+            detail: string;
+            /** Instance */
+            instance: string;
+            code: components["schemas"]["ErrorCode"];
+            /**
+             * Errors
+             * @default null
+             */
+            errors: components["schemas"]["FieldError"][] | null;
+        };
     };
-    /**
-     * AssetKind
-     * @description What an asset holds; decides how it is previewed.
-     * @enum {string}
-     */
-    AssetKind: 'image' | 'model';
-    /**
-     * AssetOut
-     * @description An asset.
-     */
-    AssetOut: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Name */
-      name: string;
-      kind: components['schemas']['AssetKind'];
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /**
-       * Updated At
-       * Format: date-time
-       */
-      updated_at: string;
-      /**
-       * Thumbnail Url
-       * @description Preview of the newest ready version (signed, 15 minutes).
-       */
-      thumbnail_url?: string | null;
-    };
-    /**
-     * AssetPageOut
-     * @description A newest-first page; pass `next_cursor` back to get the next one.
-     */
-    AssetPageOut: {
-      /** Items */
-      items: components['schemas']['AssetOut'][];
-      /** Next Cursor */
-      next_cursor: string | null;
-    };
-    /**
-     * CreateAssetRequest
-     * @description A new asset and its first file.
-     */
-    CreateAssetRequest: {
-      /** File Name */
-      file_name: string;
-      /** Content Type */
-      content_type: string;
-      /** Size Bytes */
-      size_bytes: number;
-      /** Name */
-      name: string;
-    };
-    /**
-     * FailureReason
-     * @description Why a version ended `failed`; shown to people, so stable and human-mappable.
-     * @enum {string}
-     */
-    FailureReason:
-      | 'UPLOAD_CHANGED'
-      | 'UNREADABLE_IMAGE'
-      | 'IMAGE_TOO_LARGE'
-      | 'PROCESSING_GAVE_UP'
-      | 'UPLOAD_EXPIRED'
-      | 'UNREADABLE_MODEL'
-      | 'MODEL_TOO_LARGE';
-    /**
-     * HealthResponse
-     * @description Probe result.
-     */
-    HealthResponse: {
-      status: components['schemas']['HealthStatus'];
-      /** Version */
-      version: string;
-    };
-    /**
-     * HealthStatus
-     * @description Result of a health or readiness probe.
-     * @enum {string}
-     */
-    HealthStatus: 'ok';
-    /**
-     * PendingUploadOut
-     * @description A created asset or version waiting for its file.
-     */
-    PendingUploadOut: {
-      asset: components['schemas']['AssetOut'];
-      version: components['schemas']['VersionOut'];
-      /** @description Signed form for the file. A first creation always has one; a replay has null once the version left pending_upload. */
-      upload: components['schemas']['UploadOut'] | null;
-    };
-    /**
-     * UploadDeclaration
-     * @description What the client is about to upload.
-     */
-    UploadDeclaration: {
-      /** File Name */
-      file_name: string;
-      /** Content Type */
-      content_type: string;
-      /** Size Bytes */
-      size_bytes: number;
-    };
-    /**
-     * UploadOut
-     * @description POST the file as multipart form data: every field, then `file`, to `url`.
-     */
-    UploadOut: {
-      /** Url */
-      url: string;
-      /** Fields */
-      fields: {
-        [key: string]: string;
-      };
-      /**
-       * Expires At
-       * Format: date-time
-       */
-      expires_at: string;
-    };
-    /**
-     * VersionOut
-     * @description One version; the storage key stays internal.
-     */
-    VersionOut: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /**
-       * Asset Id
-       * Format: uuid
-       */
-      asset_id: string;
-      /** Number */
-      number: number;
-      status: components['schemas']['VersionStatus'];
-      /** File Name */
-      file_name: string;
-      /** Content Type */
-      content_type: string;
-      /** Size Bytes */
-      size_bytes: number;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /**
-       * Updated At
-       * Format: date-time
-       */
-      updated_at: string;
-      /** @description Why processing failed; set only when status is failed. */
-      failure_reason?: components['schemas']['FailureReason'] | null;
-      /**
-       * Thumbnail Url
-       * @description Preview once the version is ready (signed, 15 minutes).
-       */
-      thumbnail_url?: string | null;
-    };
-    /**
-     * VersionStatus
-     * @description Life cycle of one uploaded version.
-     * @enum {string}
-     */
-    VersionStatus: 'pending_upload' | 'processing' | 'ready' | 'failed';
-    /**
-     * ErrorCode
-     * @description Stable error codes returned in the `code` field of problem details.
-     * @enum {string}
-     */
-    ErrorCode:
-      | 'NOT_FOUND'
-      | 'VALIDATION_FAILED'
-      | 'INTERNAL'
-      | 'ASSET_NOT_FOUND'
-      | 'ASSET_VERSION_NOT_FOUND'
-      | 'INVALID_ASSET_NAME'
-      | 'INVALID_FILE_NAME'
-      | 'INVALID_FILE_SIZE'
-      | 'UNSUPPORTED_MEDIA_TYPE'
-      | 'ASSET_KIND_MISMATCH'
-      | 'INVALID_STATUS_TRANSITION'
-      | 'INVALID_CURSOR'
-      | 'UPLOAD_NOT_FOUND'
-      | 'UPLOAD_MISMATCH'
-      | 'STORAGE_UNAVAILABLE'
-      | 'DATABASE_UNAVAILABLE'
-      | 'DATABASE_BUSY'
-      | 'METHOD_NOT_ALLOWED'
-      | 'PAYLOAD_TOO_LARGE'
-      | 'INVALID_IDEMPOTENCY_KEY'
-      | 'IDEMPOTENCY_KEY_REUSED'
-      | 'IDEMPOTENCY_KEY_IN_USE';
-    /**
-     * FieldError
-     * @description One invalid field of a request.
-     */
-    FieldError: {
-      /** Loc */
-      loc: (string | number)[];
-      /** Msg */
-      msg: string;
-    };
-    /**
-     * Problem
-     * @description Every error response: `code` is stable, the rest is for people.
-     */
-    Problem: {
-      /**
-       * Type
-       * @default about:blank
-       */
-      type: string;
-      /** Title */
-      title: string;
-      /** Status */
-      status: number;
-      /** Detail */
-      detail: string;
-      /** Instance */
-      instance: string;
-      code: components['schemas']['ErrorCode'];
-      /**
-       * Errors
-       * @default null
-       */
-      errors: components['schemas']['FieldError'][] | null;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  health_health_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    health_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    ready_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['HealthResponse'];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
-      };
     };
-  };
-  ready_ready_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    health_api_v1_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    ready_api_v1_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['HealthResponse'];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
     };
-  };
-  health_api_v1_health_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    list_assets_api_v1_assets_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetPageOut"];
+                };
+            };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    create_asset_api_v1_assets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['HealthResponse'];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAssetRequest"];
+            };
         };
-      };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingUploadOut"];
+                };
+            };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
     };
-  };
-  ready_api_v1_ready_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    get_asset_api_v1_assets__asset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetDetailOut"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    add_version_api_v1_assets__asset_id__versions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['HealthResponse'];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadDeclaration"];
+            };
         };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingUploadOut"];
+                };
+            };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
     };
-  };
-  list_assets_api_v1_assets_get: {
-    parameters: {
-      query?: {
-        cursor?: string | null;
-        limit?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
+    get_version_api_v1_asset_versions__version_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    complete_upload_api_v1_asset_versions__version_id__completions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['AssetPageOut'];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
-      };
-      /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Request body larger than 1 MB. */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Validation failed: a field or a domain rule (see `code`). */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
     };
-  };
-  create_asset_api_v1_assets_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
-        'Idempotency-Key'?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateAssetRequest'];
-      };
-    };
-    responses: {
-      /** @description Created. */
-      201: {
-        headers: {
-          /** @description URL of the created resource. */
-          Location?: string;
-          /** @description `true` when this response replays an earlier request with the same key. */
-          'Idempotent-Replayed'?: 'true';
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PendingUploadOut'];
-        };
-      };
-      /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Request body larger than 1 MB. */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Validation failed: a field or a domain rule (see `code`). */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-    };
-  };
-  get_asset_api_v1_assets__asset_id__get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        asset_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['AssetDetailOut'];
-        };
-      };
-      /** @description The resource does not exist. */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Request body larger than 1 MB. */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Validation failed: a field or a domain rule (see `code`). */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-    };
-  };
-  add_version_api_v1_assets__asset_id__versions_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
-        'Idempotency-Key'?: string | null;
-      };
-      path: {
-        asset_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UploadDeclaration'];
-      };
-    };
-    responses: {
-      /** @description Created. */
-      201: {
-        headers: {
-          /** @description URL of the created resource. */
-          Location?: string;
-          /** @description `true` when this response replays an earlier request with the same key. */
-          'Idempotent-Replayed'?: 'true';
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PendingUploadOut'];
-        };
-      };
-      /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description The resource does not exist. */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Request body larger than 1 MB. */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Validation failed: a field or a domain rule (see `code`). */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-    };
-  };
-  get_version_api_v1_asset_versions__version_id__get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        version_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['VersionOut'];
-        };
-      };
-      /** @description The resource does not exist. */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Request body larger than 1 MB. */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Validation failed: a field or a domain rule (see `code`). */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-    };
-  };
-  complete_upload_api_v1_asset_versions__version_id__completions_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        version_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['VersionOut'];
-        };
-      };
-      /** @description The resource does not exist. */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Request body larger than 1 MB. */
-      413: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Validation failed: a field or a domain rule (see `code`). */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-      /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
-      503: {
-        headers: {
-          /** @description Seconds to wait before retrying. */
-          'Retry-After'?: number;
-          [name: string]: unknown;
-        };
-        content: {
-          'application/problem+json': components['schemas']['Problem'];
-        };
-      };
-    };
-  };
 }

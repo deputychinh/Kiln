@@ -62,7 +62,9 @@ export const vi: Copy = {
     dropHint: 'PNG, JPEG, WebP hoặc glTF binary (.glb), tối đa 500 MB mỗi file.',
     choose: 'Chọn file',
     listLabel: 'Đang tải lên',
-    summary: (finished, total) => `Đã tải lên ${String(finished)}/${String(total)}`,
+    summary: (finished, total, failed) =>
+      `Đã tải lên ${String(finished)}/${String(total)}${failed > 0 ? `, ${String(failed)} lỗi` : ''}`,
+    cancelledAfterCreate: 'Đã huỷ. Asset rỗng đã tạo sẽ tự xoá trong vòng 24 giờ.',
     status: {
       queued: 'Đang chờ',
       creating: 'Đang bắt đầu…',

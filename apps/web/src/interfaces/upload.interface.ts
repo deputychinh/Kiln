@@ -51,8 +51,8 @@ export interface UploadsApi {
   items: UploadItem[];
   /** The rows that reached an end state in the last change (for a live announcement). */
   outcomes: UploadItem[];
-  /** Files finished (ready, or uploaded and still processing) out of all rows. */
-  summary: { finished: number; total: number };
+  /** Files finished (ready, or uploaded and still processing) and failed, out of all rows. */
+  summary: { finished: number; failed: number; total: number };
   add: (files: File[]) => void;
   cancel: (id: string) => void;
   retry: (id: string) => void;

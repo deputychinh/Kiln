@@ -1,6 +1,6 @@
 import { AssetThumb, Badge } from '@kiln/ui';
 import { Link } from '@tanstack/react-router';
-import type { ReactElement } from 'react';
+import { memo, type ReactElement } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
 import { useCopy } from '@/hooks/useCopy';
@@ -14,7 +14,8 @@ interface AssetCardProps {
 }
 
 /** A gallery tile linking to the asset; the router marks the open one with `aria-current`. */
-export const AssetCard = ({ asset, onThumbError }: AssetCardProps): ReactElement => {
+// Memoised: the gallery re-renders on every upload progress step; the cards need not.
+export const AssetCard = memo(({ asset, onThumbError }: AssetCardProps): ReactElement => {
   const copy = useCopy();
   const kind = copy.assets.kind[asset.kind];
   return (
@@ -39,4 +40,4 @@ export const AssetCard = ({ asset, onThumbError }: AssetCardProps): ReactElement
       </span>
     </Link>
   );
-};
+});

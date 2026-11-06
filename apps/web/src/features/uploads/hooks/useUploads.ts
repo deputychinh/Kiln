@@ -7,7 +7,11 @@ import {
   PROCESSING_POLL_MAX_MS,
   PROCESSING_POLL_MS,
 } from '@/constants/assets.constant';
-import { STORAGE_REJECTED_CODE, UPLOAD_CONCURRENCY } from '@/constants/upload.constant';
+import {
+  ALREADY_COMPLETE_CODE,
+  STORAGE_REJECTED_CODE,
+  UPLOAD_CONCURRENCY,
+} from '@/constants/upload.constant';
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { getAsset } from '@/features/assets/services/assets.service';
 import {
@@ -15,15 +19,14 @@ import {
   createAsset,
   sendToStorage,
 } from '@/features/uploads/services/uploads.service';
-import { declareUpload } from '@/features/uploads/utils/upload-file.util';
 import { useCopy } from '@/hooks/useCopy';
 import type { Copy } from '@/interfaces/copy.interface';
 import type { UploadItem, UploadQueueState, UploadsApi } from '@/interfaces/upload.interface';
 import { describeError } from '@/utils/error.util';
+import { declareUpload } from '@/utils/upload-file.util';
 
 const RUNNING = new Set([UploadStatus.Creating, UploadStatus.Uploading, UploadStatus.Completing]);
 const FINISHED = new Set([UploadStatus.Ready, UploadStatus.Uploaded]);
-const ALREADY_COMPLETE_CODE = 'INVALID_STATUS_TRANSITION';
 
 const END_STATES = new Set([
   UploadStatus.Ready,
@@ -157,10 +160,16 @@ export const useUploads = (): UploadsApi => {
         patch(item.id, { assetId: created.asset.id, versionId });
         if (created.version.status === 'pending_upload' && created.upload) {
           patch(item.id, { status: UploadStatus.Uploading });
+          // One update per whole percent: progress events come many times a second.
+          let shownPercent = -1;
           await sendToStorage({
             form: created.upload,
             file: item.file,
-            onProgress: (progress) => patch(item.id, { progress }),
+            onProgress: (progress) => {
+              if (Math.floor(progress) === shownPercent) return;
+              shownPercent = Math.floor(progress);
+              patch(item.id, { progress });
+            },
             signal,
           });
           patch(item.id, { status: UploadStatus.Completing, progress: 100 });
@@ -256,6 +265,7 @@ export const useUploads = (): UploadsApi => {
     outcomes,
     summary: {
       finished: items.filter((item) => FINISHED.has(item.status)).length,
+      failed: items.filter((item) => item.status === UploadStatus.Failed).length,
       total: items.length,
     },
     add,

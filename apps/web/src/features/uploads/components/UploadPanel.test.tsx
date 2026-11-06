@@ -4,8 +4,9 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { UploadPanel } from '@/features/uploads/components/UploadPanel';
@@ -29,6 +30,7 @@ const uploadsWith = (items: UploadItem[], outcomes: UploadItem[] = []): UploadsA
   outcomes,
   summary: {
     finished: items.filter((item) => item.status === UploadStatus.Ready).length,
+    failed: items.filter((item) => item.status === UploadStatus.Failed).length,
     total: items.length,
   },
   add: vi.fn(),
@@ -41,6 +43,31 @@ const uploadsWith = (items: UploadItem[], outcomes: UploadItem[] = []): UploadsA
 const renderPanel = (uploads: UploadsApi) => {
   const router = createRouter({
     routeTree: createRootRoute({ component: () => <UploadPanel uploads={uploads} /> }),
+    history: createMemoryHistory({ initialEntries: ['/assets'] }),
+  });
+  render(<RouterProvider router={router} />);
+};
+
+/** The panel over a tiny in-memory queue, so Cancel, Retry and Remove change the rows. */
+const StatefulPanel = ({ initial }: { initial: UploadItem[] }) => {
+  const [items, setItems] = useState(initial);
+  const set = (id: string, status: UploadStatus) =>
+    setItems((rows) => rows.map((row) => (row.id === id ? { ...row, status } : row)));
+  return (
+    <UploadPanel
+      uploads={{
+        ...uploadsWith(items),
+        cancel: (id) => set(id, UploadStatus.Cancelled),
+        retry: (id) => set(id, UploadStatus.Queued),
+        remove: (id) => setItems((rows) => rows.filter((row) => row.id !== id)),
+      }}
+    />
+  );
+};
+
+const renderStateful = (initial: UploadItem[]) => {
+  const router = createRouter({
+    routeTree: createRootRoute({ component: () => <StatefulPanel initial={initial} /> }),
     history: createMemoryHistory({ initialEntries: ['/assets'] }),
   });
   render(<RouterProvider router={router} />);
@@ -101,6 +128,53 @@ describe('UploadPanel', () => {
     expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
   });
 
+  it('counts failed files in the summary', async () => {
+    renderPanel(
+      uploadsWith([
+        anItem({ status: UploadStatus.Ready }),
+        anItem({ id: 'row-2', status: UploadStatus.Failed, error: 'x' }),
+      ]),
+    );
+
+    expect(await screen.findByText('1 of 2 uploaded, 1 failed')).toBeInTheDocument();
+  });
+
+  it('explains the empty asset a cancelled upload leaves behind', async () => {
+    renderPanel(uploadsWith([anItem({ status: UploadStatus.Cancelled, assetId: 'asset-1' })]));
+
+    expect(
+      await screen.findByText('Cancelled. The empty asset it started is removed within 24 hours.'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps keyboard focus in the row when Cancel turns into Retry, and Retry into Cancel', async () => {
+    renderStateful([anItem({ status: UploadStatus.Uploading })]);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel rock.png' }));
+    expect(await screen.findByRole('button', { name: 'Retry rock.png' })).toHaveFocus();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry rock.png' }));
+    expect(await screen.findByRole('button', { name: 'Cancel rock.png' })).toHaveFocus();
+  });
+
+  it('moves focus to the next row after Remove, or to Choose files when the list is empty', async () => {
+    renderStateful([
+      anItem({ status: UploadStatus.Failed, error: 'x' }),
+      anItem({
+        id: 'row-2',
+        status: UploadStatus.Failed,
+        error: 'y',
+        file: new File(['x'], 'tree.png'),
+      }),
+    ]);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove rock.png' }));
+    expect(await screen.findByRole('button', { name: 'Retry tree.png' })).toHaveFocus();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove tree.png' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Choose files' })).toHaveFocus());
+  });
+
   it('lets a cancelled upload be retried', async () => {
     renderPanel(uploadsWith([anItem({ status: UploadStatus.Cancelled })]));
 
@@ -108,13 +182,17 @@ describe('UploadPanel', () => {
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
   });
 
-  it('shows processing with a full bar and no actions', async () => {
+  it('shows processing with a full bar and lets the row be dismissed', async () => {
     renderPanel(uploadsWith([anItem({ status: UploadStatus.Processing, progress: 100 })]));
 
     const row = within(await screen.findByRole('list', { name: 'Uploads' })).getByRole('listitem');
     expect(within(row).getByText('Processing preview…')).toBeInTheDocument();
     expect(within(row).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
-    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+    expect(
+      within(row)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Remove']);
   });
 
   it('links a ready upload to its asset', async () => {

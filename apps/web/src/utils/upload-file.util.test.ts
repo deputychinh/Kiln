@@ -1,6 +1,6 @@
 import { UPLOAD_MAX_BYTES } from '@/constants/upload.constant';
 import { UploadRejection } from '@/enums/upload-rejection.enum';
-import { declareUpload } from '@/features/uploads/utils/upload-file.util';
+import { declareUpload } from '@/utils/upload-file.util';
 
 /** A File whose size is faked, so 500 MiB cases need no memory. */
 const fileOf = (name: string, type: string, size: number): File => {

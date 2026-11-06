@@ -62,7 +62,9 @@ export const en: Copy = {
     dropHint: 'PNG, JPEG, WebP or glTF binary (.glb), up to 500 MB each.',
     choose: 'Choose files',
     listLabel: 'Uploads',
-    summary: (finished, total) => `${String(finished)} of ${String(total)} uploaded`,
+    summary: (finished, total, failed) =>
+      `${String(finished)} of ${String(total)} uploaded${failed > 0 ? `, ${String(failed)} failed` : ''}`,
+    cancelledAfterCreate: 'Cancelled. The empty asset it started is removed within 24 hours.',
     status: {
       queued: 'Queued',
       creating: 'Starting…',

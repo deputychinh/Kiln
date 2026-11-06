@@ -1,0 +1,7 @@
+# Prettier reads .prettierignore from the directory it runs in; keep generated files safe here too.
+src/api/*.schema.ts
+src/routeTree.gen.ts
+coverage
+dist
+test-results
+playwright-report

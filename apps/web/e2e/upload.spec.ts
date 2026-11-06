@@ -85,3 +85,65 @@ test('a glTF model dropped on the dropzone uploads and gets a rendered preview',
   const assetId = await assetIdOf(row);
   await expect(page.locator(`a[href="/assets/${assetId}"] img`)).toBeVisible();
 });
+
+test('a slow upload can be cancelled from the keyboard, retried with the same key, and recovers from a storage refusal', async ({
+  page,
+}, testInfo) => {
+  const fileName = uniqueFileName('slow', 'png', testInfo);
+  const keys: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/v1/assets'))
+      keys.push(request.headers()['idempotency-key'] ?? '');
+  });
+  // Storage: the first transfer hangs (a slow network), the second is refused, the third goes through.
+  let transfers = 0;
+  await page.route(
+    (url) => url.port === '8333',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      transfers += 1;
+      if (transfers === 1) return new Promise<void>(() => undefined);
+      if (transfers === 2)
+        return route.fulfill({
+          status: 403,
+          body: '<Error><Code>AccessDenied</Code></Error>',
+          headers: { 'Access-Control-Allow-Origin': new URL(page.url()).origin },
+        });
+      return route.fallback();
+    },
+  );
+  await page.goto('/assets');
+  await dropzone(page)
+    .locator('input[type="file"]')
+    .setInputFiles({ name: fileName, mimeType: 'image/png', buffer: SWATCH });
+
+  const row = uploadRow(page, fileName);
+  await expect(row.getByText(/^Uploading/)).toBeVisible();
+  await expect(row.getByRole('progressbar', { name: `Uploading ${fileName}` })).toBeVisible();
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(
+    results.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+  ).toEqual([]);
+  await page.screenshot({
+    path: `test-results/screens/upload-running-${testInfo.project.name}.png`,
+  });
+
+  // Keyboard only: Cancel, then Retry where focus lands.
+  await row.getByRole('button', { name: `Cancel ${fileName}` }).focus();
+  await page.keyboard.press('Enter');
+  await expect(row.getByText('Cancelled', { exact: true })).toBeVisible();
+  const retry = row.getByRole('button', { name: `Retry ${fileName}` });
+  await expect(retry).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(row).toContainText('Storage refused the file. Try again.');
+  await retry.click();
+  await expect(row.getByText('Ready')).toBeVisible({ timeout: 30_000 });
+
+  // Three attempts, one asset: every create carried the same idempotency key.
+  expect(keys).toHaveLength(3);
+  expect(new Set(keys).size).toBe(1);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+});

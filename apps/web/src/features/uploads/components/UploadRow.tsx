@@ -1,6 +1,6 @@
 import { Badge, BadgeTone, Button, ButtonVariant, ProgressBar } from '@kiln/ui';
 import { Link } from '@tanstack/react-router';
-import type { ReactElement } from 'react';
+import { type ReactElement, useEffect, useRef } from 'react';
 
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { useCopy } from '@/hooks/useCopy';
@@ -42,6 +42,22 @@ export const UploadRow = ({ item, onCancel, onRetry, onRemove }: UploadRowProps)
   const statusText = isUploading
     ? `${copy.uploads.status.uploading} ${copy.uploads.progress(item.progress)}`
     : copy.uploads.status[item.status];
+  const isCancelledAfterCreate = item.status === UploadStatus.Cancelled && item.assetId !== null;
+  const actionsRef = useRef<HTMLSpanElement>(null);
+  const hasActedRef = useRef(false);
+
+  // Cancel and Retry replace the pressed button; keep keyboard focus in the row (WCAG 2.4.3)
+  // by moving it to the action that took its place.
+  useEffect(() => {
+    if (!hasActedRef.current) return;
+    hasActedRef.current = false;
+    actionsRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+  }, [item.status]);
+
+  const act = (action: (id: string) => void) => () => {
+    hasActedRef.current = true;
+    action(item.id);
+  };
   const isRetryable =
     (item.status === UploadStatus.Failed && item.canRetry) ||
     item.status === UploadStatus.Cancelled;
@@ -74,13 +90,16 @@ export const UploadRow = ({ item, onCancel, onRetry, onRemove }: UploadRowProps)
         </span>
       ) : null}
       {item.error ? <p className="upload-row__error">{item.error}</p> : null}
-      <span className="upload-row__actions">
+      {isCancelledAfterCreate ? (
+        <p className="upload-row__note">{copy.uploads.cancelledAfterCreate}</p>
+      ) : null}
+      <span className="upload-row__actions" ref={actionsRef}>
         {CANCELLABLE.has(item.status) ? (
           <Button
             variant={ButtonVariant.Ghost}
             // The visible verb starts the accessible name (WCAG 2.5.3); the name says which file.
             aria-label={copy.uploads.cancel(name)}
-            onClick={() => onCancel(item.id)}
+            onClick={act(onCancel)}
           >
             {copy.uploads.cancelShort}
           </Button>
@@ -89,12 +108,12 @@ export const UploadRow = ({ item, onCancel, onRetry, onRemove }: UploadRowProps)
           <Button
             variant={ButtonVariant.Secondary}
             aria-label={copy.uploads.retry(name)}
-            onClick={() => onRetry(item.id)}
+            onClick={act(onRetry)}
           >
             {copy.uploads.retryShort}
           </Button>
         ) : null}
-        {CANCELLABLE.has(item.status) || item.status === UploadStatus.Processing ? null : (
+        {CANCELLABLE.has(item.status) ? null : (
           <Button
             variant={ButtonVariant.Ghost}
             aria-label={copy.uploads.remove(name)}

@@ -43,7 +43,8 @@ export interface Copy {
     dropHint: string;
     choose: string;
     listLabel: string;
-    summary: (finished: number, total: number) => string;
+    summary: (finished: number, total: number, failed: number) => string;
+    cancelledAfterCreate: string;
     status: Record<UploadStatus, string>;
     progress: (percent: number) => string;
     progressLabel: (fileName: string) => string;

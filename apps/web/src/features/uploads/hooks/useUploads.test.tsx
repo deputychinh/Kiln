@@ -98,11 +98,15 @@ describe('useUploads', () => {
     expect(vi.mocked(sendToStorage).mock.calls[0]?.[0]).toMatchObject({ form: pending().upload });
     expect(completeUpload).toHaveBeenCalledWith('version-1', expect.any(AbortSignal));
 
+    // Once when the card appears (processing), again when its preview is ready.
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ASSET_LIST_QUERY_KEY });
+
     await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS));
     await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
     expect(getAsset).toHaveBeenCalledWith('asset-1', expect.any(AbortSignal));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ASSET_LIST_QUERY_KEY });
-    expect(result.current.summary).toEqual({ finished: 1, total: 1 });
+    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(result.current.summary).toEqual({ finished: 1, failed: 0, total: 1 });
   });
 
   it('reports progress while the file is sent', async () => {
@@ -121,6 +125,23 @@ describe('useUploads', () => {
         progress: 42.4,
       }),
     );
+    sending.resolve(undefined);
+  });
+
+  it('updates progress once per whole percent', async () => {
+    const sending = deferred<undefined>();
+    vi.mocked(sendToStorage).mockImplementation(({ onProgress }) => {
+      onProgress(10.1);
+      onProgress(10.9);
+      onProgress(11.2);
+      onProgress(11.8);
+      return sending.promise;
+    });
+    const { result } = setup();
+
+    act(() => result.current.add([png()]));
+
+    await waitFor(() => expect(result.current.items[0]?.progress).toBe(11.2));
     sending.resolve(undefined);
   });
 
