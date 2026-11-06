@@ -5,21 +5,28 @@ const THEMES = ['dark', 'light'];
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const BLOCKING_IMPACTS = new Set(['serious', 'critical']);
 
-// Storybook reports each story's `play` and a11y result on its channel (`storyFinished`);
-// record those events so a failing `play` fails this run too.
+// Storybook reports on its channel when a story's `play` throws (`playFunctionThrewException`)
+// and when it has finished with the a11y addon's verdict (`storyFinished`); record both.
 const recordStoryResults = (): void => {
   let channel: { on: (event: string, listener: (payload: unknown) => void) => void } | undefined;
-  const target = window as unknown as { kilnStoryResults: unknown[] };
+  const target = window as unknown as { kilnStoryResults: unknown[]; kilnPlayErrors: unknown[] };
   target.kilnStoryResults = [];
+  target.kilnPlayErrors = [];
   Object.defineProperty(window, '__STORYBOOK_ADDONS_CHANNEL__', {
     configurable: true,
     get: () => channel,
     set: (value: NonNullable<typeof channel>) => {
       channel = value;
       value.on('storyFinished', (payload) => target.kilnStoryResults.push(payload));
+      value.on('playFunctionThrewException', (error) =>
+        target.kilnPlayErrors.push(String((error as { message?: string }).message ?? error)),
+      );
     },
   });
 };
+
+const playErrors = (page: Page): Promise<string[]> =>
+  page.evaluate(() => (window as unknown as { kilnPlayErrors: string[] }).kilnPlayErrors);
 
 // Bounded per story, so a story that never finishes cannot use up the run for the rest.
 const STORY_TIMEOUT_MS = 10_000;
@@ -40,11 +47,6 @@ const storyStatus = async (page: Page): Promise<string> => {
   } catch {
     return 'did not finish';
   }
-};
-
-// The BrokenImage story loads a missing sample on purpose; its 404 is the expected state.
-const EXPECTED_CONSOLE_ERRORS: Record<string, RegExp> = {
-  'components-assetthumb--broken-image': /Failed to load resource: .* 404/,
 };
 
 const entryIds = async (request: APIRequestContext, type: string): Promise<string[]> => {
@@ -83,7 +85,8 @@ for (const theme of THEMES) {
         await expect.soft(page.locator('body'), `${id} renders`).toHaveClass(/sb-show-main/, check);
         await expect.soft(page.locator('body')).not.toHaveClass(/sb-show-errordisplay/, check);
         await expect.soft(page.locator('html')).toHaveAttribute('data-theme', theme, check);
-        expect.soft(await storyStatus(page), `${id} (${theme}) play and a11y`).toBe('success');
+        expect.soft(await storyStatus(page), `${id} (${theme}) a11y`).toBe('success');
+        expect.soft(await playErrors(page), `${id} (${theme}) play`).toEqual([]);
         const results = await new AxeBuilder({ page })
           .include('#storybook-root')
           .withTags(WCAG_TAGS)
@@ -92,13 +95,42 @@ for (const theme of THEMES) {
           .filter((violation) => BLOCKING_IMPACTS.has(violation.impact ?? ''))
           .map((violation) => `${violation.id}: ${violation.help}`);
         expect.soft(blocking, `${id} (${theme})`).toEqual([]);
-        const expected = EXPECTED_CONSOLE_ERRORS[id];
-        const unexpected = consoleErrors.filter((text) => !expected?.test(text));
-        expect.soft(unexpected, `${id} (${theme}) console`).toEqual([]);
+        expect.soft(consoleErrors, `${id} (${theme}) console`).toEqual([]);
       });
     }
   });
 }
+
+// Every prop each component declares, as the autodocs table must list it (AC4); Button also
+// lists the native `onClick` its stories wire to an action.
+const DOCUMENTED_PROPS: Record<string, string[]> = {
+  'components-assetthumb--docs': ['src', 'alt', 'placeholder', 'isEager', 'onError'],
+  'components-badge--docs': ['tone', 'children'],
+  'components-button--docs': ['variant', 'children', 'disabled', 'type', 'onClick'],
+  'components-emptystate--docs': ['title', 'children', 'action'],
+  'components-errorstate--docs': [
+    'title',
+    'titleAs',
+    'message',
+    'retryLabel',
+    'onRetry',
+    'isRetrying',
+    'action',
+  ],
+  'components-skeleton--docs': ['shape'],
+};
+
+test('every docs page lists every prop of its component', async ({ page, request }) => {
+  const ids = await entryIds(request, 'docs');
+  expect(ids.sort()).toEqual(Object.keys(DOCUMENTED_PROPS).sort());
+  for (const id of ids) {
+    await page.goto(`/iframe.html?id=${id}&viewMode=docs`);
+    const names = page.locator('.docblock-argstable-body > tr > td:first-child');
+    await expect(names.first()).toBeVisible();
+    const listed = (await names.allInnerTexts()).map((text) => text.replace(/\*$/, '').trim());
+    expect.soft(listed.sort(), id).toEqual([...(DOCUMENTED_PROPS[id] ?? [])].sort());
+  }
+});
 
 test('docs pages follow the theme and list the props with their descriptions', async ({
   page,

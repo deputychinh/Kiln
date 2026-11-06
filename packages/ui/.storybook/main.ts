@@ -6,7 +6,16 @@ const config: StorybookConfig = {
   stories: ['../src/**/*.stories.tsx'],
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
   core: { disableTelemetry: true, disableWhatsNewNotifications: true },
-  typescript: { reactDocgen: 'react-docgen-typescript' },
+  typescript: {
+    reactDocgen: 'react-docgen-typescript',
+    reactDocgenTypescriptOptions: {
+      // Document `children` and the native props a component passes on (`disabled`, `type`),
+      // not the hundreds of other inherited DOM attributes.
+      skipChildrenPropWithoutDoc: false,
+      propFilter: (prop) =>
+        !prop.parent?.fileName.includes('node_modules') || ['disabled', 'type'].includes(prop.name),
+    },
+  },
 };
 
 export default config;

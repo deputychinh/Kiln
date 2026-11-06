@@ -6,6 +6,7 @@ import './Badge.css';
 
 interface BadgeProps {
   tone?: BadgeTone;
+  /** The label; it carries the meaning on its own. */
   children: ReactNode;
 }
 

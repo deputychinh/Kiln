@@ -6,6 +6,7 @@ import './Button.css';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  /** The action in a verb or short phrase. */
   children: ReactNode;
 }
 

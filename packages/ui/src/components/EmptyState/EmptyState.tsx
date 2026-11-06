@@ -4,7 +4,9 @@ import './EmptyState.css';
 
 interface EmptyStateProps {
   title: string;
+  /** What this place is for and how to fill it. */
   children?: ReactNode;
+  /** The first thing to do, usually a primary button. */
   action?: ReactNode;
 }
 
