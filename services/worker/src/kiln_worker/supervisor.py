@@ -125,7 +125,14 @@ class Supervisor:
         """Ask the child to stop; kill it if it outlives its grace (it should end itself)."""
         logger.info("stopping: waiting for the worker to finish its current job")
         child.terminate()
-        child.join(self._stop_timeout)
+        deadline = self._monotonic() + self._stop_timeout
+        # Keep the backstops while waiting: a frozen child must not outlive its lease.
+        while child.exitcode is None and self._monotonic() < deadline:
+            child.join(self._poll_seconds)
+            reason = self._stuck_reason()
+            if child.exitcode is None and reason is not None:
+                self._kill_stuck(child, reason)
+                return
         if child.exitcode is None:
             logger.error(
                 "worker still running %.0f s after the stop; killing it", self._stop_timeout
@@ -152,8 +159,10 @@ class Supervisor:
         if reading.started <= 0:
             return None
         now = self._monotonic()
-        if now - reading.alive >= self._liveness:
-            return f"showed no sign of life for {now - reading.alive:.0f} s in job {reading.job_id}"
+        # Measured from the later of start and last sign of life, whatever order the stores land in.
+        last_life = max(reading.alive, reading.started)
+        if now - last_life >= self._liveness:
+            return f"showed no sign of life for {now - last_life:.0f} s in job {reading.job_id}"
         if now - reading.started >= self._deadline:
             return f"still in job {reading.job_id} after {now - reading.started:.0f} s"
         return None

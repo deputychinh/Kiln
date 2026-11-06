@@ -4,7 +4,12 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from kiln_api.constants import MAINTENANCE_INTERVAL_SECONDS
-from kiln_worker.constants import JOB_STOP_GRACE_SECONDS, WORKER_MAX_JOBS, WORKER_MAX_RSS_MB
+from kiln_worker.constants import (
+    JOB_STOP_GRACE_MAX_SECONDS,
+    JOB_STOP_GRACE_SECONDS,
+    WORKER_MAX_JOBS,
+    WORKER_MAX_RSS_MB,
+)
 
 
 class WorkerSettings(BaseSettings):
@@ -20,4 +25,6 @@ class WorkerSettings(BaseSettings):
     worker_max_jobs: int = Field(default=WORKER_MAX_JOBS, gt=0)
     worker_max_rss_mb: int = Field(default=WORKER_MAX_RSS_MB, gt=0)
     # A running job gets this long to finish after a stop is asked (KILN-28).
-    job_stop_grace_seconds: float = Field(default=JOB_STOP_GRACE_SECONDS, gt=0)
+    job_stop_grace_seconds: float = Field(
+        default=JOB_STOP_GRACE_SECONDS, gt=0, le=JOB_STOP_GRACE_MAX_SECONDS
+    )

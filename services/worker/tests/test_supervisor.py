@@ -4,7 +4,6 @@ import signal
 import threading
 import time
 from collections.abc import Iterator
-from typing import Any
 
 import pytest
 from process_helpers import hold_the_gil_in_a_job
@@ -32,6 +31,8 @@ class _Child:
     def join(self, timeout: float | None = None) -> None:
         self.join_timeouts.append(timeout)
         self.joined = True
+        if self.code is None:
+            time.sleep(min(timeout or 0.0, 0.005))  # like a process: waiting takes time
 
     def terminate(self) -> None:
         self.terminated = True
@@ -226,22 +227,49 @@ def test_a_worker_ended_by_its_watchdog_is_replaced_at_once(
 def test_a_stop_waits_the_grace_then_kills_a_child_that_will_not_end(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """KILN-28 AC4: the supervisor never hangs on a stuck child."""
+    """KILN-28 AC4: the supervisor never hangs on a child that ignores its stop."""
     stop = threading.Event()
     child = _Child(None)
     child.ignores_terminate = True
+    ticks = iter(range(1_000_000))
 
     def start() -> Child:
         threading.Timer(0.05, stop.set).start()
         return child
 
     with caplog.at_level(logging.ERROR, logger="kiln_worker"):
-        Supervisor(start, stop, poll_seconds=0.01, stop_grace_seconds=60).run()
+        Supervisor(
+            start, stop, poll_seconds=0.01, stop_grace_seconds=60, monotonic=lambda: next(ticks)
+        ).run()
 
     assert child.terminated
-    assert 70 in child.join_timeouts  # the 60 s grace plus a 10 s margin
     assert child.killed
     assert "worker still running 70 s after the stop; killing it" in caplog.text
+
+
+def test_a_frozen_child_asked_to_stop_is_killed_on_lost_liveness_not_after_its_grace(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """While the supervisor waits for a stop, a freeze must still not outlive the lease."""
+    stop = threading.Event()
+    beacon = _beacon(started_ago=None)
+    child = _Child(None)
+    child.ignores_terminate = True
+
+    def start() -> Child:
+        now = time.monotonic()
+        beacon.started("job-9", now - 70)
+        beacon.alive(now - 61)  # frozen a minute ago
+        stop.set()
+        return child
+
+    begun = time.monotonic()
+    with caplog.at_level(logging.ERROR, logger="kiln_worker"):
+        Supervisor(start, stop, poll_seconds=0.01, job_beacon=beacon, stop_grace_seconds=60).run()
+
+    assert child.killed
+    assert time.monotonic() - begun < 5  # not the 70 s grace + margin
+    assert "showed no sign of life for 61 s in job job-9" in caplog.text
 
 
 def test_a_child_that_ends_within_the_grace_is_not_killed() -> None:
@@ -267,7 +295,12 @@ def _beacon(*, started_ago: float | None, alive_ago: float = 0.0) -> JobBeacon:
     return beacon
 
 
-def _run_with(beacon: JobBeacon, child: _Child, **kwargs: Any) -> list[_Child]:
+def _run_with(
+    beacon: JobBeacon,
+    child: _Child,
+    *,
+    max_runtime_seconds: float = 1_800,
+) -> list[_Child]:
     """Supervise `child` (then a healthy one until stopped); the beacon is set once it starts."""
     stop = threading.Event()
     started: list[_Child] = []
@@ -285,7 +318,9 @@ def _run_with(beacon: JobBeacon, child: _Child, **kwargs: Any) -> list[_Child]:
         threading.Timer(0.2, stop.set).start()
         return child
 
-    Supervisor(start, stop, poll_seconds=0.01, job_beacon=beacon, **kwargs).run()
+    Supervisor(
+        start, stop, poll_seconds=0.01, job_beacon=beacon, max_runtime_seconds=max_runtime_seconds
+    ).run()
     return started
 
 

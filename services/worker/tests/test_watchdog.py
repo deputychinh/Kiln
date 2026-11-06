@@ -15,7 +15,9 @@ from job_builder import job
 
 from kiln_api.constants import JOB_HEARTBEAT_SECONDS, JOB_LEASE_SECONDS, JOB_MAX_RUNTIME_SECONDS
 from kiln_worker.constants import (
+    JOB_STOP_GRACE_MAX_SECONDS,
     SUPERVISOR_DEADLINE_MARGIN_SECONDS,
+    SUPERVISOR_KILL_MARGIN_SECONDS,
     SUPERVISOR_LIVENESS_SECONDS,
     SUPERVISOR_POLL_SECONDS,
     WATCHDOG_POLL_SECONDS,
@@ -234,3 +236,9 @@ def test_every_backstop_ends_a_stuck_job_before_its_lease_can_lapse() -> None:
     assert in_process < JOB_MAX_RUNTIME_SECONDS + lease_after_last_beat
     assert supervisor_deadline < JOB_MAX_RUNTIME_SECONDS + lease_after_last_beat
     assert supervisor_liveness < lease_after_last_beat
+    # Frozen just before a stop: the supervisor keeps its liveness check while it waits, and the
+    # largest grace it can be configured with still ends the child inside the lease.
+    assert (
+        lease_after_last_beat
+        > SUPERVISOR_LIVENESS_SECONDS + JOB_STOP_GRACE_MAX_SECONDS + SUPERVISOR_KILL_MARGIN_SECONDS
+    )

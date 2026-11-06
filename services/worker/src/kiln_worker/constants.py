@@ -34,6 +34,9 @@ WORKER_RECYCLE_EXIT_CODE = 75
 WORKER_OVERRAN_EXIT_CODE = 76
 # After a stop is asked, a running job gets this long to finish before the process exits.
 JOB_STOP_GRACE_SECONDS = 60.0
+# At most this long, so liveness (60) + grace + kill margin (10) stays inside the 200 s a frozen
+# lease has left: a child frozen just before a stop is still killed before its job can be retaken.
+JOB_STOP_GRACE_MAX_SECONDS = 120.0
 # How often the watchdog looks at the running job.
 WATCHDOG_POLL_SECONDS = 0.5
 # The supervisor's backstops for a child its own watchdog cannot end (native code holding the

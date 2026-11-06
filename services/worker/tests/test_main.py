@@ -7,12 +7,13 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
+from sqlalchemy import Engine
 
 from kiln_api.config import Settings
 from kiln_api.enums import Environment
@@ -22,7 +23,8 @@ from kiln_worker.config import WorkerSettings
 from kiln_worker.constants import WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.enums import RunEnd
 from kiln_worker.process import child_main, run_worker, watch_parent
-from kiln_worker.runner import build_worker
+from kiln_worker.runner import Worker, build_worker
+from kiln_worker.supervisor import Child
 from kiln_worker.watchdog import JobBeacon, JobWatchdog
 
 
@@ -98,12 +100,12 @@ def test_the_worker_runs_its_jobs_under_a_watchdog_with_the_configured_grace(
     database_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """KILN-28: the production process wires the watchdog, its grace and the shared beacon."""
-    built: dict[str, Any] = {}
+    built: dict[str, object] = {}
     real_build = build_worker
 
-    def spy(engine: Any, **kwargs: Any) -> Any:
+    def spy(engine: Engine, **kwargs: object) -> Worker:
         built.update(kwargs)
-        return real_build(engine, **kwargs)
+        return real_build(engine, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr("kiln_worker.process.build_worker", spy)
     stop = threading.Event()
@@ -119,17 +121,20 @@ def test_the_worker_runs_its_jobs_under_a_watchdog_with_the_configured_grace(
 
     watchdog = built["watchdog"]
     assert isinstance(watchdog, JobWatchdog)
-    assert watchdog._grace == 17
-    assert watchdog._beacon is beacon
+    assert watchdog.stop_grace_seconds == 17
+    assert watchdog.beacon is beacon
+    assert watchdog.stop_event is stop  # a stop reaches the watchdog, which then counts the grace
 
 
 def test_the_supervisor_gets_the_grace_and_the_beacon_its_children_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, Any] = {}
+    captured: dict[str, object] = {}
 
     class _Supervisor:
-        def __init__(self, start_child: Any, stop: Any, **kwargs: Any) -> None:
+        def __init__(
+            self, start_child: Callable[[], Child], stop: threading.Event, **kwargs: object
+        ) -> None:
             captured.update(kwargs, start_child=start_child, stop=stop)
 
         def run(self) -> int:
@@ -174,6 +179,12 @@ def test_sigterm_stops_the_supervisor_and_its_spawned_worker(
 def test_recycle_and_grace_settings_must_be_positive(field: str) -> None:
     with pytest.raises(ValueError, match="greater than 0"):
         WorkerSettings.model_validate({field: 0})
+
+
+def test_the_stop_grace_is_capped_so_a_frozen_job_never_outlives_its_lease() -> None:
+    assert WorkerSettings(job_stop_grace_seconds=120).job_stop_grace_seconds == 120
+    with pytest.raises(ValueError, match="less than or equal to 120"):
+        WorkerSettings(job_stop_grace_seconds=121)
 
 
 def test_a_spawned_child_exits_with_the_worker_s_code(

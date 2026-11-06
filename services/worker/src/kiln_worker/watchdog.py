@@ -113,6 +113,11 @@ class JobWatchdog:
         return self._grace
 
     @property
+    def stop_event(self) -> threading.Event:
+        """The worker's stop request the grace counts from."""
+        return self._stop
+
+    @property
     def beacon(self) -> JobBeacon | None:
         """Where this process shows its supervisor the running job and that it is alive."""
         return self._beacon
@@ -125,6 +130,7 @@ class JobWatchdog:
             target=self._guard, args=(job, done), name=f"job-watchdog-{job.id}", daemon=True
         )
         if self._beacon is not None:
+            # The system clock, not the injected one: the supervisor reads it in another process.
             self._beacon.started(str(job.id), time.monotonic())
         thread.start()
         try:
