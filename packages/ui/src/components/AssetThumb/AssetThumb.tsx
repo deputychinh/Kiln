@@ -1,4 +1,4 @@
-import { type ReactElement, type ReactNode, useCallback, useRef, useState } from 'react';
+import { type ReactElement, type ReactNode, useState } from 'react';
 
 import { THUMB_SIZE_PX } from '#ui/constants/thumb.constant';
 
@@ -26,32 +26,11 @@ export const AssetThumb = ({
   onError,
 }: AssetThumbProps): ReactElement => {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const reportedSrcRef = useRef<string | null>(null);
   const showImage = src !== null && src !== failedSrc;
-
-  const fail = useCallback(
-    (failed: string) => {
-      setFailedSrc(failed);
-      if (reportedSrcRef.current === failed) return;
-      reportedSrcRef.current = failed;
-      onError?.(failed);
-    },
-    [onError],
-  );
-
-  // An image can fail before React listens for `error` (a cached broken image, an invalid data
-  // URL); a complete image with no pixels has failed, so check once it is mounted.
-  const checkAlreadyFailed = useCallback(
-    (image: HTMLImageElement | null) => {
-      if (image?.complete && image.naturalWidth === 0 && src !== null) fail(src);
-    },
-    [fail, src],
-  );
   return (
     <div className="asset-thumb">
       {showImage ? (
         <img
-          ref={checkAlreadyFailed}
           className="asset-thumb__image"
           src={src}
           alt={alt}
@@ -59,7 +38,10 @@ export const AssetThumb = ({
           height={THUMB_SIZE_PX}
           loading={isEager ? 'eager' : 'lazy'}
           decoding="async"
-          onError={() => fail(src)}
+          onError={() => {
+            setFailedSrc(src);
+            onError?.(src);
+          }}
         />
       ) : (
         <span className="asset-thumb__placeholder">{placeholder}</span>

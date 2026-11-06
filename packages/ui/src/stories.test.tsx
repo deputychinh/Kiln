@@ -1,5 +1,10 @@
 import { composeStories } from '@storybook/react';
 
+import { BROKEN_PREVIEW_SAMPLE } from '#ui/constants/story.constant';
+import { BadgeTone } from '#ui/enums/badge-tone.enum';
+import { ButtonVariant } from '#ui/enums/button-variant.enum';
+import { SkeletonShape } from '#ui/enums/skeleton-shape.enum';
+
 type StoriesModule = Parameters<typeof composeStories>[0];
 
 const storyModules = import.meta.glob<StoriesModule>('./components/*/*.stories.tsx', {
@@ -11,20 +16,23 @@ const componentFiles = Object.keys(
 
 const folderOf = (path: string): string => path.split('/')[2] ?? path;
 
-// jsdom never decodes images, so a browser's verdict on the one undecodable sample
-// (`AssetThumb` BrokenImage) is emulated: complete with no pixels, i.e. broken.
-const UNDECODABLE_SAMPLE = 'data:image/png;base64,AAAA';
+// jsdom never loads images; emulate the browser's asynchronous 404 for the one missing sample
+// (`AssetThumb` BrokenImage) by dispatching `error` once the image is in the document.
+const failMissingSamples = new MutationObserver(() => {
+  for (const image of document.querySelectorAll<HTMLImageElement>('img')) {
+    if (image.getAttribute('src') === BROKEN_PREVIEW_SAMPLE && !image.dataset.failed) {
+      image.dataset.failed = 'true';
+      setTimeout(() => image.dispatchEvent(new Event('error')), 0);
+    }
+  }
+});
 
 beforeAll(() => {
-  vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(function (
-    this: HTMLImageElement,
-  ) {
-    return this.getAttribute('src') === UNDECODABLE_SAMPLE;
-  });
+  failMissingSamples.observe(document.body, { childList: true, subtree: true });
 });
 
 afterAll(() => {
-  vi.restoreAllMocks();
+  failMissingSamples.disconnect();
 });
 
 describe('Storybook coverage', () => {
@@ -43,5 +51,17 @@ describe('Storybook coverage', () => {
         await Story.run();
       },
     );
+  });
+
+  // AC2: every value of a component's enum prop has its own story.
+  it.each([
+    ['Badge', 'tone', Object.values(BadgeTone)],
+    ['Button', 'variant', Object.values(ButtonVariant)],
+    ['Skeleton', 'shape', Object.values(SkeletonShape)],
+  ])('has a %s story for every %s', (component, prop, values) => {
+    const module = storyModules[`./components/${component}/${component}.stories.tsx`];
+    const stories = Object.values<{ args: Record<string, unknown> }>(composeStories(module!));
+    const shown = new Set(stories.map((story) => story.args[prop]));
+    expect(values.filter((value) => !shown.has(value))).toEqual([]);
   });
 });

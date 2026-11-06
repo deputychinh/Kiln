@@ -21,13 +21,30 @@ const recordStoryResults = (): void => {
   });
 };
 
+// Bounded per story, so a story that never finishes cannot use up the run for the rest.
+const STORY_TIMEOUT_MS = 10_000;
+const CHECK_TIMEOUT_MS = 2_000;
+
 const storyStatus = async (page: Page): Promise<string> => {
-  const handle = await page.waitForFunction(() => {
-    const [result] = (window as unknown as { kilnStoryResults: { status: string }[] })
-      .kilnStoryResults;
-    return result?.status;
-  });
-  return (await handle.jsonValue()) as string;
+  try {
+    const handle = await page.waitForFunction(
+      () => {
+        const [result] = (window as unknown as { kilnStoryResults: { status: string }[] })
+          .kilnStoryResults;
+        return result?.status;
+      },
+      undefined,
+      { timeout: STORY_TIMEOUT_MS },
+    );
+    return (await handle.jsonValue()) as string;
+  } catch {
+    return 'did not finish';
+  }
+};
+
+// The BrokenImage story loads a missing sample on purpose; its 404 is the expected state.
+const EXPECTED_CONSOLE_ERRORS: Record<string, RegExp> = {
+  'components-assetthumb--broken-image': /Failed to load resource: .* 404/,
 };
 
 const entryIds = async (request: APIRequestContext, type: string): Promise<string[]> => {
@@ -46,10 +63,11 @@ for (const theme of THEMES) {
     page,
     request,
   }) => {
-    test.setTimeout(120_000);
     await page.addInitScript(recordStoryResults);
     const ids = await entryIds(request, 'story');
     expect(ids.length).toBeGreaterThan(0);
+    // Enough for the worst case: every story fails every bounded check and still gets axe.
+    test.setTimeout(30_000 + ids.length * (STORY_TIMEOUT_MS + 3 * CHECK_TIMEOUT_MS + 5_000));
     const consoleErrors: string[] = [];
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text());
@@ -61,9 +79,10 @@ for (const theme of THEMES) {
         consoleErrors.length = 0;
         await page.goto(`/iframe.html?id=${id}&viewMode=story&globals=theme:${theme}`);
         // Soft: one broken story must not hide the state of the ones after it.
-        await expect.soft(page.locator('body'), `${id} renders`).toHaveClass(/sb-show-main/);
-        await expect.soft(page.locator('body')).not.toHaveClass(/sb-show-errordisplay/);
-        await expect.soft(page.locator('html')).toHaveAttribute('data-theme', theme);
+        const check = { timeout: CHECK_TIMEOUT_MS };
+        await expect.soft(page.locator('body'), `${id} renders`).toHaveClass(/sb-show-main/, check);
+        await expect.soft(page.locator('body')).not.toHaveClass(/sb-show-errordisplay/, check);
+        await expect.soft(page.locator('html')).toHaveAttribute('data-theme', theme, check);
         expect.soft(await storyStatus(page), `${id} (${theme}) play and a11y`).toBe('success');
         const results = await new AxeBuilder({ page })
           .include('#storybook-root')
@@ -73,7 +92,9 @@ for (const theme of THEMES) {
           .filter((violation) => BLOCKING_IMPACTS.has(violation.impact ?? ''))
           .map((violation) => `${violation.id}: ${violation.help}`);
         expect.soft(blocking, `${id} (${theme})`).toEqual([]);
-        expect.soft(consoleErrors, `${id} (${theme}) console`).toEqual([]);
+        const expected = EXPECTED_CONSOLE_ERRORS[id];
+        const unexpected = consoleErrors.filter((text) => !expected?.test(text));
+        expect.soft(unexpected, `${id} (${theme}) console`).toEqual([]);
       });
     }
   });

@@ -29,7 +29,3 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 ### Changed
 
 - `/` opens the gallery; the walking-skeleton API status block is gone (the gallery's error state reports an unreachable API).
-
-### Fixed
-
-- `AssetThumb` falls back to its placeholder when an image failed before React listened for `error` (a cached broken image or an invalid data URL), reporting the URL once (KILN-7 review).

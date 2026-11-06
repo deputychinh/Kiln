@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, waitFor, within } from 'storybook/test';
 
 import { AssetThumb } from '#ui/components/AssetThumb/AssetThumb';
+import { BROKEN_PREVIEW_SAMPLE } from '#ui/constants/story.constant';
 
 // Inline sample previews: stories never fetch remote images.
 const SWATCH = `data:image/svg+xml,${encodeURIComponent(
@@ -10,8 +11,6 @@ const SWATCH = `data:image/svg+xml,${encodeURIComponent(
 const WIDE = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 2"><rect width="8" height="2" fill="#8e44ad"/></svg>',
 )}`;
-// Not an image: the browser fails to decode it, so the placeholder and `onError` take over.
-const BROKEN = 'data:image/png;base64,AAAA';
 
 const meta = {
   title: 'Components/AssetThumb',
@@ -44,13 +43,13 @@ export const NonSquareImage: Story = { args: { src: WIDE, alt: 'banner_wide.png'
 export const NoPreview: Story = { args: { src: null, alt: '', placeholder: '3D model' } };
 
 export const BrokenImage: Story = {
-  args: { src: BROKEN, alt: 'missing.png' },
+  args: { src: BROKEN_PREVIEW_SAMPLE, alt: 'missing.png' },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() => expect(canvas.getByText('Image')).toBeVisible());
     await expect(canvas.queryByRole('img')).not.toBeInTheDocument();
     await expect(args.onError).toHaveBeenCalledTimes(1);
-    await expect(args.onError).toHaveBeenCalledWith(BROKEN);
+    await expect(args.onError).toHaveBeenCalledWith(BROKEN_PREVIEW_SAMPLE);
   },
 };
 

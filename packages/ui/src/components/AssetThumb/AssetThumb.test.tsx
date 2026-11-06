@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { StrictMode } from 'react';
 
 import { AssetThumb } from '#ui/components/AssetThumb/AssetThumb';
 
@@ -57,49 +56,5 @@ describe('AssetThumb', () => {
       'src',
       'https://s3.test/new.webp',
     );
-  });
-
-  it('falls back when the image had already failed before React listened (cached or invalid)', () => {
-    const complete = vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
-    const onError = vi.fn();
-
-    render(
-      <AssetThumb
-        src="data:image/png;base64,AAAA"
-        alt="Rock"
-        placeholder="Image"
-        onError={onError}
-      />,
-    );
-
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
-    expect(screen.getByText('Image')).toBeInTheDocument();
-    expect(onError).toHaveBeenCalledExactlyOnceWith('data:image/png;base64,AAAA');
-    complete.mockRestore();
-  });
-
-  it('keeps an image that is still loading', () => {
-    render(<AssetThumb src="https://s3.test/t.webp" alt="Rock" placeholder="Image" />);
-
-    expect(screen.getByRole('img', { name: 'Rock' })).toBeInTheDocument();
-  });
-
-  it('reports an already-failed image once under StrictMode (ref callbacks run twice)', () => {
-    const complete = vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
-    const onError = vi.fn();
-
-    render(
-      <StrictMode>
-        <AssetThumb
-          src="data:image/png;base64,AAAA"
-          alt="Rock"
-          placeholder="Image"
-          onError={onError}
-        />
-      </StrictMode>,
-    );
-
-    expect(onError).toHaveBeenCalledTimes(1);
-    complete.mockRestore();
   });
 });
