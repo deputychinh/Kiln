@@ -3,4 +3,5 @@ export enum UploadRejection {
   Unsupported = 'unsupported',
   Empty = 'empty',
   TooLarge = 'too_large',
+  NameTooLong = 'name_too_long',
 }

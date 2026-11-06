@@ -89,7 +89,14 @@ export const vi: Copy = {
       unsupported: 'Chỉ tải lên được file PNG, JPEG, WebP và .glb.',
       empty: 'File này rỗng.',
       too_large: 'File này lớn hơn 500 MB.',
+      name_too_long: 'Tên file dài hơn 255 ký tự. Hãy đổi tên rồi thêm lại.',
     },
     storageRejected: 'Kho lưu trữ từ chối file. Hãy thử lại.',
+    busy: 'Kiln đang bận. Hãy thử lại sau giây lát.',
+    refused: {
+      name: 'Kiln không dùng được tên file này. Hãy đổi tên file rồi thêm lại.',
+      size: 'Kiln không nhận được file có dung lượng này.',
+      other: 'Kiln không nhận được file này.',
+    },
   },
 };

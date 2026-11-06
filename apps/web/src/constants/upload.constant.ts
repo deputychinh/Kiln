@@ -2,6 +2,8 @@
 export const UPLOAD_MAX_BYTES = 500 * 1024 * 1024;
 /** The API's limit for asset names (`ASSET_NAME_MAX_LENGTH`). */
 export const ASSET_NAME_MAX_LENGTH = 120;
+/** The API's limit for file names (`FILE_NAME_MAX_LENGTH`), in characters. */
+export const FILE_NAME_MAX_LENGTH = 255;
 /** Files sent at the same time; the rest wait in the queue. */
 export const UPLOAD_CONCURRENCY = 2;
 /** Content types the API accepts, by file extension (browsers report `.glb` as an empty type). */

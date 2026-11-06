@@ -218,7 +218,10 @@ describe('useUploads', () => {
       apiError(0, 'Failed to fetch'),
       'Kiln cannot reach its server. Check your connection, then try again.',
     ],
-    [apiError(503, 'Storage is unavailable', 'STORAGE_UNAVAILABLE'), 'Storage is unavailable'],
+    [
+      apiError(503, 'Storage is unavailable', 'STORAGE_UNAVAILABLE'),
+      'Kiln is busy right now. Try again in a moment.',
+    ],
   ])('fails with a readable reason that can be retried (%s)', async (error, message) => {
     vi.mocked(sendToStorage).mockRejectedValue(error);
     const { result } = setup();
@@ -227,6 +230,21 @@ describe('useUploads', () => {
 
     await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Failed));
     expect(result.current.items[0]).toMatchObject({ error: message, canRetry: true });
+  });
+
+  it('fails for good when the API refuses the file', async () => {
+    vi.mocked(createAsset).mockRejectedValue(
+      apiError(422, 'Unprocessable Entity', 'VALIDATION_FAILED'),
+    );
+    const { result } = setup();
+
+    act(() => result.current.add([png()]));
+
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Failed));
+    expect(result.current.items[0]).toMatchObject({
+      error: 'Kiln could not accept this file.',
+      canRetry: false,
+    });
   });
 
   it('skips sending when a retry replays a version that already left pending_upload', async () => {

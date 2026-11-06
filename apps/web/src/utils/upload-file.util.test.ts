@@ -70,6 +70,21 @@ describe('declareUpload', () => {
     expect(declareUpload(fileOf('.png', 'image/png', 1)).declaration?.name).toBe('.png');
   });
 
+  it('cuts the name by characters, never inside an emoji', () => {
+    const name = declareUpload(fileOf(`${'a'.repeat(119)}😀b.png`, 'image/png', 1)).declaration
+      ?.name;
+
+    expect(name).toBe(`${'a'.repeat(119)}😀`);
+    expect(Array.from(name ?? '')).toHaveLength(120);
+  });
+
+  it('accepts a 255-character file name and refuses a longer one', () => {
+    const named = (length: number) => fileOf(`${'é'.repeat(length - 4)}.png`, 'image/png', 1);
+
+    expect(declareUpload(named(255)).rejection).toBeUndefined();
+    expect(declareUpload(named(256))).toEqual({ rejection: UploadRejection.NameTooLong });
+  });
+
   it('trusts the extension over a misleading browser type', () => {
     expect(declareUpload(fileOf('fake.txt', 'image/png', 1))).toEqual({
       rejection: UploadRejection.Unsupported,

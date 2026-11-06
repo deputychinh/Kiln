@@ -7,11 +7,7 @@ import {
   PROCESSING_POLL_MAX_MS,
   PROCESSING_POLL_MS,
 } from '@/constants/assets.constant';
-import {
-  ALREADY_COMPLETE_CODE,
-  STORAGE_REJECTED_CODE,
-  UPLOAD_CONCURRENCY,
-} from '@/constants/upload.constant';
+import { ALREADY_COMPLETE_CODE, UPLOAD_CONCURRENCY } from '@/constants/upload.constant';
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { getAsset } from '@/features/assets/services/assets.service';
 import {
@@ -20,9 +16,8 @@ import {
   sendToStorage,
 } from '@/features/uploads/services/uploads.service';
 import { useCopy } from '@/hooks/useCopy';
-import type { Copy } from '@/interfaces/copy.interface';
 import type { UploadItem, UploadQueueState, UploadsApi } from '@/interfaces/upload.interface';
-import { describeError } from '@/utils/error.util';
+import { uploadFailureOf } from '@/utils/upload-error.util';
 import { declareUpload } from '@/utils/upload-file.util';
 
 const RUNNING = new Set([UploadStatus.Creating, UploadStatus.Uploading, UploadStatus.Completing]);
@@ -79,11 +74,6 @@ const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
       { once: true },
     );
   });
-
-const reasonOf = (error: unknown, copy: Copy): string =>
-  isApiError(error) && error.code === STORAGE_REJECTED_CODE
-    ? copy.uploads.storageRejected
-    : describeError(error, copy);
 
 /**
  * The browser upload queue: each file is created through the API (with its own idempotency key,
@@ -183,12 +173,7 @@ export const useUploads = (): UploadsApi => {
         await waitForPreview({ item, assetId: created.asset.id, versionId, signal });
       } catch (error) {
         if (signal.aborted || isAbort(error)) patch(item.id, { status: UploadStatus.Cancelled });
-        else
-          patch(item.id, {
-            status: UploadStatus.Failed,
-            error: reasonOf(error, copy),
-            canRetry: true,
-          });
+        else patch(item.id, { status: UploadStatus.Failed, ...uploadFailureOf(error, copy) });
       } finally {
         if (controllersRef.current.get(item.id) === controller)
           controllersRef.current.delete(item.id);

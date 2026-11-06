@@ -57,5 +57,7 @@ export interface Copy {
     announce: (fileName: string, status: string) => string;
     rejected: Record<UploadRejection, string>;
     storageRejected: string;
+    busy: string;
+    refused: { name: string; size: string; other: string };
   };
 }

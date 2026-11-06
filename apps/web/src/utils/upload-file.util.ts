@@ -1,5 +1,6 @@
 import {
   ASSET_NAME_MAX_LENGTH,
+  FILE_NAME_MAX_LENGTH,
   UPLOAD_CONTENT_TYPES,
   UPLOAD_MAX_BYTES,
 } from '@/constants/upload.constant';
@@ -11,10 +12,13 @@ const extensionOf = (fileName: string): string => {
   return dot === -1 ? '' : fileName.slice(dot + 1).toLowerCase();
 };
 
+/** Characters as the API counts them (code points), so a cut never splits an emoji in half. */
+const charactersOf = (text: string): string[] => Array.from(text);
+
 const assetNameOf = (fileName: string): string => {
   const dot = fileName.lastIndexOf('.');
   const stem = dot > 0 ? fileName.slice(0, dot) : fileName;
-  return stem.slice(0, ASSET_NAME_MAX_LENGTH);
+  return charactersOf(stem).slice(0, ASSET_NAME_MAX_LENGTH).join('');
 };
 
 /**
@@ -27,6 +31,8 @@ export const declareUpload = (file: File): UploadDeclarationResult => {
   if (!contentType) return { rejection: UploadRejection.Unsupported };
   if (file.size === 0) return { rejection: UploadRejection.Empty };
   if (file.size > UPLOAD_MAX_BYTES) return { rejection: UploadRejection.TooLarge };
+  if (charactersOf(file.name).length > FILE_NAME_MAX_LENGTH)
+    return { rejection: UploadRejection.NameTooLong };
   return {
     declaration: {
       file_name: file.name,

@@ -89,7 +89,14 @@ export const en: Copy = {
       unsupported: 'Only PNG, JPEG, WebP and .glb files can be uploaded.',
       empty: 'This file is empty.',
       too_large: 'This file is larger than 500 MB.',
+      name_too_long: 'The file name is longer than 255 characters. Rename it, then add it again.',
     },
     storageRejected: 'Storage refused the file. Try again.',
+    busy: 'Kiln is busy right now. Try again in a moment.',
+    refused: {
+      name: 'Kiln cannot use this file name. Rename the file, then add it again.',
+      size: 'Kiln cannot accept a file of this size.',
+      other: 'Kiln could not accept this file.',
+    },
   },
 };
