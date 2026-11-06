@@ -1,6 +1,6 @@
 # KILN-5: Thumbnails for `.glb` models
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -77,18 +77,20 @@ Mutation checks (timeout-safe runner, each reverted): round 1, 13/13 claimed —
 
 - Round 5 (fresh reviewer, Linux in Docker): 8.5/10 — security and reliability 1 (a worker SIGKILLed mid-render left no process within 0.2 s; Linux address-space limit enforced; 34 hostile and sample files contained); half-points for an untested SIGXCPU mapping and a test that leaked a 69 MB temp folder per run, a `MODEL_TOO_LARGE` message that named only one of its causes, and a missing ADR plus a stale worker layout. Fixed after the gate: tests for SIGXCPU and `spawn`, the leak, the message, ADR 0007, the layout row, one shared parent-check constant.
 
+- Verification (fresh reviewer, round 6): **10/10, pass** — the three round-5 half-points confirmed fixed (SIGXCPU and spawn mutants killed; no `kiln-model-*` folder left after `make test`, and removing the fix brings the leak back; copy matches the limits in code; ADR 0007 matches the code).
+
 ## Review score
 
-| #   | Criterion        | Score      | Evidence (reviewer, round 5)                                                                                                          |
-| --- | ---------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Requirements fit | 1          | AC1–AC7 traced; e2e checks a 512 px model preview                                                                                     |
-| 2   | Test depth       | 0.5        | SIGXCPU mapping untested; a test leaked a temp folder — fixed after the gate                                                          |
-| 3   | Reliability      | 1          | wall-clock and CPU limits; the child exits when its worker dies (verified)                                                            |
-| 4   | Security         | 1          | hostile sweep contained; Linux address-space limit enforced; threat-model row                                                         |
-| 5   | Maintainability  | 1          | lint 0, layering intact                                                                                                               |
-| 6   | UX / API         | 0.5        | `MODEL_TOO_LARGE` copy named one cause — fixed after the gate                                                                         |
-| 7   | Accessibility    | 1          | axe green; previews decorative in cards, named in the detail                                                                          |
-| 8   | Performance      | 1          | samples 0.06–0.8 s; hostile bounded at about 21 s / 691 MB                                                                            |
-| 9   | Docs             | 0.5        | no ADR, stale worker layout — fixed after the gate (ADR 0007)                                                                         |
-| 10  | Delivery         | 1          | gates green, 10 commits with `Refs:`, pushed                                                                                          |
-|     | **Total**        | **8.5/10** | reviewer: fresh subagent, round 5 (rounds 1–4: 6.5, 7.0, 7.0, 8.5); every half-point fixed after the gate, see the verification below |
+| #   | Criterion        | Score     | Evidence (reviewer, round 6 verification)                                               |
+| --- | ---------------- | --------- | --------------------------------------------------------------------------------------- |
+| 1   | Requirements fit | 1         | AC1–AC7 traced; e2e: a published glTF model gets a rendered preview (desktop, mobile)   |
+| 2   | Test depth       | 1         | sandbox 21/21; 5/5 sandbox mutants killed; no temp leak, and the fix is load-bearing    |
+| 3   | Reliability      | 1         | exit codes mapped to typed errors; child bounded by wall clock, CPU and worker liveness |
+| 4   | Security         | 1         | hostile inputs contained (rounds 4–5 sweeps); Linux address-space limit enforced        |
+| 5   | Maintainability  | 1         | lint 0; one parent-check constant                                                       |
+| 6   | UX / API         | 1         | `MODEL_TOO_LARGE` copy names its limits, matching the constants                         |
+| 7   | Accessibility    | 1         | axe green; previews decorative in cards, named in the detail                            |
+| 8   | Performance      | 1         | samples under a second; hostile bounded                                                 |
+| 9   | Docs             | 1         | ADR 0007, conventions layout, architecture link, CHANGELOG                              |
+| 10  | Delivery         | 1         | gates green, Conventional Commits with `Refs:`, pushed                                  |
+|     | **Total**        | **10/10** | rounds 6.5, 7.0, 7.0, 8.5, 8.5, then 10 after the last fixes; 6 reviews in all          |
