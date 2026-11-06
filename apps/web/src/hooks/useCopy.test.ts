@@ -11,11 +11,11 @@ describe('useCopy', () => {
 
   it('uses English by default', () => {
     setLanguage('en-US');
-    expect(renderHook(() => useCopy()).result.current.health.retry).toBe('Try again');
+    expect(renderHook(() => useCopy()).result.current.assets.retry).toBe('Try again');
   });
 
   it('uses Vietnamese when the browser prefers it', () => {
     setLanguage('vi-VN');
-    expect(renderHook(() => useCopy()).result.current.health.retry).toBe('Thử lại');
+    expect(renderHook(() => useCopy()).result.current.assets.retry).toBe('Thử lại');
   });
 });

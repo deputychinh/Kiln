@@ -1,0 +1,20 @@
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  align-items: center;
+  max-inline-size: 40rem;
+  margin-inline: auto;
+  padding: var(--kiln-space-7) var(--kiln-space-4);
+  text-align: center;
+}
+
+.empty-state__title {
+  margin: 0;
+  font-size: var(--kiln-text-lg);
+}
+
+.empty-state__body {
+  margin: 0;
+  color: var(--kiln-color-on-surface-muted);
+}

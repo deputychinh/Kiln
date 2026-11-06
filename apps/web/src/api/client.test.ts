@@ -1,0 +1,83 @@
+import { apiError, apiGet, isApiError } from '@/api/client';
+import { json, problem } from '@/test/fake-api';
+
+describe('apiGet', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('returns the JSON body from the configured API base URL', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ ok: true }));
+
+    await expect(apiGet('/api/v1/assets')).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith('http://api.test/api/v1/assets', {
+      headers: { Accept: 'application/json' },
+      signal: null,
+    });
+  });
+
+  it('turns problem details into an ApiError with the status, title and code', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      problem(503, 'Storage is unavailable', 'STORAGE_UNAVAILABLE'),
+    );
+
+    const error: unknown = await apiGet('/x').catch((caught: unknown) => caught);
+
+    expect(isApiError(error)).toBe(true);
+    expect(error).toMatchObject({
+      status: 503,
+      message: 'Storage is unavailable',
+      code: 'STORAGE_UNAVAILABLE',
+    });
+  });
+
+  it('falls back to the status text for a non-problem error or a broken problem body', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('<html>', { status: 502, statusText: 'Bad Gateway' }))
+      .mockResolvedValueOnce(
+        new Response('{', {
+          status: 500,
+          statusText: 'Internal Server Error',
+          headers: { 'Content-Type': 'application/problem+json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ title: 42, code: null }), {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'Content-Type': 'application/problem+json' },
+        }),
+      );
+
+    await expect(apiGet('/x')).rejects.toMatchObject({ status: 502, message: 'Bad Gateway' });
+    await expect(apiGet('/x')).rejects.toMatchObject({
+      status: 500,
+      message: 'Internal Server Error',
+      code: null,
+    });
+    await expect(apiGet('/x')).rejects.toMatchObject({ status: 400, message: 'Bad Request' });
+  });
+
+  it('reports an unreachable API as status 0', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(apiGet('/x')).rejects.toMatchObject({ name: 'ApiError', status: 0 });
+  });
+
+  it('rethrows a cancellation as is, so it is not shown as a failure', async () => {
+    const controller = new AbortController();
+    const abort = new DOMException('Aborted', 'AbortError');
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(abort);
+    });
+
+    await expect(apiGet('/x', controller.signal)).rejects.toBe(abort);
+  });
+});
+
+describe('isApiError', () => {
+  it('accepts only errors built by apiError', () => {
+    expect(isApiError(apiError(404, 'Not found'))).toBe(true);
+    expect(isApiError(new Error('boom'))).toBe(false);
+    expect(isApiError({ name: 'ApiError' })).toBe(false);
+  });
+});

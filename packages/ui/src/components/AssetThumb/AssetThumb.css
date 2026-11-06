@@ -1,0 +1,21 @@
+.asset-thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  background-color: var(--kiln-color-surface);
+  border-radius: var(--kiln-radius-md);
+}
+
+.asset-thumb__image {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.asset-thumb__placeholder {
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}

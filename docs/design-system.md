@@ -23,15 +23,17 @@ Contrast: body text ≥ 4.5:1, large text and control borders ≥ 3:1, in both t
 
 ## Layout per window size class (Material 3)
 
-| Class    | Width      | Navigation      | Gallery                         |
-| -------- | ---------- | --------------- | ------------------------------- |
-| compact  | < 600 px   | bottom bar      | 2 columns                       |
-| medium   | 600–839 px | navigation rail | 3–4 columns                     |
-| expanded | ≥ 840 px   | expanded rail   | grid + detail pane on the right |
+| Class    | Width      | Navigation       | Gallery                                                      |
+| -------- | ---------- | ---------------- | ------------------------------------------------------------ |
+| compact  | < 600 px   | bottom bar¹      | 2 columns; detail replaces the list                          |
+| medium   | 600–839 px | navigation rail¹ | 3–4 columns; detail replaces the list                        |
+| expanded | ≥ 840 px   | expanded rail¹   | grid + detail pane on the right (sticky, scrolls on its own) |
+
+¹ From the second destination (v0.2). Material 3 uses a bar or rail for 3–5 destinations; v0.1 has only Assets. The grid follows the list pane's width (container query), not the viewport.
 
 ## Components (build order)
 
-- v0.1: `Button` (done), `IconButton`, `TextField`, `Badge`, `Card`, `AssetThumb`, `EmptyState`, `ErrorState`, `Skeleton`, `Dropzone`, `ProgressBar`, `AppShell` navigation.
+- v0.1: done: `Button`, `Badge`, `AssetThumb`, `Skeleton`, `EmptyState`, `ErrorState` (KILN-6); next: `Dropzone`, `ProgressBar` (KILN-26). `IconButton`, `TextField` and `AppShell` navigation move to v0.2 with the second destination.
 - v0.2: `Tabs`, `Dialog`, `Drawer`, `Avatar`, `CommentThread`, `AnnotationLayer`, `CompareSlider`, `StatusPill`.
 - v0.3: `TagChip` (suggested/accepted), `SearchBar` (natural language → filter chips), `RuleViolation`.
 

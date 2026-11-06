@@ -25,7 +25,8 @@
   z-index: var(--kiln-z-header);
   display: flex;
   align-items: center;
-  padding: var(--kiln-space-3) var(--kiln-space-4);
+  min-block-size: var(--kiln-space-8);
+  padding: 0 var(--kiln-space-4);
   background-color: var(--kiln-color-surface-raised);
   border-block-end: 1px solid var(--kiln-color-outline);
 }

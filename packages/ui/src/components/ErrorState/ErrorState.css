@@ -1,0 +1,27 @@
+.error-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  align-items: flex-start;
+  padding: var(--kiln-space-4);
+  background-color: var(--kiln-color-surface-raised);
+  border: 1px solid var(--kiln-color-danger);
+  border-radius: var(--kiln-radius-md);
+}
+
+.error-state__title {
+  margin: 0;
+  font-weight: var(--kiln-weight-bold);
+}
+
+.error-state__message {
+  margin: 0;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.error-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-3);
+  align-items: center;
+}

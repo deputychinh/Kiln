@@ -1,0 +1,22 @@
+.skeleton {
+  background-color: var(--kiln-color-surface-raised);
+  border-radius: var(--kiln-radius-sm);
+  animation: skeleton-pulse var(--kiln-duration-pulse) var(--kiln-ease-standard) infinite alternate;
+}
+
+.skeleton--tile {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--kiln-radius-md);
+}
+
+.skeleton--line {
+  inline-size: 60%;
+  block-size: 1em;
+}
+
+@keyframes skeleton-pulse {
+  to {
+    opacity: 0.5;
+  }
+}

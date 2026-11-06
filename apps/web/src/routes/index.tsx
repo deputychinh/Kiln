@@ -1,18 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router';
-import type { ReactElement } from 'react';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { ApiStatus } from '@/features/health/components/ApiStatus';
-import { useCopy } from '@/hooks/useCopy';
-
-const Home = (): ReactElement => {
-  const copy = useCopy();
-  return (
-    <>
-      <h1>{copy.app.name}</h1>
-      <p>{copy.app.tagline}</p>
-      <ApiStatus />
-    </>
-  );
-};
-
-export const Route = createFileRoute('/')({ component: Home });
+export const Route = createFileRoute('/')({
+  beforeLoad: () => redirect({ to: '/assets', replace: true, throw: true }),
+});

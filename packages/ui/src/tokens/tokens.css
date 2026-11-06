@@ -47,6 +47,7 @@
 
   --kiln-duration-fast: 120ms;
   --kiln-duration-base: 200ms;
+  --kiln-duration-pulse: 900ms;
   --kiln-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
   --kiln-z-header: 10;
@@ -70,6 +71,9 @@
     --kiln-color-on-primary: #fff;
     --kiln-color-outline: #b9bcc4;
     --kiln-color-focus: #1f5fd1;
+    --kiln-color-success: #1d7044;
+    --kiln-color-warning: #835500;
+    --kiln-color-danger: #b3261e;
   }
 }
 
@@ -84,11 +88,15 @@
   --kiln-color-on-primary: #fff;
   --kiln-color-outline: #b9bcc4;
   --kiln-color-focus: #1f5fd1;
+  --kiln-color-success: #1d7044;
+  --kiln-color-warning: #835500;
+  --kiln-color-danger: #b3261e;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --kiln-duration-fast: 0ms;
     --kiln-duration-base: 0ms;
+    --kiln-duration-pulse: 0ms;
   }
 }

@@ -4,6 +4,11 @@
   box-sizing: border-box;
 }
 
+html {
+  /* The sticky header (48 px) must never cover the focused element (WCAG 2.4.11). */
+  scroll-padding-block-start: calc(var(--kiln-space-8) + var(--kiln-space-2));
+}
+
 body {
   margin: 0;
   font-family: var(--kiln-font-sans);
@@ -21,4 +26,17 @@ h1 {
 
 p {
   margin: 0 0 var(--kiln-space-4);
+}
+
+/* Text for screen readers only (status messages, counts). */
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
 }

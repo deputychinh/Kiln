@@ -1,0 +1,4 @@
+export enum SkeletonShape {
+  Tile = 'tile',
+  Line = 'line',
+}

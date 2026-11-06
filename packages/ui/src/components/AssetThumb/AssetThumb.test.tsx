@@ -1,0 +1,59 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+
+import { AssetThumb } from '#ui/components/AssetThumb/AssetThumb';
+
+describe('AssetThumb', () => {
+  it('renders a lazy image with a fixed intrinsic size', () => {
+    render(<AssetThumb src="https://s3.test/t.webp" alt="Rock texture" placeholder="Image" />);
+
+    const image = screen.getByRole('img', { name: 'Rock texture' });
+    expect(image).toHaveAttribute('src', 'https://s3.test/t.webp');
+    expect(image).toHaveAttribute('loading', 'lazy');
+    expect(image).toHaveAttribute('decoding', 'async');
+    expect(image).toHaveAttribute('width', '512');
+    expect(image).toHaveAttribute('height', '512');
+  });
+
+  it('loads eagerly when asked (the hero preview)', () => {
+    render(<AssetThumb src="https://s3.test/t.webp" alt="Rock" placeholder="Image" isEager />);
+
+    expect(screen.getByRole('img', { name: 'Rock' })).toHaveAttribute('loading', 'eager');
+  });
+
+  it('shows the placeholder when there is no preview', () => {
+    render(<AssetThumb src={null} alt="Tree" placeholder="Model" />);
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByText('Model')).toBeInTheDocument();
+  });
+
+  it('falls back to the placeholder and reports once when the image fails', () => {
+    const onError = vi.fn();
+    const { rerender } = render(
+      <AssetThumb
+        src="https://s3.test/old.webp"
+        alt="Rock"
+        placeholder="Image"
+        onError={onError}
+      />,
+    );
+
+    fireEvent.error(screen.getByRole('img', { name: 'Rock' }));
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Image')).toBeInTheDocument();
+
+    rerender(
+      <AssetThumb
+        src="https://s3.test/new.webp"
+        alt="Rock"
+        placeholder="Image"
+        onError={onError}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'Rock' })).toHaveAttribute(
+      'src',
+      'https://s3.test/new.webp',
+    );
+  });
+});

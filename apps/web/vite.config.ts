@@ -21,6 +21,7 @@ export default defineConfig({
         'src/main.tsx',
         'src/routes/**',
         'src/routeTree.gen.ts',
+        'src/test/**',
         'src/api/**',
         'src/**/index.ts',
         'src/**/*.test.{ts,tsx}',

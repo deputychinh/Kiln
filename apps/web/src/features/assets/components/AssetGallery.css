@@ -1,0 +1,28 @@
+.asset-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+}
+
+.asset-gallery__title {
+  margin: 0;
+  font-size: var(--kiln-text-xl);
+}
+
+.asset-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 40%), 1fr));
+  gap: var(--kiln-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asset-gallery__item {
+  min-inline-size: 0;
+}
+
+.asset-gallery__more {
+  display: flex;
+  justify-content: center;
+}

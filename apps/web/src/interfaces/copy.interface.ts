@@ -1,4 +1,36 @@
+import type { AssetKind, FailureReason, VersionStatus } from '@/interfaces/asset.interface';
+
 export interface Copy {
-  app: { name: string; tagline: string; skipToContent: string };
-  health: { checking: string; ok: (version: string) => string; down: string; retry: string };
+  /** BCP 47 tag for `Intl` formatting. */
+  locale: string;
+  app: { name: string; skipToContent: string };
+  errors: { unreachable: string; unexpected: string };
+  assets: {
+    title: string;
+    loading: string;
+    shown: (count: number) => string;
+    emptyTitle: string;
+    emptyBody: string;
+    loadFailed: string;
+    loadMore: string;
+    loadingMore: string;
+    loadMoreFailed: string;
+    retry: string;
+    kind: Record<AssetKind, string>;
+    status: Record<VersionStatus, string>;
+    failure: Record<FailureReason, string>;
+    detailLabel: string;
+    selectPrompt: string;
+    back: string;
+    previewAlt: (name: string) => string;
+    kindLabel: string;
+    created: string;
+    updated: string;
+    versionsTitle: string;
+    versionLabel: (number: number) => string;
+    loadingAsset: string;
+    loadAssetFailed: string;
+    notFoundTitle: string;
+    notFoundBody: string;
+  };
 }
