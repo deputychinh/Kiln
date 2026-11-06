@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from fakes import FakeStorage, FixedClock
+from glb_builder import build_glb
 from PIL import Image
 from sqlalchemy import Engine, text
 
@@ -178,18 +179,68 @@ def test_a_job_for_a_version_that_moved_on_is_closed_without_changes(
     assert _job_status(engine, version.id)[0] == "done"
 
 
-def test_a_model_is_marked_ready_without_a_thumbnail_until_kiln_5(
+def test_a_model_gets_a_rendered_preview_and_becomes_the_cover(
     container: Container, worker: Worker, storage: FakeStorage, engine: Engine
 ) -> None:
-    version = _uploaded(
-        container, storage, b"glTF" + b"\x00" * 16, content_type="model/gltf-binary"
-    )
+    version = _uploaded(container, storage, build_glb(), content_type="model/gltf-binary")
 
     worker.run_once()
 
     ready = SqlAssetRepository(engine).get_version(version.id)
     assert ready.status is VersionStatus.READY
-    assert thumbnail_key(ready) not in storage.blobs
+    with Image.open(io.BytesIO(storage.blobs[thumbnail_key(ready)])) as thumb:
+        assert (thumb.format, thumb.size, thumb.mode) == ("WEBP", (512, 512), "RGBA")
+    assert storage.objects[thumbnail_key(ready)].content_type == "image/webp"
+    assert SqlAssetRepository(engine).get(ready.asset_id).cover_version_id == ready.id
+
+
+@pytest.mark.parametrize(
+    ("data", "reason"),
+    [
+        (b"glTF" + b"\x00" * 16, FailureReason.UNREADABLE_MODEL),
+        (
+            build_glb(tweak=lambda d: d.update(extensionsRequired=["KHR_draco_mesh_compression"])),
+            FailureReason.UNREADABLE_MODEL,
+        ),
+        (
+            build_glb(tweak=lambda d: d["accessors"][1].update(count=3 * 2_000_001)),
+            FailureReason.MODEL_TOO_LARGE,
+        ),
+    ],
+)
+def test_unreadable_or_oversized_models_fail_with_a_reason(
+    container: Container,
+    worker: Worker,
+    storage: FakeStorage,
+    engine: Engine,
+    data: bytes,
+    reason: FailureReason,
+) -> None:
+    version = _uploaded(container, storage, data, content_type="model/gltf-binary")
+
+    worker.run_once()
+
+    failed = SqlAssetRepository(engine).get_version(version.id)
+    assert (failed.status, failed.failure_reason) == (VersionStatus.FAILED, reason)
+    assert thumbnail_key(failed) not in storage.blobs
+
+
+def test_a_model_replaced_between_check_and_download_is_not_rendered(
+    container: Container, worker: Worker, storage: FakeStorage, engine: Engine
+) -> None:
+    version = _uploaded(container, storage, build_glb(), content_type="model/gltf-binary")
+    real_download = storage.download
+
+    def replaced(key: str, into: Any, *, if_match: str | None = None) -> bool:
+        storage.put(key, version.size_bytes, "model/gltf-binary", build_glb())  # new ETag
+        return real_download(key, into, if_match=if_match)
+
+    storage.download = replaced  # type: ignore[method-assign]
+
+    worker.run_once()
+
+    failed = SqlAssetRepository(engine).get_version(version.id)
+    assert failed.failure_reason is FailureReason.UPLOAD_CHANGED
 
 
 def test_an_older_version_finishing_late_does_not_take_the_cover(

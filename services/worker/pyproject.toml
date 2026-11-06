@@ -5,6 +5,7 @@ description = "Kiln asset worker: thumbnails, validation and AI tagging."
 requires-python = ">=3.12"
 dependencies = [
     "kiln-api",
+    "numpy>=2.3.0",
     "pillow>=12.3.0",
     "pydantic-settings>=2.16.2",
 ]

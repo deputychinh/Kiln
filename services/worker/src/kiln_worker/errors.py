@@ -11,3 +11,11 @@ class UnreadableImageError(ProcessingError):
 
 class ImageTooLargeError(ProcessingError):
     """The header declares more pixels than the worker will decode."""
+
+
+class UnreadableModelError(ProcessingError):
+    """Not a glTF 2.0 binary the worker can read (broken, external buffers, required extensions)."""
+
+
+class ModelTooLargeError(ProcessingError):
+    """More geometry (or a bigger JSON chunk) than the worker will decode."""

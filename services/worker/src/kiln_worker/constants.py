@@ -40,3 +40,13 @@ WORKER_HEALTHY_UPTIME_SECONDS = 60.0
 WORKER_RESTART_JITTER = 0.25
 # How often a child checks that its supervisor is still alive.
 PARENT_CHECK_SECONDS = 1.0
+# Model previews (KILN-5): limits checked before any geometry is decoded.
+MODEL_MAX_TRIANGLES = 2_000_000
+MODEL_MAX_JSON_BYTES = 16 * 1024 * 1024
+MODEL_MAX_NODE_DEPTH = 64
+MODEL_MAX_INSTANCES = 10_000
+# Rendering: drawn at twice the size, then downsampled (anti-aliasing).
+MODEL_SUPERSAMPLE = 2
+MODEL_FILL_RATIO = 0.86
+MODEL_YAW_DEGREES = 35.0
+MODEL_PITCH_DEGREES = 25.0  # positive tips the top towards the viewer

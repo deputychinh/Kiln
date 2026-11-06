@@ -31,9 +31,16 @@ from kiln_worker.constants import (
     SPOOL_MAX_BYTES,
 )
 from kiln_worker.enums import RunEnd
-from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
+from kiln_worker.errors import (
+    ImageTooLargeError,
+    ModelTooLargeError,
+    UnreadableImageError,
+    UnreadableModelError,
+)
+from kiln_worker.glb import read_glb
 from kiln_worker.heartbeat import LeaseHeartbeat, LeaseTiming
 from kiln_worker.maintenance import Maintenance, MaintenancePorts, MaintenanceReport
+from kiln_worker.model_preview import render_model
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
@@ -178,12 +185,26 @@ class Worker:
         if stored is None or (version.etag is not None and stored.etag != version.etag):
             return FailureReason.UPLOAD_CHANGED
         if asset.kind is AssetKind.MODEL:
-            return None  # 3D previews arrive with KILN-5
+            return self._render_model(version, stored.etag)
         if version.size_bytes > MAX_SOURCE_BYTES_BY_MEDIA_TYPE.get(
             version.content_type, version.size_bytes
         ):
             return FailureReason.IMAGE_TOO_LARGE
         return self._render_image(version, stored.etag)
+
+    def _render_model(self, version: AssetVersion, etag: str) -> FailureReason | None:
+        with SpooledTemporaryFile(max_size=SPOOL_MAX_BYTES) as buffer:
+            if not self._storage.download(version.object_key, buffer, if_match=etag):
+                return FailureReason.UPLOAD_CHANGED  # replaced between HEAD and GET
+            buffer.seek(0)
+            try:
+                preview = render_model(read_glb(buffer.read()))
+            except UnreadableModelError:
+                return FailureReason.UNREADABLE_MODEL
+            except ModelTooLargeError:
+                return FailureReason.MODEL_TOO_LARGE
+        self._storage.upload(thumbnail_key(version), preview, THUMBNAIL_MEDIA_TYPE)
+        return None
 
     def _render_image(self, version: AssetVersion, etag: str) -> FailureReason | None:
         with SpooledTemporaryFile(max_size=SPOOL_MAX_BYTES) as buffer:
