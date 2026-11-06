@@ -1,6 +1,6 @@
 # KILN-27: Stable signed preview URLs
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -63,3 +63,20 @@ Mutation: signing at `clock.now()` instead of the window start fails the API tes
 | ----- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | 8.0   | The hand-written SigV4 signer diverged from boto3 for endpoints with a path prefix, a default port or an upper-case host (silent 403 previews) and went against "no home-made crypto" without an ADR → botocore's own `S3SigV4QueryAuth` with its timestamp pinned, ADR 0008, endpoint checks at start-up. The secret showed in `SigningCredentials`' repr → `repr=False`. No bounds on `expires_seconds` → 1–604800 s. A time-zone mutation survived → a non-UTC test. The e2e passed without the cache header → it asserts the header.             |
 | 2     | 9.0   | AC3's `transferSize` check could not fail (cross-origin resource timing always reads 0) → CDP `requestServedFromCache` on the preview's own request, with a mutation that disables the cache. AC4/AC5 were proven against storage only by hand → tamper and 1495/1505 s boundary integration tests. The e2e window guard was shorter than the test could take → 60 s margin plus a skip if a boundary was crossed. Presign limits moved to `constants.py`; architecture paragraph placed after the flow; conventions list the API's adapter modules. |
+| 3     | 9.5   | Passed. The cache e2e now skips before comparing URLs when a run crosses a signing window (it failed instead). Remaining suggestions (web fixtures for window-start URLs, one window per response, an upper bound on the botocore pin) filed as **KILN-32**.                                                                                                                                                                                                                                                                                         |
+
+## Score
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 0.5     |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 1       |
+| 6   | API ergonomics        | 1       |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 1       |
+| 10  | Delivery              | 1       |
+|     | **Total**             | **9.5** |

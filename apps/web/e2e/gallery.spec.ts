@@ -191,8 +191,8 @@ test('a preview seen once comes from the browser cache when the gallery opens ag
   await page.goto('/assets');
   await expect(image).toBeVisible();
   await expect(image).toHaveJSProperty('complete', true);
-  expect(await image.getAttribute('src')).toBe(firstSrc);
   test.skip(windowOf(Date.now()) !== startWindow, 'crossed a signing window; URLs rightly changed');
+  expect(await image.getAttribute('src')).toBe(firstSrc);
 
   // … which the browser then serves from its cache: nothing crosses the network.
   await expect.poll(() => previewRequests.size).toBeGreaterThan(0);
