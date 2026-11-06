@@ -1,22 +1,25 @@
-"""AWS Signature Version 4 query-string signing for path-style S3 GET URLs.
+"""Presigned S3 GET URLs signed at a chosen instant, with botocore's own SigV4 (ADR 0008).
 
-boto3 always signs at the current second, so a preview URL changed on every response and
-browsers could never reuse a cached image. Signing at a chosen instant (the start of a time
-window) gives the same URL for the whole window (KILN-27). The algorithm follows
-https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html and is
-cross-checked against botocore in `tests/unit/test_signing.py`.
+boto3 signs at the current second (`SigV4Auth.add_auth` reads `get_current_datetime()`), so a
+preview URL changed on every response and browsers could never reuse a cached image. Pinning the
+signing time to the start of a window keeps a URL the same for the whole window (KILN-27). The
+signature itself is computed by botocore's `S3SigV4QueryAuth`; this module only pins its clock.
 """
 
-import hashlib
-import hmac
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 
-_ALGORITHM = "AWS4-HMAC-SHA256"
-_SERVICE = "s3"
-_UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD"
+from botocore.auth import SIGV4_TIMESTAMP, S3SigV4QueryAuth
+from botocore.awsrequest import AWSRequest
+from botocore.credentials import Credentials
+
+# S3 accepts presigned URLs valid for 1 second up to 7 days.
+_EXPIRES_MIN_SECONDS = 1
+_EXPIRES_MAX_SECONDS = 7 * 24 * 60 * 60
 _NAIVE_TIME = "signed_at must carry a timezone"
+_BAD_EXPIRY = "expires_seconds must be between 1 and 604800"
+_BAD_ENDPOINT = "the storage endpoint must be an http(s) URL without credentials, query or fragment"
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,19 +29,38 @@ class SigningCredentials:
     endpoint: str
     region: str
     access_key: str
-    secret_key: str
+    secret_key: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        """Refuse an endpoint the URL builder below cannot express faithfully."""
+        parts = urlsplit(self.endpoint)
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.hostname
+            or parts.username is not None
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError(_BAD_ENDPOINT)
 
 
-def _encode(value: str, *, keep_slash: bool = False) -> str:
-    """RFC 3986 percent-encoding as SigV4 requires (unreserved characters stay)."""
-    return quote(value, safe="-_.~/" if keep_slash else "-_.~")
+class _PinnedTimeQueryAuth(S3SigV4QueryAuth):
+    """botocore's S3 query signer with the signing time fixed instead of read from the clock."""
+
+    def __init__(
+        self, credentials: Credentials, region: str, expires: int, signed_at: datetime
+    ) -> None:
+        super().__init__(credentials, "s3", region, expires=expires)
+        self._timestamp = signed_at.astimezone(UTC).strftime(SIGV4_TIMESTAMP)
+
+    def _modify_request_before_signing(self, request: AWSRequest) -> None:
+        # `add_auth` has just stamped the current time; every later step reads this value.
+        request.context["timestamp"] = self._timestamp
+        # The botocore stubs omit this hook; it is part of SigV4Auth since botocore 1.4.
+        super()._modify_request_before_signing(request)  # type: ignore[misc]
 
 
-def _hmac(key: bytes, message: str) -> bytes:
-    return hmac.new(key, message.encode(), hashlib.sha256).digest()
-
-
-def presign_get_url(  # noqa: PLR0913 - every field of the request is signed
+def presign_get_url(  # noqa: PLR0913 - every part of the request is signed
     credentials: SigningCredentials,
     *,
     bucket: str,
@@ -47,38 +69,21 @@ def presign_get_url(  # noqa: PLR0913 - every field of the request is signed
     expires_seconds: int,
     response_cache_control: str | None = None,
 ) -> str:
-    """A GET URL for `bucket/key`, valid `expires_seconds` from `signed_at` (timezone-aware)."""
+    """A path-style GET URL for `bucket/key`, valid `expires_seconds` from `signed_at`."""
     if signed_at.tzinfo is None:
         raise ValueError(_NAIVE_TIME)
-    amz_date = signed_at.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
-    day = amz_date[:8]
-    scope = f"{day}/{credentials.region}/{_SERVICE}/aws4_request"
-    endpoint = urlsplit(credentials.endpoint)
-    path = _encode(f"/{bucket}/{key}", keep_slash=True)
-
-    params = {
-        "X-Amz-Algorithm": _ALGORITHM,
-        "X-Amz-Credential": f"{credentials.access_key}/{scope}",
-        "X-Amz-Date": amz_date,
-        "X-Amz-Expires": str(expires_seconds),
-        "X-Amz-SignedHeaders": "host",
-    }
+    if not _EXPIRES_MIN_SECONDS <= expires_seconds <= _EXPIRES_MAX_SECONDS:
+        raise ValueError(_BAD_EXPIRY)
+    # The same path encoding boto3's S3 serializer uses for a key.
+    url = f"{credentials.endpoint.rstrip('/')}/{quote(bucket, safe='')}/{quote(key, safe='/~')}"
     if response_cache_control is not None:
-        params["response-cache-control"] = response_cache_control
-    query = "&".join(f"{_encode(name)}={_encode(value)}" for name, value in sorted(params.items()))
-
-    canonical_request = "\n".join(
-        ["GET", path, query, f"host:{endpoint.netloc}", "", "host", _UNSIGNED_PAYLOAD]
+        url = f"{url}?{urlencode({'response-cache-control': response_cache_control})}"
+    request = AWSRequest(method="GET", url=url)
+    auth = _PinnedTimeQueryAuth(
+        Credentials(credentials.access_key, credentials.secret_key),
+        credentials.region,
+        expires_seconds,
+        signed_at,
     )
-    string_to_sign = "\n".join(
-        [_ALGORITHM, amz_date, scope, hashlib.sha256(canonical_request.encode()).hexdigest()]
-    )
-    signing_key = _hmac(
-        _hmac(
-            _hmac(_hmac(f"AWS4{credentials.secret_key}".encode(), day), credentials.region),
-            _SERVICE,
-        ),
-        "aws4_request",
-    )
-    signature = hmac.new(signing_key, string_to_sign.encode(), hashlib.sha256).hexdigest()
-    return f"{endpoint.scheme}://{endpoint.netloc}{path}?{query}&X-Amz-Signature={signature}"
+    auth.add_auth(request)
+    return str(request.url)

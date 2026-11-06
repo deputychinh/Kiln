@@ -154,11 +154,21 @@ test('a preview seen once comes from the browser cache when the gallery opens ag
   if (untilNextWindow < 15_000) await page.waitForTimeout(untilNextWindow + 1_000);
   const asset = await seedImageAsset(request, uniqueName('cache', testInfo));
   const image = cardOf(page, asset.id).locator('img');
+  const cacheHeaders = new Map<string, string | undefined>();
+  page.on('response', (response) => {
+    if (response.request().resourceType() === 'image')
+      cacheHeaders.set(response.url(), response.headers()['cache-control']);
+  });
   await expect(async () => {
     await page.goto('/assets');
     await expect(image).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 30_000 });
   const firstSrc = await image.getAttribute('src');
+  // Storage told the browser it may keep the preview (privately) for the URL's lifetime.
+  // Response events arrive asynchronously, possibly after the image is already on screen.
+  await expect
+    .poll(() => cacheHeaders.get(firstSrc ?? ''))
+    .toBe('private, max-age=1500, immutable');
 
   // A new page load asks the API again, a few seconds later (signatures are per second): the
   // same window must give the same URL (KILN-27) …
