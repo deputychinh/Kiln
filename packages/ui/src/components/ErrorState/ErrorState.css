@@ -11,6 +11,7 @@
 
 .error-state__title {
   margin: 0;
+  font-size: var(--kiln-text-md);
   font-weight: var(--kiln-weight-bold);
 }
 

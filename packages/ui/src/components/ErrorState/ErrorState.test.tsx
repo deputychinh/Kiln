@@ -38,4 +38,10 @@ describe('ErrorState', () => {
     await userEvent.click(button);
     expect(onRetry).not.toHaveBeenCalled();
   });
+
+  it('can render its title as the page heading', () => {
+    render(<ErrorState title="Asset not found" titleAs="h1" />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Asset not found' })).toBeInTheDocument();
+  });
 });
