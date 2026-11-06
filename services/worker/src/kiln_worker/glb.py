@@ -198,7 +198,11 @@ class _Reader:
         self._accessors = _items(document, "accessors")
         self._views = _items(document, "bufferViews")
         self._buffers = _items(document, "buffers")
-        self._decoded: dict[int, NDArray[Any]] = {}
+        # One cache per role: an accessor read as indices is checked again (and refused) when
+        # it is also named as positions, instead of being reused as if it were float VEC3.
+        self._positions_cache: dict[int, NDArray[np.float32]] = {}
+        self._indices_cache: dict[int, NDArray[np.int64]] = {}
+        self._mesh_primitives: dict[int, list[_Primitive]] = {}
         self._origin: NDArray[np.float64] | None = None
 
     def instances(self) -> list[tuple[_Primitive, Matrix]]:
@@ -268,11 +272,20 @@ class _Reader:
             self._walk(child, matrix, depth + 1, found, visited)
 
     def _primitives(self, mesh: int) -> list[_Primitive]:
+        """A mesh's drawable primitives, resolved once however many nodes use the mesh."""
+        if mesh not in self._mesh_primitives:
+            self._mesh_primitives[mesh] = self._resolve_primitives(mesh)
+        return self._mesh_primitives[mesh]
+
+    def _resolve_primitives(self, mesh: int) -> list[_Primitive]:
         entry = self._meshes[mesh]
         primitives = entry.get("primitives", []) if isinstance(entry, dict) else None
         if not isinstance(primitives, list):
             msg = "primitives is not a list"
             raise _fail(msg)
+        if len(primitives) > MODEL_MAX_OBJECTS:
+            msg = f"{len(primitives)} primitives in one mesh"
+            raise ModelTooLargeError(msg)
         result: list[_Primitive] = []
         for primitive in primitives:
             mode = primitive.get("mode", _TRIANGLES) if isinstance(primitive, dict) else None
@@ -316,10 +329,15 @@ class _Reader:
         if not len(corners):
             return np.zeros((0, 3, 3), dtype=np.float32)
         used, inverse = np.unique(corners, return_inverse=True)  # transform used vertices only
-        world = positions[used].astype(np.float64) @ matrix[:3, :3].T + matrix[:3, 3]
+        with np.errstate(over="ignore", invalid="ignore"):  # extreme transforms give inf/nan
+            world = positions[used].astype(np.float64) @ matrix[:3, :3].T + matrix[:3, 3]
+            centre = world.mean(axis=0)
+        if self._origin is None and np.isfinite(centre).all():
+            self._origin = centre  # an overflowing first instance must not poison the rest
         if self._origin is None:
-            self._origin = world.mean(axis=0)
-        local = (world - self._origin).astype(np.float32)
+            return np.full((len(corners) // 3, 3, 3), np.nan, dtype=np.float32)
+        with np.errstate(over="ignore", invalid="ignore"):
+            local = (world - self._origin).astype(np.float32)
         return local[inverse].reshape(-1, 3, 3)
 
     @property
@@ -328,16 +346,16 @@ class _Reader:
         return np.zeros(3) if self._origin is None else self._origin
 
     def _positions(self, accessor: int) -> NDArray[np.float32]:
-        if accessor not in self._decoded:
-            self._decoded[accessor] = self._read(accessor, _FLOAT, 3, np.dtype("<f4"))
-        return self._decoded[accessor]
+        if accessor not in self._positions_cache:
+            self._positions_cache[accessor] = self._read(accessor, _FLOAT, 3, np.dtype("<f4"))
+        return self._positions_cache[accessor]
 
     def _corners(self, primitive: _Primitive, vertices: int) -> NDArray[np.int64]:
         """Vertex indices, three per triangle (strips and fans unrolled), checked in range."""
         if primitive.indices is None:
             corners = np.arange(vertices, dtype=np.int64)
         else:
-            if primitive.indices not in self._decoded:
+            if primitive.indices not in self._indices_cache:
                 accessor = self._accessor(primitive.indices)
                 component = accessor.get("componentType")
                 dtype = _INDEX_TYPES.get(component) if isinstance(component, int) else None
@@ -345,8 +363,8 @@ class _Reader:
                     msg = "bad index type"
                     raise _fail(msg)
                 read = self._read(primitive.indices, component, 1, dtype).reshape(-1)
-                self._decoded[primitive.indices] = read.astype(np.int64)
-            corners = self._decoded[primitive.indices]
+                self._indices_cache[primitive.indices] = read.astype(np.int64)
+            corners = self._indices_cache[primitive.indices]
             if len(corners) and int(corners.max()) >= vertices:
                 msg = "index out of range"
                 raise _fail(msg)

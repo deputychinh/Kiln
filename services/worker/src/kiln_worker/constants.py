@@ -56,3 +56,6 @@ MODEL_SUPERSAMPLE = 2
 MODEL_FILL_RATIO = 0.86
 MODEL_YAW_DEGREES = 35.0
 MODEL_PITCH_DEGREES = 25.0  # positive tips the top towards the viewer
+# Model previews run in a child process (KILN-5): killed past these, the model is too large.
+MODEL_SANDBOX_SECONDS = 60.0
+MODEL_SANDBOX_MEMORY_BYTES = 2 * 1024 * 1024 * 1024  # address space; enforced on Linux

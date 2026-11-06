@@ -19,3 +19,7 @@ class UnreadableModelError(ProcessingError):
 
 class ModelTooLargeError(ProcessingError):
     """More geometry (or a bigger JSON chunk) than the worker will decode."""
+
+
+class PreviewCrashedError(Exception):
+    """The preview process died for a reason that may not happen again (retried as transient)."""

@@ -491,3 +491,63 @@ def test_a_fan_of_two_vertices_has_no_triangles() -> None:
 
     with pytest.raises(UnreadableModelError, match="no triangles"):
         read_glb(build_glb(positions=[(0, 0, 0), (1, 0, 0)], indices=[0, 1], tweak=fan))
+
+
+def test_a_mesh_used_by_many_nodes_resolves_its_primitives_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolved: list[int] = []
+    real = glb_module._Reader._resolve_primitives
+
+    def counting(self: Any, mesh: int) -> Any:
+        resolved.append(mesh)
+        return real(self, mesh)
+
+    monkeypatch.setattr(glb_module._Reader, "_resolve_primitives", counting)
+
+    def busy(document: dict[str, Any]) -> None:
+        document["meshes"][0]["primitives"] += [{}] * 99_999
+        document["nodes"] = [{"children": list(range(1, 201))}] + [{"mesh": 0}] * 200
+
+    mesh = read_glb(build_glb(tweak=busy))
+
+    assert mesh.triangles.shape == (2400, 3, 3)
+    assert resolved == [0]  # 100,000 entries walked once, not once per node
+
+
+def test_too_many_primitives_in_one_mesh_are_refused() -> None:
+    def crowded(document: dict[str, Any]) -> None:
+        document["meshes"][0]["primitives"] += [{}] * MODEL_MAX_OBJECTS
+
+    with pytest.raises(ModelTooLargeError, match="primitives in one mesh"):
+        read_glb(build_glb(tweak=crowded))
+
+
+@pytest.mark.parametrize("swap", ["indices_as_positions", "positions_as_indices"])
+def test_an_accessor_used_in_two_roles_is_refused(swap: str) -> None:
+    def mixed(document: dict[str, Any]) -> None:
+        primitive = document["meshes"][0]["primitives"][0]
+        extra = {**primitive}
+        if swap == "indices_as_positions":
+            extra["attributes"] = {"POSITION": 1}
+            del extra["indices"]
+        else:
+            extra["indices"] = 0
+        document["meshes"][0]["primitives"].append(extra)
+
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=mixed))
+
+
+def test_an_overflowing_first_instance_does_not_spoil_the_others() -> None:
+    def first_explodes(document: dict[str, Any]) -> None:
+        document["nodes"] = [
+            {"children": [1, 2]},
+            {"mesh": 0, "scale": [1e308, 1e308, 1e308]},
+            {"mesh": 0},
+        ]
+
+    mesh = read_glb(build_glb(tweak=first_explodes))
+
+    finite = np.isfinite(mesh.triangles).all(axis=(1, 2))
+    assert finite.sum() == 12  # the ordinary cube survives

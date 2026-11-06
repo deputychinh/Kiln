@@ -38,11 +38,10 @@ from kiln_worker.errors import (
     UnreadableImageError,
     UnreadableModelError,
 )
-from kiln_worker.glb import read_glb
 from kiln_worker.heartbeat import LeaseHeartbeat, LeaseTiming
 from kiln_worker.maintenance import Maintenance, MaintenancePorts, MaintenanceReport
-from kiln_worker.model_preview import render_model
 from kiln_worker.recycle import RecyclePolicy
+from kiln_worker.sandbox import render_glb_sandboxed
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
 logger = logging.getLogger("kiln_worker")
@@ -201,7 +200,7 @@ class Worker:
                 return FailureReason.UPLOAD_CHANGED  # replaced between HEAD and GET
             buffer.seek(0)
             try:
-                preview = render_model(read_glb(buffer.read()))
+                preview = render_glb_sandboxed(buffer.read())
             except UnreadableModelError:
                 return FailureReason.UNREADABLE_MODEL
             except ModelTooLargeError:
