@@ -12,6 +12,7 @@ from uuid import UUID
 from kiln_api.constants import (
     MAINTENANCE_BATCH_SIZE,
     MAINTENANCE_LOOKUP_CHUNK,
+    MAINTENANCE_PURGE_BATCHES,
     MAINTENANCE_SCAN_LIMIT,
     MAINTENANCE_TASK,
     UPLOAD_ABANDONED_AFTER_HOURS,
@@ -101,7 +102,7 @@ class Maintenance:
         report = MaintenanceReport(
             expired_versions=tally.expired,
             deleted_objects=tally.deleted,
-            purged_keys=self._purge_keys(MAINTENANCE_BATCH_SIZE),
+            purged_keys=self._purge_expired_keys(),
             storage_down=tally.storage_down,
         )
         logger.info(
@@ -113,6 +114,16 @@ class Maintenance:
             (time.monotonic() - started) * 1000,
         )
         return report
+
+    def _purge_expired_keys(self) -> int:
+        """Purge batch after batch while full batches come back, up to a bounded number."""
+        purged = 0
+        for _ in range(MAINTENANCE_PURGE_BATCHES):
+            removed = self._purge_keys(MAINTENANCE_BATCH_SIZE)
+            purged += removed
+            if removed < MAINTENANCE_BATCH_SIZE:
+                break
+        return purged
 
     def _lease_now(self) -> datetime | None:
         return None if self._database_clock else self._clock.now()

@@ -11,7 +11,7 @@ from sqlalchemy import Engine, text
 from kiln_api.config import Settings
 from kiln_api.container import Container, build_container
 from kiln_api.domain.assets import UploadSpec, upload_key
-from kiln_api.enums import Environment, FailureReason, VersionStatus
+from kiln_api.enums import Environment, FailureReason, PromotionResult, VersionStatus
 from kiln_api.errors import DatabaseUnavailableError
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.jobs import SqlJobQueue
@@ -355,6 +355,64 @@ def test_the_staging_sweep_stops_after_one_batch_of_deletions(
     assert report is not None
     assert report.deleted_objects == 2
     assert [key in storage.objects for key in orphans] == [False, False, True]
+
+
+@pytest.mark.parametrize("expiry_runs", ["during the copy", "after the copy"])
+def test_completion_and_expiry_racing_leave_an_expired_version_and_no_objects(
+    container: Container,
+    worker: Worker,
+    storage: FakeStorage,
+    clock: FixedClock,
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+    expiry_runs: str,
+) -> None:
+    version = _pending(container, storage)
+    clock.advance(DAY.total_seconds() + 1)
+    promote = storage.promote
+
+    def racing_promote(**kwargs: Any) -> Any:
+        if expiry_runs == "during the copy":
+            # S3 has read the source already; the expiry deletes both keys, then the copy lands.
+            assert _run(worker) is not None
+            storage.put(version.object_key, 10, "image/png")
+            return PromotionResult.PROMOTED
+        result = promote(**kwargs)
+        assert _run(worker) is not None  # the expiry removes the promoted file itself
+        return result
+
+    monkeypatch.setattr(storage, "promote", racing_promote)
+
+    completed = container.assets.complete_upload(version.id)
+
+    assert (completed.status, completed.failure_reason) == (
+        VersionStatus.FAILED,
+        FailureReason.UPLOAD_EXPIRED,
+    )
+    assert version.object_key not in storage.objects
+    assert upload_key(version) not in storage.objects
+    assert _status(engine, version.id)[0] is VersionStatus.FAILED
+
+
+def test_expired_keys_are_purged_batch_after_batch_up_to_a_bound(
+    container: Container,
+    worker: Worker,
+    clock: FixedClock,
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(maintenance_module, "MAINTENANCE_BATCH_SIZE", 2)
+    monkeypatch.setattr(maintenance_module, "MAINTENANCE_PURGE_BATCHES", 2)
+    for number in range(5):
+        container.assets.create("Keyed", SPEC, idempotency_key=f"k-{number}")
+    clock.advance(DAY.total_seconds() + 1)
+
+    report = _run(worker)
+
+    assert report is not None
+    assert report.purged_keys == 4  # two full batches, then the bound
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM idempotency_keys")).scalar() == 1
 
 
 def test_the_maintenance_interval_must_be_positive() -> None:
