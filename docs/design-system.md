@@ -33,7 +33,7 @@ Contrast: body text ≥ 4.5:1, large text and control borders ≥ 3:1, in both t
 
 ## Components (build order)
 
-- v0.1: done: `Button`, `Badge`, `AssetThumb`, `Skeleton`, `EmptyState`, `ErrorState` (KILN-6); next: `Dropzone`, `ProgressBar` (KILN-26). `IconButton`, `TextField` and `AppShell` navigation move to v0.2 with the second destination.
+- v0.1: done: `Button`, `Badge`, `AssetThumb` (reports the failed URL), `Skeleton`, `EmptyState`, `ErrorState` (`titleAs` for a page-level error) (KILN-6); next: `Dropzone`, `ProgressBar` (KILN-26). `IconButton`, `TextField` and `AppShell` navigation move to v0.2 with the second destination.
 - v0.2: `Tabs`, `Dialog`, `Drawer`, `Avatar`, `CommentThread`, `AnnotationLayer`, `CompareSlider`, `StatusPill`.
 - v0.3: `TagChip` (suggested/accepted), `SearchBar` (natural language → filter chips), `RuleViolation`.
 
