@@ -10,7 +10,10 @@ from tempfile import SpooledTemporaryFile
 from sqlalchemy import Engine
 
 from kiln_api.clock import DatabaseClock
-from kiln_api.constants import JOB_LEASE_SECONDS, JOB_MAX_ATTEMPTS, MAINTENANCE_INTERVAL_SECONDS
+from kiln_api.constants import (
+    JOB_MAX_ATTEMPTS,
+    MAINTENANCE_INTERVAL_SECONDS,
+)
 from kiln_api.domain.assets import Asset, AssetVersion, thumbnail_key, transition
 from kiln_api.domain.jobs import Job, next_attempt_delay
 from kiln_api.enums import AssetKind, FailureReason, VersionStatus
@@ -28,12 +31,13 @@ from kiln_worker.constants import (
     SPOOL_MAX_BYTES,
 )
 from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
+from kiln_worker.heartbeat import LeaseHeartbeat, LeaseTiming
 from kiln_worker.maintenance import Maintenance, MaintenancePorts, MaintenanceReport
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
 logger = logging.getLogger("kiln_worker")
 
-_LEASE = timedelta(seconds=JOB_LEASE_SECONDS)
+_TIMING = LeaseTiming()
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +60,7 @@ class Worker:
         *,
         database_clock: bool = True,
         maintenance: Maintenance | None = None,
+        timing: LeaseTiming = _TIMING,
     ) -> None:
         """Receive every collaborator through its port.
 
@@ -70,6 +75,7 @@ class Worker:
         self._database_clock = database_clock
         self._maintenance = maintenance
         self._next_maintenance_check = 0.0
+        self._timing = timing
 
     def run(self, *, stop: threading.Event, idle_seconds: float = IDLE_POLL_SECONDS) -> None:
         """Work until `stop` is set; never dies on an error, sleeps when idle or failing."""
@@ -99,14 +105,18 @@ class Worker:
     def run_once(self) -> bool:
         """Bury exhausted jobs, then claim and process one job; False when nothing ran."""
         self._bury_exhausted()
-        job = self._jobs.claim(lease=_LEASE, max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now())
+        job = self._jobs.claim(
+            lease=self._timing.lease, max_attempts=JOB_MAX_ATTEMPTS, now=self._queue_now()
+        )
         if job is None:
             return False
         logger.info(
             "job %s for version %s: started (attempt %d)", job.id, job.version_id, job.attempts
         )
         started = time.monotonic()
-        outcome = self._handle(job)
+        heartbeat = LeaseHeartbeat(self._jobs, job, timing=self._timing, queue_now=self._queue_now)
+        with heartbeat:  # long jobs keep their lease while they run (KILN-24)
+            outcome = self._handle(job)
         logger.info(
             "job %s for version %s: %s in %.0f ms (attempt %d)",
             job.id,
@@ -229,6 +239,7 @@ def build_worker(
     storage: ObjectStorage,
     clock: Clock | None = None,
     maintenance_interval: timedelta = timedelta(seconds=MAINTENANCE_INTERVAL_SECONDS),
+    timing: LeaseTiming = _TIMING,
 ) -> Worker:
     """Wire the worker on the API's adapters; an injected clock also drives the queue (tests)."""
     assets = SqlAssetRepository(engine)
@@ -253,4 +264,6 @@ def build_worker(
         interval=maintenance_interval,
         database_clock=database_clock,
     )
-    return Worker(ports, resolved, database_clock=database_clock, maintenance=maintenance)
+    return Worker(
+        ports, resolved, database_clock=database_clock, maintenance=maintenance, timing=timing
+    )

@@ -20,7 +20,9 @@ from kiln_api.enums import Environment, FailureReason, JobStatus, VersionStatus
 from kiln_api.errors import InvalidStatusTransitionError
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.jobs import SqlJobQueue
+from kiln_worker.heartbeat import LeaseTiming
 from kiln_worker.runner import Worker, build_worker
+from kiln_worker.thumbnail import make_thumbnail
 
 
 def _png(size: tuple[int, int] = (1024, 512)) -> bytes:
@@ -573,3 +575,35 @@ def test_a_webp_file_over_64_mb_is_refused_before_download(
     failed = SqlAssetRepository(engine).get_version(version.id)
     assert failed.failure_reason is reason
     assert downloads == []
+
+
+def test_a_job_longer_than_its_lease_is_kept_by_the_heartbeat_and_not_taken_twice(
+    container: Container, storage: FakeStorage, engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    timing = LeaseTiming(lease=timedelta(seconds=1), heartbeat_seconds=0.2, max_runtime_seconds=60)
+    first = build_worker(engine, storage=storage, timing=timing)  # database clock
+    second = build_worker(engine, storage=storage, timing=timing)
+    version = _uploaded(container, storage, _png())
+    rendering = threading.Event()
+    real_thumbnail = make_thumbnail
+
+    def slow_thumbnail(*args: Any) -> bytes:
+        rendering.set()
+        time.sleep(2.5)  # more than twice the lease
+        return real_thumbnail(*args)
+
+    monkeypatch.setattr("kiln_worker.runner.make_thumbnail", slow_thumbnail)
+    worker_thread = threading.Thread(target=first.run_once)
+    worker_thread.start()
+    rendering.wait(5)
+
+    taken_twice = []
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        taken_twice.append(second.run_once())
+        time.sleep(0.1)
+    worker_thread.join(10)
+
+    assert not any(taken_twice)
+    assert SqlAssetRepository(engine).get_version(version.id).status is VersionStatus.READY
+    assert _job_status(engine, version.id) == ("done", 1)
