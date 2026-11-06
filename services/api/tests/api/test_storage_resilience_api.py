@@ -1,3 +1,4 @@
+import logging
 import time
 from collections.abc import Iterator
 
@@ -48,10 +49,12 @@ def test_an_open_circuit_answers_503_at_once_with_the_cooldown_as_retry_after(
 ) -> None:
     version_id = _pending_version(guarded_client)
     storage.available = False
+    retry_afters = []
     for _ in range(2):
         failed = guarded_client.post(f"/api/v1/asset-versions/{version_id}/completions")
         assert failed.status_code == 503
-        assert failed.headers["Retry-After"] == "1"
+        retry_afters.append(failed.headers["Retry-After"])
+    assert retry_afters == ["1", "30"]  # the request that opens the circuit gets the cool-down
 
     started = time.monotonic()
     fast = guarded_client.post(f"/api/v1/asset-versions/{version_id}/completions")
@@ -96,3 +99,25 @@ def test_the_container_guards_real_storage_by_default(database_url: str, engine:
     container = build_container(settings, engine=engine)
 
     assert type(container.storage).__name__ == "GuardedStorage"
+
+
+def test_refused_calls_are_logged_at_debug_while_real_failures_are_errors(
+    guarded_client: TestClient, storage: FakeStorage, caplog: pytest.LogCaptureFixture
+) -> None:
+    version_id = _pending_version(guarded_client)
+    storage.available = False
+    with caplog.at_level(logging.DEBUG, logger="kiln_api"):
+        for _ in range(4):
+            guarded_client.post(f"/api/v1/asset-versions/{version_id}/completions")
+
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+    debugs = [r for r in caplog.records if "CIRCUIT_OPEN" in r.getMessage()]
+    assert len(errors) == 2  # the two real failures
+    assert len(debugs) == 2
+    assert all(r.levelno == logging.DEBUG for r in debugs)
+
+
+def test_cross_origin_clients_can_read_retry_after(guarded_client: TestClient) -> None:
+    response = guarded_client.get("/health", headers={"Origin": "http://127.0.0.1:5173"})
+
+    assert "retry-after" in response.headers["access-control-expose-headers"].lower()

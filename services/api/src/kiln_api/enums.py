@@ -99,3 +99,10 @@ class CircuitState(StrEnum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
+
+
+class FastFailCause(StrEnum):
+    """Why a storage call was refused without asking storage (KILN-23); logs only."""
+
+    CIRCUIT_OPEN = "CIRCUIT_OPEN"
+    BULKHEAD_FULL = "BULKHEAD_FULL"

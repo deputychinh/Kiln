@@ -11,10 +11,11 @@ import threading
 import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from typing import IO
 
-from kiln_api.enums import CircuitState, PromotionResult
+from kiln_api.enums import CircuitState, FastFailCause, PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.ports import ObjectStorage, SignedPost, StoredObject
 
@@ -23,11 +24,23 @@ logger = logging.getLogger("kiln_api")
 _BULKHEAD_RETRY_AFTER_SECONDS = 1
 
 
+@dataclass(frozen=True, slots=True)
+class Ticket:
+    """Permission for one call: whether it is the half-open trial, and in which generation.
+
+    The generation changes every time the circuit opens or closes, so the verdict of a call that
+    started in an earlier generation (say, a slow call from before the outage) is ignored.
+    """
+
+    generation: int
+    is_trial: bool
+
+
 class CircuitBreaker:
     """Closed → open after `failures` consecutive failures → half-open after `cooldown` seconds.
 
-    Half-open lets one trial call through at a time: success closes the circuit, failure opens it
-    again for another cool-down. Thread-safe; time comes from a monotonic clock.
+    Half-open lets one trial call through at a time: its success closes the circuit, its failure
+    opens it again for another cool-down. Thread-safe; time comes from a monotonic clock.
     """
 
     def __init__(
@@ -43,6 +56,7 @@ class CircuitBreaker:
         self._monotonic = monotonic
         self._lock = threading.Lock()
         self._state = CircuitState.CLOSED
+        self._generation = 0
         self._consecutive_failures = 0
         self._opened_at = 0.0
         self._trial_running = False
@@ -53,53 +67,75 @@ class CircuitBreaker:
         with self._lock:
             return self._current_state()
 
-    def acquire(self) -> None:
+    @property
+    def cooldown_seconds(self) -> int:
+        """The full cool-down, as whole seconds for `Retry-After`."""
+        return max(math.ceil(self._cooldown), 1)
+
+    def acquire(self) -> Ticket:
         """Allow a call, or raise `StorageUnavailableError` at once while the circuit is open."""
         with self._lock:
             state = self._current_state()
             if state is CircuitState.CLOSED:
-                return
+                return Ticket(generation=self._generation, is_trial=False)
             if state is CircuitState.HALF_OPEN and not self._trial_running:
                 self._trial_running = True
-                return
+                return Ticket(generation=self._generation, is_trial=True)
             remaining = max(self._cooldown - (self._monotonic() - self._opened_at), 0.0)
         raise StorageUnavailableError(
-            cause_code="CIRCUIT_OPEN", retry_after_seconds=max(math.ceil(remaining), 1)
+            cause_code=FastFailCause.CIRCUIT_OPEN,
+            retry_after_seconds=max(math.ceil(remaining), 1),
         )
 
-    def record_success(self) -> None:
-        """A call got an answer from storage."""
+    def record_success(self, ticket: Ticket) -> None:
+        """The call holding `ticket` got an answer from storage."""
         with self._lock:
-            was_open = self._state is CircuitState.OPEN
-            self._state = CircuitState.CLOSED
-            self._consecutive_failures = 0
-            self._trial_running = False
-        if was_open:
-            logger.info("storage circuit closed: storage answers again")
+            if ticket.generation != self._generation:
+                return  # a verdict from before the circuit last changed
+            if not ticket.is_trial:
+                self._consecutive_failures = 0
+                return
+            self._close()
+        logger.info("storage circuit closed: storage answers again")
 
-    def record_failure(self, cause: str) -> None:
-        """A call failed because storage did not answer properly."""
+    def record_failure(self, ticket: Ticket, cause: str) -> bool:
+        """The call holding `ticket` failed because of storage; True if this opened the circuit."""
         with self._lock:
+            if ticket.generation != self._generation:
+                return False
+            if ticket.is_trial:
+                self._open()  # the trial failed: another cool-down, no new warning
+                return False
             self._consecutive_failures += 1
-            reopen = self._state is CircuitState.OPEN  # a failed trial
-            opening = not reopen and self._consecutive_failures >= self._threshold
-            if reopen or opening:
-                self._state = CircuitState.OPEN
-                self._opened_at = self._monotonic()
-            self._trial_running = False
-        if opening:
-            logger.warning(
-                "storage circuit opened after %d consecutive failures (cause %s);"
-                " failing fast for %.0f s",
-                self._threshold,
-                cause,
-                self._cooldown,
-            )
+            if self._consecutive_failures < self._threshold:
+                return False
+            self._open()
+        logger.warning(
+            "storage circuit opened after %d consecutive failures (cause %s);"
+            " failing fast for %.0f s",
+            self._threshold,
+            cause,
+            self._cooldown,
+        )
+        return True
 
-    def release_trial(self) -> None:
-        """A call ended without a verdict on storage (rejected by the bulkhead, or stopped)."""
+    def release(self, ticket: Ticket) -> None:
+        """The call holding `ticket` ended without a verdict on storage."""
         with self._lock:
-            self._trial_running = False
+            if ticket.is_trial and ticket.generation == self._generation:
+                self._trial_running = False
+
+    def _open(self) -> None:
+        self._state = CircuitState.OPEN
+        self._opened_at = self._monotonic()
+        self._generation += 1
+        self._trial_running = False
+
+    def _close(self) -> None:
+        self._state = CircuitState.CLOSED
+        self._consecutive_failures = 0
+        self._generation += 1
+        self._trial_running = False
 
     def _current_state(self) -> CircuitState:
         if self._state is CircuitState.OPEN and (
@@ -112,7 +148,9 @@ class CircuitBreaker:
 class GuardedStorage:
     """`ObjectStorage` with the breaker and a bulkhead around every network call.
 
-    Signing URLs is local (no network) and passes straight through.
+    Signing URLs is local (no network) and passes straight through. Readiness probes fail fast
+    while the circuit is open but never count toward opening it: they use a 1 s probe client, so
+    storage that is merely slow must not open the circuit for real traffic.
     """
 
     def __init__(
@@ -130,24 +168,31 @@ class GuardedStorage:
         self._wait_seconds = wait_seconds
 
     @contextmanager
-    def _call(self) -> Iterator[None]:
+    def _call(self, *, counts: bool = True) -> Iterator[None]:
         """One guarded storage call: circuit first, then a bulkhead slot, then the verdict."""
-        self._breaker.acquire()
+        ticket = self._breaker.acquire()
         if not self._slots.acquire(timeout=self._wait_seconds):
-            self._breaker.release_trial()  # storage was never asked
+            self._breaker.release(ticket)  # storage was never asked
             raise StorageUnavailableError(
-                cause_code="BULKHEAD_FULL", retry_after_seconds=_BULKHEAD_RETRY_AFTER_SECONDS
+                cause_code=FastFailCause.BULKHEAD_FULL,
+                retry_after_seconds=_BULKHEAD_RETRY_AFTER_SECONDS,
             )
         try:
             yield
         except StorageUnavailableError as error:
-            self._breaker.record_failure(error.cause_code or type(error).__name__)
+            if not counts:
+                self._breaker.release(ticket)
+            elif self._breaker.record_failure(ticket, error.cause_code or type(error).__name__):
+                error.retry_after_seconds = self._breaker.cooldown_seconds
             raise
         except BaseException:
-            self._breaker.release_trial()  # not a storage failure (a bug, or a stopped listing)
+            self._breaker.release(ticket)  # not a storage failure (a bug in the caller)
             raise
         else:
-            self._breaker.record_success()
+            if counts:
+                self._breaker.record_success(ticket)
+            else:
+                self._breaker.release(ticket)
         finally:
             self._slots.release()
 
@@ -178,8 +223,9 @@ class GuardedStorage:
         )
 
     def ping(self) -> None:
-        """See `ObjectStorage.ping`; an open circuit makes readiness fail at once."""
-        self._guarded(self._inner.ping)
+        """See `ObjectStorage.ping`; fails fast while open, never counts toward opening."""
+        with self._call(counts=False):
+            self._inner.ping()
 
     def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
         """See `ObjectStorage.download`."""
@@ -198,6 +244,15 @@ class GuardedStorage:
         self._guarded(lambda: self._inner.delete(key))
 
     def iter_keys(self, prefix: str, *, older_than: datetime) -> Generator[str]:
-        """See `ObjectStorage.iter_keys`; the listing holds one slot while it is being read."""
-        with self._call():
-            yield from self._inner.iter_keys(prefix, older_than=older_than)
+        """See `ObjectStorage.iter_keys`; each step is its own guarded call.
+
+        A page is fetched inside some of those steps; between steps no slot is held, so the
+        reader may make other storage calls (deletes) while it walks the listing.
+        """
+        keys = self._inner.iter_keys(prefix, older_than=older_than)
+        while True:
+            with self._call():
+                key = next(keys, None)
+            if key is None:
+                return
+            yield key

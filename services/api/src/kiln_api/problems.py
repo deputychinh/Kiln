@@ -17,7 +17,7 @@ from kiln_api.constants import (
     PROBLEM_JSON,
     RETRY_AFTER_SECONDS,
 )
-from kiln_api.enums import ErrorCode
+from kiln_api.enums import ErrorCode, FastFailCause
 from kiln_api.errors import DatabaseUnavailableError, DomainError
 from kiln_api.schemas.problems import Problem
 
@@ -56,7 +56,10 @@ def _problem(
 async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, DomainError)  # noqa: S101 - registered only for DomainError
     if exc.status >= HTTPStatus.INTERNAL_SERVER_ERROR:
-        logger.error(
+        # A refused storage call is expected during an outage: the breaker logged it once.
+        fast_fail = exc.cause_code in set(FastFailCause)
+        logger.log(
+            logging.DEBUG if fast_fail else logging.ERROR,
             "%s on %s (request %s, cause %s)",
             exc.code.value,
             request.url.path,

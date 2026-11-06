@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import threading
 import time
@@ -38,8 +39,8 @@ def _state(breaker: CircuitBreaker) -> CircuitState:
 
 def _fail(breaker: CircuitBreaker, times: int) -> None:
     for _ in range(times):
-        breaker.acquire()
-        breaker.record_failure("ReadTimeoutError")
+        ticket = breaker.acquire()
+        breaker.record_failure(ticket, "ReadTimeoutError")
 
 
 def test_the_circuit_opens_after_consecutive_failures_and_fails_fast_with_the_cooldown_left(
@@ -60,8 +61,8 @@ def test_the_circuit_opens_after_consecutive_failures_and_fails_fast_with_the_co
 
 def test_only_consecutive_failures_count(breaker: CircuitBreaker) -> None:
     _fail(breaker, 2)
-    breaker.acquire()
-    breaker.record_success()
+    ticket = breaker.acquire()
+    breaker.record_success(ticket)
     _fail(breaker, 2)
 
     assert _state(breaker) is CircuitState.CLOSED
@@ -74,12 +75,12 @@ def test_after_the_cooldown_one_trial_goes_through_and_success_closes(
     ticks.now += 30.0
 
     assert _state(breaker) is CircuitState.HALF_OPEN
-    breaker.acquire()  # the trial
+    trial = breaker.acquire()
     with pytest.raises(StorageUnavailableError) as raised:
         breaker.acquire()  # everyone else still fails fast
     assert raised.value.retry_after_seconds == 1
     with caplog.at_level(logging.INFO, logger="kiln_api"):
-        breaker.record_success()
+        breaker.record_success(trial)
 
     assert _state(breaker) is CircuitState.CLOSED
     assert "storage circuit closed" in caplog.text
@@ -91,10 +92,10 @@ def test_a_failed_trial_reopens_for_a_full_cooldown_without_logging_again(
 ) -> None:
     _fail(breaker, 3)
     ticks.now += 30.0
-    breaker.acquire()
+    trial = breaker.acquire()
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="kiln_api"):
-        breaker.record_failure("ConnectTimeoutError")
+        breaker.record_failure(trial, "ConnectTimeoutError")
 
     assert _state(breaker) is CircuitState.OPEN
     ticks.now += 29.9
@@ -109,8 +110,8 @@ def test_releasing_a_trial_without_a_verdict_lets_the_next_call_try(
 ) -> None:
     _fail(breaker, 3)
     ticks.now += 30.0
-    breaker.acquire()
-    breaker.release_trial()
+    trial = breaker.acquire()
+    breaker.release(trial)
 
     breaker.acquire()  # a new trial is allowed
     assert _state(breaker) is CircuitState.HALF_OPEN
@@ -158,7 +159,7 @@ def test_signing_is_local_and_never_blocked_by_an_open_circuit() -> None:
     storage.available = False
     guarded, breaker = _guarded(storage, failures=1)
     with pytest.raises(StorageUnavailableError):
-        guarded.ping()
+        guarded.head("k")
     assert _state(breaker) is CircuitState.OPEN
 
     assert guarded.presign_download("thumbs/a.webp", 60).startswith("http://storage.test/")
@@ -248,21 +249,152 @@ def test_a_call_waits_for_a_slot_that_frees_up_within_the_wait() -> None:
 
 def test_a_trial_turned_away_by_the_bulkhead_lets_the_next_call_try() -> None:
     storage = FakeStorage()
-    storage.put("uploads/a", 1, "image/png")
     ticks = _Clock()
     breaker = CircuitBreaker(failures=1, cooldown=30.0, monotonic=ticks)
     guarded = GuardedStorage(storage, breaker, max_concurrent=1, wait_seconds=0.01)
-    listing = guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))
-    next(listing)  # a long listing holds the only slot
-    breaker.acquire()
-    breaker.record_failure("ReadTimeoutError")  # meanwhile storage failed elsewhere: open
+    entered, release = threading.Event(), threading.Event()
+
+    def slow() -> None:
+        entered.set()
+        release.wait(5)
+
+    storage.on_head = slow
+    holder = threading.Thread(target=lambda: guarded.head("slow"))  # holds the only slot
+    holder.start()
+    entered.wait(5)
+    storage.on_head = None
+    ticket = breaker.acquire()
+    breaker.record_failure(ticket, "ReadTimeoutError")  # meanwhile storage failed elsewhere: open
+    ticks.now += 30.0
+    try:
+        for _ in range(2):  # each caller gets the trial, finds no slot, and gives the trial back
+            with pytest.raises(StorageUnavailableError) as raised:
+                guarded.head("k")
+            assert raised.value.cause_code == "BULKHEAD_FULL"
+    finally:
+        release.set()
+        holder.join(5)
+
+
+def test_verdicts_of_calls_from_an_earlier_generation_are_ignored(
+    breaker: CircuitBreaker, ticks: _Clock
+) -> None:
+    old = breaker.acquire()  # a slow call that started while the circuit was closed
+    _fail(breaker, 3)
+    ticks.now += 30.0
+    trial = breaker.acquire()
+
+    breaker.release(old)  # the old call ends with a bug...
+    with pytest.raises(StorageUnavailableError):
+        breaker.acquire()  # ...and does not free the trial: no second trial
+    breaker.record_failure(old, "ReadTimeoutError")  # a late failure does not restart the clock
+    breaker.record_success(old)  # a late success does not close the circuit
+    assert _state(breaker) is CircuitState.HALF_OPEN
+
+    breaker.record_success(trial)
+    assert _state(breaker) is CircuitState.CLOSED
+    breaker.record_failure(trial, "x")  # the trial's ticket is stale now too
+    assert _state(breaker) is CircuitState.CLOSED
+
+
+def test_a_late_success_from_before_the_outage_does_not_reset_the_new_count(
+    breaker: CircuitBreaker, ticks: _Clock
+) -> None:
+    old = breaker.acquire()  # started before the outage, answers only much later
+    _fail(breaker, 3)
+    ticks.now += 30.0
+    breaker.record_success(breaker.acquire())  # the trial closes the circuit
+    _fail(breaker, 2)
+
+    breaker.record_success(old)  # stale: must not wipe the two new failures
+    _fail(breaker, 1)
+
+    assert _state(breaker) is CircuitState.OPEN
+
+
+def test_two_trials_never_run_at_once_under_many_threads() -> None:
+    storage = FakeStorage()
+    ticks = _Clock()
+    breaker = CircuitBreaker(failures=1, cooldown=30.0, monotonic=ticks)
+    guarded = GuardedStorage(storage, breaker, max_concurrent=64, wait_seconds=1.0)
+    inside: list[int] = []
+    peak: list[int] = [0]
+    lock = threading.Lock()
+
+    def observe() -> None:
+        with lock:
+            inside.append(1)
+            peak[0] = max(peak[0], len(inside))
+        time.sleep(0.02)
+        with lock:
+            inside.pop()
+        raise StorageUnavailableError(cause_code="ReadTimeoutError")  # the trial fails
+
+    ticket = breaker.acquire()
+    breaker.record_failure(ticket, "x")
+    ticks.now += 30.0
+    storage.on_head = observe
+    barrier = threading.Barrier(32)
+
+    def call() -> None:
+        barrier.wait()
+        with contextlib.suppress(StorageUnavailableError):
+            guarded.head("k")
+
+    threads = [threading.Thread(target=call) for _ in range(32)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(5)
+
+    assert peak[0] == 1
+    assert _state(breaker) is CircuitState.OPEN
+
+
+def test_the_request_that_opens_the_circuit_already_gets_the_cooldown_as_retry_after() -> None:
+    storage = FakeStorage()
+    storage.available = False
+    guarded, _ = _guarded(storage, failures=2)
+    with pytest.raises(StorageUnavailableError) as first:
+        guarded.head("k")
+    with pytest.raises(StorageUnavailableError) as opening:
+        guarded.head("k")
+
+    assert first.value.retry_after_seconds is None  # the default 1 s applies
+    assert opening.value.retry_after_seconds == 30
+
+
+def test_readiness_probes_fail_fast_when_open_but_never_open_the_circuit() -> None:
+    storage = FakeStorage()
+    storage.available = False
+    guarded, breaker = _guarded(storage, failures=1)
+    for _ in range(5):
+        with pytest.raises(StorageUnavailableError) as probe:
+            guarded.ping()
+        assert probe.value.cause_code != "CIRCUIT_OPEN"
+    assert _state(breaker) is CircuitState.CLOSED
+
+    with pytest.raises(StorageUnavailableError):
+        guarded.head("k")  # real traffic opens it
+    with pytest.raises(StorageUnavailableError) as fast:
+        guarded.ping()
+    assert fast.value.cause_code == "CIRCUIT_OPEN"
+
+
+def test_a_successful_probe_does_not_close_an_open_circuit() -> None:
+    storage = FakeStorage()
+    ticks = _Clock()
+    breaker = CircuitBreaker(failures=1, cooldown=30.0, monotonic=ticks)
+    guarded = GuardedStorage(storage, breaker, max_concurrent=4, wait_seconds=0.01)
+    ticket = breaker.acquire()
+    breaker.record_failure(ticket, "x")
     ticks.now += 30.0
 
-    for _ in range(2):  # each caller gets the trial, finds no slot, and gives the trial back
-        with pytest.raises(StorageUnavailableError) as raised:
-            guarded.head("k")
-        assert raised.value.cause_code == "BULKHEAD_FULL"
-    listing.close()
+    guarded.ping()  # takes and gives back the trial without a verdict
+
+    assert _state(breaker) is CircuitState.HALF_OPEN
+    assert guarded.head("k") is None  # real traffic gets the trial and closes the circuit
+    assert _state(breaker) is CircuitState.CLOSED
 
 
 def test_a_bug_in_a_call_is_not_counted_against_storage() -> None:
@@ -279,30 +411,52 @@ def test_a_bug_in_a_call_is_not_counted_against_storage() -> None:
     assert _state(breaker) is CircuitState.CLOSED
 
 
-def test_a_listing_failure_counts_and_an_early_stop_frees_the_trial() -> None:
+def test_a_listing_failure_counts_and_a_listing_trial_closes_the_circuit() -> None:
     storage = FakeStorage()
     storage.put("uploads/a", 1, "image/png")
     storage.put("uploads/b", 1, "image/png")
     ticks = _Clock()
     breaker = CircuitBreaker(failures=1, cooldown=30.0, monotonic=ticks)
     guarded = GuardedStorage(storage, breaker, max_concurrent=1, wait_seconds=0.05)
+    later = datetime(9999, 1, 1, tzinfo=UTC)
     storage.list_available = False
     with pytest.raises(StorageUnavailableError):
-        list(guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC)))
+        list(guarded.iter_keys("uploads/", older_than=later))
     assert _state(breaker) is CircuitState.OPEN
 
     ticks.now += 30.0
     storage.list_available = True
-    listing = guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))
-    assert next(listing) == "uploads/a"  # the trial is running and holds the only slot
-    listing.close()  # the reader stopped early: no verdict, the trial and the slot are freed
-
-    assert _state(breaker) is CircuitState.HALF_OPEN
-    assert list(guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))) == [
-        "uploads/a",
-        "uploads/b",
-    ]
+    listing = guarded.iter_keys("uploads/", older_than=later)
+    assert next(listing) == "uploads/a"  # the first step is the trial and succeeds
     assert _state(breaker) is CircuitState.CLOSED
+    listing.close()
+
+
+def test_a_reader_can_call_storage_between_listing_steps_with_a_single_slot() -> None:
+    storage = FakeStorage()
+    for key in ("uploads/a", "uploads/b", "uploads/c"):
+        storage.put(key, 1, "image/png")
+    guarded, _ = _guarded(storage, slots=1, wait=0.01)
+
+    for key in guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC)):
+        guarded.delete(key)  # no slot is held while the reader works
+
+    assert storage.objects == {}
+
+
+def test_stopping_a_listing_early_closes_the_underlying_listing() -> None:
+    storage = FakeStorage()
+    for key in ("uploads/a", "uploads/b"):
+        storage.put(key, 1, "image/png")
+    guarded, _ = _guarded(storage)
+
+    listing = guarded.iter_keys("uploads/", older_than=datetime(9999, 1, 1, tzinfo=UTC))
+    next(listing)
+    assert storage.open_listings == 1
+    listing.close()
+
+    assert storage.listed == 1
+    assert storage.open_listings == 0  # the storage-side listing was closed too
 
 
 @pytest.mark.parametrize(

@@ -61,7 +61,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         allow_origins=resolved.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", REQUEST_ID_HEADER],
-        expose_headers=["Location", REQUEST_ID_HEADER],
+        expose_headers=["Location", "Retry-After", REQUEST_ID_HEADER],
     )
     install_error_handlers(app)
     install_problem_schema(app)

@@ -26,6 +26,7 @@ class FakeStorage:
         self.modified: dict[str, datetime] = {}
         self.list_available = True
         self.listed = 0
+        self.open_listings = 0
 
     def ensure_bucket(self) -> None:
         self.ensure_calls += 1
@@ -103,10 +104,14 @@ class FakeStorage:
         self._check()
         if not self.list_available:
             raise StorageUnavailableError
-        for key in sorted(self.objects):  # S3 lists in key order
-            if key.startswith(prefix) and self.modified.get(key, older_than) < older_than:
-                self.listed += 1
-                yield key
+        self.open_listings += 1
+        try:
+            for key in sorted(self.objects):  # S3 lists in key order
+                if key.startswith(prefix) and self.modified.get(key, older_than) < older_than:
+                    self.listed += 1
+                    yield key
+        finally:
+            self.open_listings -= 1
 
     def presign_download(self, key: str, ttl_seconds: int) -> str:
         return f"http://storage.test/kiln-assets/{key}?ttl={ttl_seconds}"
