@@ -1,7 +1,16 @@
+import { randomUUID } from 'node:crypto';
+
 import { AxeBuilder } from '@axe-core/playwright';
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test, type TestInfo } from '@playwright/test';
 
 import { seedImageAsset } from './support/seed';
+
+/** Unique across parallel projects and runs (desktop and mobile seed at the same millisecond). */
+const uniqueName = (prefix: string, testInfo: TestInfo): string =>
+  `e2e_${prefix}_${testInfo.project.name}_${randomUUID().slice(0, 8)}`;
+
+/** A gallery card by asset id, never by a name prefix. */
+const cardOf = (page: Page, id: string): Locator => page.locator(`a[href="/assets/${id}"]`);
 
 const seriousViolations = async (page: Page): Promise<unknown[]> => {
   const results = await new AxeBuilder({ page })
@@ -14,14 +23,12 @@ test('an uploaded image appears in the gallery with its preview and opens to its
   page,
   request,
 }, testInfo) => {
-  const asset = await seedImageAsset(request, `e2e_swatch_${String(Date.now())}`);
+  const asset = await seedImageAsset(request, uniqueName('swatch', testInfo));
 
   // The worker renders the preview within seconds; the gallery shows it after a reload.
   await expect(async () => {
     await page.goto('/');
-    await expect(
-      page.getByRole('link', { name: new RegExp(asset.name) }).locator('img'),
-    ).toBeVisible({
+    await expect(cardOf(page, asset.id).locator('img')).toBeVisible({
       timeout: 1_000,
     });
   }).toPass({ timeout: 30_000 });
@@ -29,7 +36,7 @@ test('an uploaded image appears in the gallery with its preview and opens to its
   expect(await seriousViolations(page)).toEqual([]);
   await page.screenshot({ path: `test-results/screens/gallery-${testInfo.project.name}.png` });
 
-  await page.getByRole('link', { name: new RegExp(asset.name) }).click();
+  await cardOf(page, asset.id).click();
 
   const detail = page.getByRole('article', { name: asset.name });
   await expect(detail.getByText('Version 1')).toBeVisible();
@@ -43,24 +50,25 @@ test('an uploaded image appears in the gallery with its preview and opens to its
     await expect(page.getByRole('list', { name: 'Assets' })).toBeHidden();
     await page.getByRole('link', { name: 'All assets' }).click();
     await expect(page.getByRole('list', { name: 'Assets' })).toBeVisible();
+    await expect(cardOf(page, asset.id)).toBeFocused();
   } else {
     // Expanded: list and detail side by side; the open card is marked current.
-    await expect(page.getByRole('link', { name: new RegExp(asset.name) })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    await expect(cardOf(page, asset.id)).toHaveAttribute('aria-current', 'page');
   }
 });
 
-test('the gallery can be used with the keyboard alone', async ({ page, request }) => {
-  const asset = await seedImageAsset(request, `e2e_keys_${String(Date.now())}`);
+test('the gallery can be used with the keyboard alone', async ({ page, request }, testInfo) => {
+  const asset = await seedImageAsset(request, uniqueName('keys', testInfo));
   await page.goto('/assets');
-  const card = page.getByRole('link', { name: new RegExp(asset.name) });
-  await expect(card).toBeVisible();
+  await expect(cardOf(page, asset.id)).toBeVisible();
 
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
-  await card.focus();
+  // Tab through the cards (newest first) until the seeded one has focus.
+  await expect(async () => {
+    await page.keyboard.press('Tab');
+    await expect(cardOf(page, asset.id)).toBeFocused({ timeout: 100 });
+  }).toPass({ timeout: 15_000, intervals: [0] });
   await page.keyboard.press('Enter');
 
   await expect(page).toHaveURL(new RegExp(`/assets/${asset.id}$`));
