@@ -84,7 +84,8 @@ export const en: Copy = {
     cancel: (fileName) => `Cancel ${fileName}`,
     retry: (fileName) => `Retry ${fileName}`,
     remove: (fileName) => `Remove ${fileName}`,
-    announce: (fileName, status) => `${fileName}: ${status}`,
+    // Each announcement ends with a full stop, so several read as separate sentences.
+    announce: (fileName, status) => `${fileName}: ${status.replace(/[.…]*$/, '')}.`,
     rejected: {
       unsupported: 'Only PNG, JPEG, WebP and .glb files can be uploaded.',
       empty: 'This file is empty.',
@@ -93,6 +94,7 @@ export const en: Copy = {
     },
     storageRejected: 'Storage refused the file. Try again.',
     busy: 'Kiln is busy right now. Try again in a moment.',
+    stalled: 'The connection stalled. Try again.',
     refused: {
       name: 'Kiln cannot use this file name. Rename the file, then add it again.',
       size: 'Kiln cannot accept a file of this size.',

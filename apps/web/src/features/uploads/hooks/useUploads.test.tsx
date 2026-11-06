@@ -197,6 +197,21 @@ describe('useUploads', () => {
     expect(keys[0]).toBe(keys[1]);
   });
 
+  it('keeps every outcome when React batches several into one render', async () => {
+    vi.mocked(sendToStorage).mockReturnValue(new Promise(() => undefined));
+    const { result } = setup();
+    act(() => result.current.add([png('a.png'), png('b.png'), png('c.png'), png('d.png')]));
+    await waitFor(() => expect(sendToStorage).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      result.current.cancel(result.current.items[2]!.id);
+      result.current.cancel(result.current.items[3]!.id);
+    });
+
+    expect(result.current.outcomeCount).toBe(2);
+    expect(result.current.outcomes.map((item) => item.file.name)).toEqual(['c.png', 'd.png']);
+  });
+
   it('cancels a queued file without starting it', async () => {
     vi.mocked(sendToStorage).mockReturnValue(new Promise(() => undefined));
     const { result } = setup();

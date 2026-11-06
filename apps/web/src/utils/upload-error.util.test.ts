@@ -6,6 +6,7 @@ import { uploadFailureOf } from '@/utils/upload-error.util';
 describe('uploadFailureOf', () => {
   it.each([
     [apiError(0, 'Failed to fetch'), en.errors.unreachable],
+    [apiError(0, 'The connection stalled', 'UPLOAD_STALLED'), en.uploads.stalled],
     [apiError(403, 'Forbidden', STORAGE_REJECTED_CODE), en.uploads.storageRejected],
     [apiError(503, 'Storage is unavailable', 'STORAGE_UNAVAILABLE'), en.uploads.busy],
     [apiError(503, 'Database is busy', 'DATABASE_BUSY'), en.uploads.busy],

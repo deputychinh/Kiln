@@ -20,6 +20,8 @@ import type { UploadItem, UploadQueueState, UploadsApi } from '@/interfaces/uplo
 import { uploadFailureOf } from '@/utils/upload-error.util';
 import { declareUpload } from '@/utils/upload-file.util';
 
+/** Recent outcomes kept for announcements; older ones have long been read out. */
+const OUTCOMES_KEPT = 50;
 const RUNNING = new Set([UploadStatus.Creating, UploadStatus.Uploading, UploadStatus.Completing]);
 const FINISHED = new Set([UploadStatus.Ready, UploadStatus.Uploaded]);
 
@@ -55,8 +57,14 @@ const nextItems = (items: UploadItem[], action: Action): UploadItem[] => {
 
 const reducer = (state: UploadQueueState, action: Action): UploadQueueState => {
   const items = nextItems(state.items, action);
-  const outcomes = endedBetween(state.items, items);
-  return { items, outcomes: outcomes.length > 0 ? outcomes : state.outcomes };
+  const ended = endedBetween(state.items, items);
+  if (ended.length === 0) return { ...state, items };
+  // Append, never replace: outcomes from separate changes in one frame must all be heard.
+  return {
+    items,
+    outcomes: [...state.outcomes, ...ended].slice(-OUTCOMES_KEPT),
+    outcomeCount: state.outcomeCount + ended.length,
+  };
 };
 
 const isAbort = (error: unknown): boolean =>
@@ -83,7 +91,11 @@ const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
 export const useUploads = (): UploadsApi => {
   const copy = useCopy();
   const queryClient = useQueryClient();
-  const [{ items, outcomes }, dispatch] = useReducer(reducer, { items: [], outcomes: [] });
+  const [{ items, outcomes, outcomeCount }, dispatch] = useReducer(reducer, {
+    items: [],
+    outcomes: [],
+    outcomeCount: 0,
+  });
   const controllersRef = useRef(new Map<string, AbortController>());
 
   const patch = useCallback(
@@ -248,6 +260,7 @@ export const useUploads = (): UploadsApi => {
   return {
     items,
     outcomes,
+    outcomeCount,
     summary: {
       finished: items.filter((item) => FINISHED.has(item.status)).length,
       failed: items.filter((item) => item.status === UploadStatus.Failed).length,

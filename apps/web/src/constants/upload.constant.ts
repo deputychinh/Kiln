@@ -25,3 +25,9 @@ export const completionsPath = (versionId: string): string =>
 export const STORAGE_REJECTED_CODE = 'STORAGE_REJECTED';
 /** The API's `code` when a completion was already recorded (a retry after a lost reply). */
 export const ALREADY_COMPLETE_CODE = 'INVALID_STATUS_TRANSITION';
+/** A transfer with no progress for this long has stalled: it fails and can be retried. */
+export const UPLOAD_STALL_MS = 60_000;
+/** Creating an asset or completing an upload takes at most this long. */
+export const UPLOAD_API_TIMEOUT_MS = 30_000;
+/** The `code` of an `ApiError` for a stalled transfer or a timed-out API call. */
+export const UPLOAD_STALLED_CODE = 'UPLOAD_STALLED';

@@ -1,5 +1,5 @@
 import { isApiError } from '@/api/client';
-import { STORAGE_REJECTED_CODE } from '@/constants/upload.constant';
+import { STORAGE_REJECTED_CODE, UPLOAD_STALLED_CODE } from '@/constants/upload.constant';
 import type { Copy } from '@/interfaces/copy.interface';
 
 const RETRYABLE_CLIENT_STATUSES = new Set([408, 409, 429]);
@@ -26,6 +26,7 @@ export const uploadFailureOf = (
   if (!isApiError(error)) return { error: copy.errors.unexpected, canRetry: true };
   if (error.code === STORAGE_REJECTED_CODE)
     return { error: copy.uploads.storageRejected, canRetry: true };
+  if (error.code === UPLOAD_STALLED_CODE) return { error: copy.uploads.stalled, canRetry: true };
   if (error.status === 0) return { error: copy.errors.unreachable, canRetry: true };
   const isClientError = error.status >= 400 && error.status < 500;
   if (isClientError && !RETRYABLE_CLIENT_STATUSES.has(error.status))

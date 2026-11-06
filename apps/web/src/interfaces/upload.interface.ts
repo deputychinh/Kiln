@@ -49,8 +49,10 @@ export interface StorageRequest {
 /** The upload queue as the gallery uses it (`useUploads`). */
 export interface UploadsApi {
   items: UploadItem[];
-  /** The rows that reached an end state in the last change (for a live announcement). */
+  /** The most recent rows to reach an end state, oldest first (for live announcements). */
   outcomes: UploadItem[];
+  /** How many outcomes there have been in all; the panel announces the ones it has not yet. */
+  outcomeCount: number;
   /** Files finished (ready, or uploaded and still processing) and failed, out of all rows. */
   summary: { finished: number; failed: number; total: number };
   add: (files: File[]) => void;
@@ -62,6 +64,7 @@ export interface UploadsApi {
 /** The queue's state: its rows and the rows that just reached an end state. */
 export interface UploadQueueState {
   items: UploadItem[];
-  /** The rows that reached an end state in the last change, for one polite announcement. */
+  /** The most recent rows to reach an end state, oldest first. */
   outcomes: UploadItem[];
+  outcomeCount: number;
 }

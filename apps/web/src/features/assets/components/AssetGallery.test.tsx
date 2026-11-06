@@ -83,7 +83,8 @@ describe('AssetGallery', () => {
     const { queryClient } = renderApp('/assets');
     const input = (
       await screen.findByRole('group', { name: 'Drop images or .glb files here' })
-    ).querySelector<HTMLInputElement>('input[type="file"]')!;
+    ).querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('The dropzone has no file input');
 
     await userEvent.upload(input, new File(['x'], 'notes.txt', { type: 'text/plain' }), {
       applyAccept: false,

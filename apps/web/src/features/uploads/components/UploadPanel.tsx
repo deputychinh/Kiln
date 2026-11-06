@@ -70,24 +70,33 @@ export const UploadPanel = ({ uploads }: UploadPanelProps): ReactElement => {
     return () => window.removeEventListener('beforeunload', warn);
   }, [isBusy]);
 
-  const announcement = uploads.outcomes
-    .map((item) =>
-      copy.uploads.announce(item.file.name, item.error ?? copy.uploads.status[item.status]),
-    )
-    .join('. ');
-
   // The live region lives on <body>: the list pane is hidden on compact screens while an asset
-  // is open. Clearing it first makes a repeated outcome ("rock.png: Ready" twice) heard again.
+  // is open. New outcomes queue up until the next frame, so files ending together are all heard;
+  // clearing first makes a repeated outcome ("rock.png: Ready" twice) heard again.
   const liveRef = useRef<HTMLParagraphElement>(null);
+  const announcedCountRef = useRef(uploads.outcomeCount);
+  const pendingRef = useRef<string[]>([]);
+  const { outcomes, outcomeCount } = uploads;
   useEffect(() => {
+    const fresh = Math.min(outcomeCount - announcedCountRef.current, outcomes.length);
+    announcedCountRef.current = outcomeCount;
+    if (fresh > 0)
+      pendingRef.current.push(
+        ...outcomes
+          .slice(-fresh)
+          .map((item) =>
+            copy.uploads.announce(item.file.name, item.error ?? copy.uploads.status[item.status]),
+          ),
+      );
     const live = liveRef.current;
-    if (!live || !announcement) return;
+    if (!live || pendingRef.current.length === 0) return;
     live.textContent = '';
     const frame = requestAnimationFrame(() => {
-      live.textContent = announcement;
+      live.textContent = pendingRef.current.join(' ');
+      pendingRef.current = [];
     });
     return () => cancelAnimationFrame(frame);
-  }, [announcement, uploads.outcomes]);
+  }, [copy, outcomes, outcomeCount]);
 
   return (
     <section className="upload-panel" aria-label={copy.uploads.panelLabel} ref={panelRef}>

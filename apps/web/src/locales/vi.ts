@@ -84,7 +84,8 @@ export const vi: Copy = {
     cancel: (fileName) => `Huỷ ${fileName}`,
     retry: (fileName) => `Thử lại ${fileName}`,
     remove: (fileName) => `Xoá ${fileName} khỏi danh sách`,
-    announce: (fileName, status) => `${fileName}: ${status}`,
+    // Each announcement ends with a full stop, so several read as separate sentences.
+    announce: (fileName, status) => `${fileName}: ${status.replace(/[.…]*$/, '')}.`,
     rejected: {
       unsupported: 'Chỉ tải lên được file PNG, JPEG, WebP và .glb.',
       empty: 'File này rỗng.',
@@ -93,6 +94,7 @@ export const vi: Copy = {
     },
     storageRejected: 'Kho lưu trữ từ chối file. Hãy thử lại.',
     busy: 'Kiln đang bận. Hãy thử lại sau giây lát.',
+    stalled: 'Kết nối bị treo. Hãy thử lại.',
     refused: {
       name: 'Kiln không dùng được tên file này. Hãy đổi tên file rồi thêm lại.',
       size: 'Kiln không nhận được file có dung lượng này.',

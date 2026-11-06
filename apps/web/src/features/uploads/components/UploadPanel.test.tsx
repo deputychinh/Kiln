@@ -25,9 +25,14 @@ const anItem = (overrides: Partial<UploadItem> = {}): UploadItem => ({
   ...overrides,
 });
 
-const uploadsWith = (items: UploadItem[], outcomes: UploadItem[] = []): UploadsApi => ({
+const uploadsWith = (
+  items: UploadItem[],
+  outcomes: UploadItem[] = [],
+  outcomeCount = outcomes.length,
+): UploadsApi => ({
   items,
   outcomes,
+  outcomeCount,
   summary: {
     finished: items.filter((item) => item.status === UploadStatus.Ready).length,
     failed: items.filter((item) => item.status === UploadStatus.Failed).length,
@@ -248,13 +253,49 @@ describe('UploadPanel', () => {
 
   it('announces a repeated outcome again, outside the list pane', async () => {
     const ready = anItem({ status: UploadStatus.Ready });
-    const { rerender } = render(<StatefulOnly items={[ready]} outcomes={[ready]} />);
-    const live = (await screen.findByText('rock.png: Ready')).closest('[aria-live]');
+    // Outcomes from before the panel mounted are not news; only later ones are announced.
+    const { rerender } = render(<StatefulOnly items={[ready]} />);
+    rerender(<StatefulOnly items={[ready]} outcomes={[ready]} />);
+    const live = (await screen.findByText('rock.png: Ready.')).closest('[aria-live]');
     expect(live?.parentElement).toBe(document.body);
 
-    rerender(<StatefulOnly items={[ready]} outcomes={[{ ...ready }]} />);
+    rerender(<StatefulOnly items={[ready]} outcomes={[ready, { ...ready }]} />);
     expect(live).toHaveTextContent('');
-    await waitFor(() => expect(live).toHaveTextContent('rock.png: Ready'));
+    await waitFor(() => expect(live).toHaveTextContent('rock.png: Ready.'));
+  });
+
+  it('announces every outcome when files end in separate changes within one frame', async () => {
+    const a = anItem({
+      status: UploadStatus.Failed,
+      error: 'Kiln is busy right now. Try again in a moment.',
+    });
+    const b = anItem({
+      id: 'row-2',
+      status: UploadStatus.Failed,
+      error: 'This file is empty.',
+      file: new File([], 'b.png'),
+    });
+    const c = anItem({
+      id: 'row-3',
+      status: UploadStatus.Processing,
+      file: new File(['x'], 'c.png'),
+    });
+    const { rerender } = render(<StatefulOnly items={[a, b, c]} />);
+    rerender(<StatefulOnly items={[a, b, c]} outcomes={[a]} />);
+    rerender(<StatefulOnly items={[a, b, c]} outcomes={[a, b]} />);
+    rerender(
+      <StatefulOnly
+        items={[a, b, { ...c, status: UploadStatus.Ready }]}
+        outcomes={[a, b, { ...c, status: UploadStatus.Ready }]}
+      />,
+    );
+
+    const live = document.body.querySelector('[aria-live="polite"]');
+    await waitFor(() =>
+      expect(live).toHaveTextContent(
+        'rock.png: Kiln is busy right now. Try again in a moment. b.png: This file is empty. c.png: Ready.',
+      ),
+    );
   });
 
   it('announces the files that just ended, once, politely', async () => {
@@ -265,10 +306,12 @@ describe('UploadPanel', () => {
       error: 'This file is empty.',
       file: new File([], 'empty.png'),
     });
-    renderPanel(uploadsWith([ready, failed], [ready, failed]));
+    const { rerender } = render(<StatefulOnly items={[ready, failed]} />);
+    rerender(<StatefulOnly items={[ready, failed]} outcomes={[ready, failed]} />);
 
     const live = (await screen.findByText(/rock.png: Ready/)).closest('[aria-live]');
     expect(live).toHaveAttribute('aria-live', 'polite');
     expect(live).toHaveTextContent('rock.png: Ready. empty.png: This file is empty.');
+    expect(live?.textContent).not.toContain('..');
   });
 });
