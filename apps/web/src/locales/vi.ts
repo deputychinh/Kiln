@@ -35,6 +35,9 @@ export const vi: Copy = {
       IMAGE_TOO_LARGE: 'Ảnh có quá nhiều điểm ảnh để tạo bản xem trước.',
       PROCESSING_GAVE_UP: 'Xử lý thất bại nhiều lần. Hãy tải tệp lên lại sau.',
       UPLOAD_EXPIRED: 'Tệp chưa bao giờ được tải lên xong. Hãy tải lại tệp.',
+      UNREADABLE_MODEL:
+        'Đây không phải tệp glTF nhị phân (.glb) mà Kiln đọc được. Chưa hỗ trợ mesh nén (Draco, meshopt) và tệp tham chiếu bên ngoài.',
+      MODEL_TOO_LARGE: 'Model có quá nhiều hình học để tạo bản xem trước (hơn 2 triệu tam giác).',
     },
     detailLabel: 'Chi tiết asset',
     selectPrompt: 'Chọn một asset để xem các phiên bản.',

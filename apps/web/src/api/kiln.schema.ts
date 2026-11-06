@@ -287,7 +287,7 @@ export interface components {
          * @description Why a version ended `failed`; shown to people, so stable and human-mappable.
          * @enum {string}
          */
-        FailureReason: "UPLOAD_CHANGED" | "UNREADABLE_IMAGE" | "IMAGE_TOO_LARGE" | "PROCESSING_GAVE_UP" | "UPLOAD_EXPIRED";
+        FailureReason: "UPLOAD_CHANGED" | "UNREADABLE_IMAGE" | "IMAGE_TOO_LARGE" | "PROCESSING_GAVE_UP" | "UPLOAD_EXPIRED" | "UNREADABLE_MODEL" | "MODEL_TOO_LARGE";
         /**
          * HealthResponse
          * @description Probe result.

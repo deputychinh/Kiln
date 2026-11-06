@@ -303,6 +303,32 @@ describe('AssetDetail', () => {
     expect(await screen.findByRole('heading', { name: 'rock_albedo' })).toHaveFocus();
   });
 
+  it('explains a model that cannot be previewed', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [
+        json(
+          aDetail({
+            kind: 'model',
+            thumbnail_url: null,
+            versions: [
+              aVersion({
+                status: 'failed',
+                failure_reason: 'UNREADABLE_MODEL',
+                thumbnail_url: null,
+              }),
+            ],
+          }),
+        ),
+      ],
+    });
+
+    renderApp(`/assets/${asset.id}`);
+
+    const detail = await screen.findByRole('article', { name: 'rock_albedo' });
+    expect(detail).toHaveTextContent('Compressed meshes (Draco, meshopt)');
+  });
+
   it('explains an upload that was never completed', async () => {
     fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],

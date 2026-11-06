@@ -35,6 +35,10 @@ export const en: Copy = {
       IMAGE_TOO_LARGE: 'The image has too many pixels to preview.',
       PROCESSING_GAVE_UP: 'Processing failed several times. Upload the file again later.',
       UPLOAD_EXPIRED: 'The upload was never completed. Upload the file again.',
+      UNREADABLE_MODEL:
+        'This is not a glTF binary (.glb) Kiln can read. Compressed meshes (Draco, meshopt) and external files are not supported yet.',
+      MODEL_TOO_LARGE:
+        'The model has too much geometry to preview (more than 2 million triangles).',
     },
     detailLabel: 'Asset details',
     selectPrompt: 'Select an asset to see its versions.',
