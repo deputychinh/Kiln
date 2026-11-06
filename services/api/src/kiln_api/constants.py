@@ -63,6 +63,8 @@ MAINTENANCE_BATCH_SIZE = 500
 MAINTENANCE_SCAN_LIMIT = 10 * MAINTENANCE_BATCH_SIZE
 # Versions are looked up this many keys at a time (one query per chunk, not per key).
 MAINTENANCE_LOOKUP_CHUNK = 100
+# Expired idempotency keys are purged in up to this many batches per run (5,000 keys).
+MAINTENANCE_PURGE_BATCHES = 10
 MAINTENANCE_INTERVAL_SECONDS = 60 * 60
 MAINTENANCE_TASK = "cleanup"
 LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"

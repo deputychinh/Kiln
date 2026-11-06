@@ -19,7 +19,7 @@ from kiln_api.domain.assets import (
 )
 from kiln_api.domain.idempotency import request_fingerprint
 from kiln_api.domain.jobs import new_job
-from kiln_api.enums import AssetKind, JobKind, PromotionResult, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, JobKind, PromotionResult, VersionStatus
 from kiln_api.errors import (
     IdempotencyKeyInUseError,
     InvalidStatusTransitionError,
@@ -173,21 +173,13 @@ class AssetService:
         version = self._repository.get_version(version_id)
         if version.status is not VersionStatus.PENDING_UPLOAD:
             return version
-        staging = upload_key(version)
-        stored = self._storage.head(staging)
-        result = PromotionResult.SOURCE_GONE
-        if stored is not None:
-            self._check_declared(version, stored)
-            result = self._storage.promote(
-                source_key=staging, target_key=version.object_key, etag=stored.etag
-            )
-            if result is PromotionResult.CHANGED:
-                raise UploadMismatchError  # replaced between the check and the copy
-        if result is PromotionResult.PROMOTED:
-            self._storage.delete(staging)
+        self._promote_staging(version)
         # The final object is the one processing will read; record its ETag (ADR 0005).
         final = self._storage.head(version.object_key)
         if final is None:
+            current = self._repository.get_version(version_id)
+            if current.status is not VersionStatus.PENDING_UPLOAD:
+                return current  # expired (and cleaned up) by maintenance meanwhile
             raise UploadNotFoundError
         self._check_declared(version, final)
         now = self._clock.now()
@@ -200,8 +192,32 @@ class AssetService:
                 tx.assets.save_version(processing, expected=VersionStatus.PENDING_UPLOAD)
                 tx.jobs.enqueue(job)
         except InvalidStatusTransitionError:
-            return self._repository.get_version(version_id)  # a concurrent completion won
+            current = self._repository.get_version(version_id)  # someone else moved it first
+            if current.failure_reason is FailureReason.UPLOAD_EXPIRED:
+                # Maintenance expired it while this copy was running: the promoted file is
+                # garbage, and whichever side finishes last removes it (KILN-22).
+                self._storage.delete(version.object_key)
+            return current
         return processing
+
+    def _promote_staging(self, version: AssetVersion) -> None:
+        """Copy the checked staging object to the final key, then drop the staging object.
+
+        A staging object already gone means an earlier attempt (or a concurrent completion)
+        promoted it; the caller then checks the final object.
+        """
+        staging = upload_key(version)
+        stored = self._storage.head(staging)
+        if stored is None:
+            return
+        self._check_declared(version, stored)
+        result = self._storage.promote(
+            source_key=staging, target_key=version.object_key, etag=stored.etag
+        )
+        if result is PromotionResult.CHANGED:
+            raise UploadMismatchError  # replaced between the check and the copy
+        if result is PromotionResult.PROMOTED:
+            self._storage.delete(staging)
 
     def get(self, asset_id: UUID) -> AssetDetail:
         """Return an asset with its cover and versions, each with its preview URL."""
