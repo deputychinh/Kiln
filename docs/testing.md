@@ -20,6 +20,8 @@
 
 `make ci` = lint + typecheck + test + build, identical to `.github/workflows/ci.yml`.
 
+Every Python test has a 120 s time limit (`pytest-timeout`, in `pyproject.toml`): tests that start threads or processes (heartbeat, supervisor) fail instead of hanging CI when a regression stops them from ending.
+
 ## Principles
 
 - Test behaviour, one behaviour per test, Arrange–Act–Assert; test names are sentences (`test_upload_is_rejected_when_the_file_type_is_unknown`).

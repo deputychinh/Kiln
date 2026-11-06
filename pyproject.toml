@@ -23,6 +23,7 @@ dev = [
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.4.0",
     "ruff>=0.17.3",
 ]
 
@@ -60,3 +61,5 @@ testpaths = ["services/api/tests", "services/worker/tests"]
 pythonpath = ["services/api/tests"]
 addopts = "--import-mode=importlib --strict-markers --cov=kiln_api --cov=kiln_worker --cov-report=term-missing --cov-fail-under=90"
 filterwarnings = ["error"]
+# A regression that hangs (a worker never told to stop) must fail, not stall CI.
+timeout = 120
