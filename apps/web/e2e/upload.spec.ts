@@ -131,7 +131,10 @@ test('a slow upload can be cancelled from the keyboard, retried with the same ke
   });
 
   // Keyboard only: Cancel, then Retry where focus lands.
-  await row.getByRole('button', { name: `Cancel ${fileName}` }).focus();
+  // Real Tab order: from Choose files, the next stop is this row's Cancel.
+  await page.getByRole('button', { name: 'Choose files' }).focus();
+  await page.keyboard.press('Tab');
+  await expect(row.getByRole('button', { name: `Cancel ${fileName}` })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(row.getByText('Cancelled', { exact: true })).toBeVisible();
   const retry = row.getByRole('button', { name: `Retry ${fileName}` });

@@ -1,12 +1,21 @@
 import { Dropzone } from '@kiln/ui';
 import { type ReactElement, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 import { UPLOAD_ACCEPT } from '@/constants/upload.constant';
+import { UploadStatus } from '@/enums/upload-status.enum';
 import { UploadRow } from '@/features/uploads/components/UploadRow';
 import { useCopy } from '@/hooks/useCopy';
 import type { UploadsApi } from '@/interfaces/upload.interface';
 
 import './UploadPanel.css';
+
+const IN_FLIGHT = new Set([
+  UploadStatus.Queued,
+  UploadStatus.Creating,
+  UploadStatus.Uploading,
+  UploadStatus.Completing,
+]);
 
 interface UploadPanelProps {
   uploads: UploadsApi;
@@ -36,11 +45,49 @@ export const UploadPanel = ({ uploads }: UploadPanelProps): ReactElement => {
     uploads.remove(id);
   };
 
+  // A file dropped just outside the zone must not make the browser open it (and so leave the
+  // page with every running upload): refuse drops the zone did not take.
+  useEffect(() => {
+    const refuseStrayDrop = (event: DragEvent): void => {
+      if (event.defaultPrevented || !event.dataTransfer?.types.includes('Files')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'none';
+    };
+    window.addEventListener('dragover', refuseStrayDrop);
+    window.addEventListener('drop', refuseStrayDrop);
+    return () => {
+      window.removeEventListener('dragover', refuseStrayDrop);
+      window.removeEventListener('drop', refuseStrayDrop);
+    };
+  }, []);
+
+  // Leaving the page abandons uploads in flight: let the browser ask first.
+  const isBusy = items.some((item) => IN_FLIGHT.has(item.status));
+  useEffect(() => {
+    if (!isBusy) return;
+    const warn = (event: BeforeUnloadEvent): void => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isBusy]);
+
   const announcement = uploads.outcomes
     .map((item) =>
       copy.uploads.announce(item.file.name, item.error ?? copy.uploads.status[item.status]),
     )
     .join('. ');
+
+  // The live region lives on <body>: the list pane is hidden on compact screens while an asset
+  // is open. Clearing it first makes a repeated outcome ("rock.png: Ready" twice) heard again.
+  const liveRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    const live = liveRef.current;
+    if (!live || !announcement) return;
+    live.textContent = '';
+    const frame = requestAnimationFrame(() => {
+      live.textContent = announcement;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [announcement, uploads.outcomes]);
 
   return (
     <section className="upload-panel" aria-label={copy.uploads.panelLabel} ref={panelRef}>
@@ -69,9 +116,10 @@ export const UploadPanel = ({ uploads }: UploadPanelProps): ReactElement => {
           </ul>
         </>
       ) : null}
-      <p className="visually-hidden" aria-live="polite">
-        {announcement}
-      </p>
+      {createPortal(
+        <p className="visually-hidden" aria-live="polite" ref={liveRef} />,
+        document.body,
+      )}
     </section>
   );
 };

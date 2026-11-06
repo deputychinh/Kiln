@@ -73,6 +73,15 @@ const renderStateful = (initial: UploadItem[]) => {
   render(<RouterProvider router={router} />);
 };
 
+/** The bare panel (no links rendered) for tests that rerender it with new rows. */
+const StatefulOnly = ({
+  items,
+  outcomes = [],
+}: {
+  items: UploadItem[];
+  outcomes?: UploadItem[];
+}) => <UploadPanel uploads={uploadsWith(items, outcomes)} />;
+
 describe('UploadPanel', () => {
   it('passes dropped or picked files on and accepts only the supported types', async () => {
     const uploads = uploadsWith([]);
@@ -203,6 +212,49 @@ describe('UploadPanel', () => {
       '/assets/asset-1',
     );
     expect(screen.getByText('1 of 1 uploaded')).toBeInTheDocument();
+  });
+
+  it('refuses a file dropped outside the zone instead of letting the browser open it', async () => {
+    renderPanel(uploadsWith([]));
+    await screen.findByRole('button', { name: 'Choose files' });
+
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', {
+      value: { types: ['Files'], dropEffect: 'copy' },
+    });
+    document.body.dispatchEvent(drop);
+    const text = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(text, 'dataTransfer', { value: { types: ['text/plain'] } });
+    document.body.dispatchEvent(text);
+
+    expect(drop.defaultPrevented).toBe(true);
+    expect(text.defaultPrevented).toBe(false);
+  });
+
+  it('asks before the page is left while files are uploading, and not after', async () => {
+    const { rerender } = render(
+      <StatefulOnly items={[anItem({ status: UploadStatus.Uploading })]} />,
+    );
+    await screen.findByRole('button', { name: 'Choose files' });
+    const busy = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(busy);
+    expect(busy.defaultPrevented).toBe(true);
+
+    rerender(<StatefulOnly items={[anItem({ status: UploadStatus.Ready })]} />);
+    const idle = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(idle);
+    expect(idle.defaultPrevented).toBe(false);
+  });
+
+  it('announces a repeated outcome again, outside the list pane', async () => {
+    const ready = anItem({ status: UploadStatus.Ready });
+    const { rerender } = render(<StatefulOnly items={[ready]} outcomes={[ready]} />);
+    const live = (await screen.findByText('rock.png: Ready')).closest('[aria-live]');
+    expect(live?.parentElement).toBe(document.body);
+
+    rerender(<StatefulOnly items={[ready]} outcomes={[{ ...ready }]} />);
+    expect(live).toHaveTextContent('');
+    await waitFor(() => expect(live).toHaveTextContent('rock.png: Ready'));
   });
 
   it('announces the files that just ended, once, politely', async () => {

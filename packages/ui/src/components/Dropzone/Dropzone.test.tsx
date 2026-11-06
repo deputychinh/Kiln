@@ -37,7 +37,8 @@ describe('Dropzone', () => {
     renderDropzone();
 
     expect(screen.getByText('Up to 500 MB each')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Choose files' })).toBeInTheDocument();
+    // The zone's main action gets the primary 44 px target.
+    expect(screen.getByRole('button', { name: 'Choose files' })).toHaveClass('button--primary');
   });
 
   it('opens the file picker from the button and passes the chosen files on', async () => {

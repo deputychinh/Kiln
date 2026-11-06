@@ -10,7 +10,7 @@ interface DropzoneProps {
   label: string;
   /** Limits worth knowing before dropping, e.g. the accepted types and size. */
   hint?: string;
-  /** The file button: the keyboard and touch alternative to dragging (WCAG 2.5.7). */
+  /** The file button (a primary action, 44 px): the keyboard and touch alternative to dragging (WCAG 2.5.7). */
   buttonLabel: string;
   /** Passed to the file picker (`accept`); dropped files are not filtered, the caller checks them. */
   accept?: string;
@@ -71,7 +71,7 @@ export const Dropzone = ({
         {label}
       </p>
       {hint ? <p className="dropzone__hint">{hint}</p> : null}
-      <Button variant={ButtonVariant.Secondary} onClick={() => inputRef.current?.click()}>
+      <Button variant={ButtonVariant.Primary} onClick={() => inputRef.current?.click()}>
         {buttonLabel}
       </Button>
       <input
