@@ -1,6 +1,6 @@
 # KILN-26: Upload from the browser
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -77,3 +77,20 @@ Exploratory: a file dropped just outside the zone no longer makes the browser op
 | 1     | 6.5   | AC8 axe never ran on a running row and AC3's "refresh on ready" was not pinned (a mutation survived) → e2e with a hanging storage transfer (axe while running, keyboard Cancel, Retry with the same key, routed 403) and an invalidation count. Focus fell to `<body>` after Cancel/Retry/Remove → focus moves to the replacing action, the next row or Choose files. Every progress event re-rendered the grid → one update per whole percent and a memoised `AssetCard`. A Processing row could not be dismissed → Remove. "0 of 4 uploaded" when all failed → failed count. A cancelled upload's empty asset was unexplained → note. `kiln.schema.ts` had been reformatted by running Prettier inside `apps/web` → restored to the generator's output and `apps/web/.prettierignore` added so it cannot recur; the 409 code moved to constants; `upload-file.util` moved to `src/utils`. |
 | 2     | 7.5   | An emoji at the 120th character split in half (the API answered 422, Retry could never help) and file names over 255 characters reached the API → names cut by code points, long names refused up front. Every create failure offered Retry and showed the API's English problem title → API refusals are final and every failure reads in the locale. A drop just outside the zone opened the file and abandoned uploads → stray drops refused, leaving asks first. The live region missed repeated outcomes and was hidden on compact screens with an asset open → it lives on `<body>` and is cleared before each announcement. Choose files was 35 px → primary 44 px. The e2e keyboard step now uses real Tab order. Process: 8cfa131 was pushed with a red stylelint gate (piped through `tail`); gates are now checked by exit code and the lesson is in the deliver-loop skill.     |
 | 3     | 8.0   | AC8: outcomes landing in one frame replaced each other in the live region (an offline batch of 4 announced only the last) → the reducer appends outcomes with a running count and the panel queues every new one until the next frame. No timeouts: a stalled transfer held a slot forever → 30 s for API calls and 60 s without progress for transfers, both retryable. AC5's text still promised Retry for refusals → amended to the negotiated behaviour. ".." in joined announcements, a non-null `!` in a test, the Design section's `features/uploads/utils` → fixed.                                                                                                                                                                                                                                                                                                                 |
+| 4     | 9.5   | Passed. Remaining suggestions (pending-upload cards in the gallery, the poll interval pinned in a test, a silent early return, Dropzone branch tests) filed as **KILN-31**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+## Score
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 1       |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 1       |
+| 6   | UX                    | 0.5     |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 1       |
+| 10  | Delivery              | 1       |
+|     | **Total**             | **9.5** |
