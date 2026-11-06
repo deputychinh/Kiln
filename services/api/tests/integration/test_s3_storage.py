@@ -5,7 +5,7 @@ import socket
 import threading
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from itertools import chain
 
@@ -402,3 +402,46 @@ def test_a_signed_get_is_stable_cacheable_and_expires(settings: Settings) -> Non
     assert fetched.status_code == 200
     assert fetched.headers["cache-control"] == cache
     assert expired.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("name", "tamper"),
+    [
+        ("another key", lambda url: url.replace(".webp?", "x.webp?")),
+        ("public caching", lambda url: url.replace("private", "public")),
+        ("a longer life", lambda url: url.replace("X-Amz-Expires=1500", "X-Amz-Expires=9000")),
+        ("another response type", lambda url: f"{url}&response-content-type=text%2Fhtml"),
+    ],
+)
+def test_a_tampered_preview_url_is_refused(
+    settings: Settings, name: str, tamper: Callable[[str], str]
+) -> None:
+    """AC5: a URL is one GET of one key with the signed headers, nothing else."""
+    key = f"thumbs/{uuid.uuid4()}.webp"
+    storage = build_storage(settings)
+    storage.upload(key, b"RIFF....WEBP", "image/webp")
+    url = storage.presign_download(
+        key,
+        signed_at=datetime.now(UTC),
+        ttl_seconds=1500,
+        cache_control="private, max-age=1500, immutable",
+    )
+
+    assert httpx2.get(url).status_code == 200
+    assert httpx2.get(tamper(url)).status_code == 403, name
+    assert httpx2.put(url, content=b"x").status_code == 403
+
+
+@pytest.mark.parametrize(("age_seconds", "status"), [(1495, 200), (1505, 403)])
+def test_a_preview_url_ends_after_its_25_minutes(
+    settings: Settings, age_seconds: int, status: int
+) -> None:
+    """AC4 at the real boundary: signed 1495 s ago still works, 1505 s ago does not."""
+    key = f"thumbs/{uuid.uuid4()}.webp"
+    storage = build_storage(settings)
+    storage.upload(key, b"RIFF....WEBP", "image/webp")
+    url = storage.presign_download(
+        key, signed_at=datetime.now(UTC) - timedelta(seconds=age_seconds), ttl_seconds=1500
+    )
+
+    assert httpx2.get(url).status_code == status

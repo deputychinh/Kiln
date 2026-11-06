@@ -149,9 +149,13 @@ test('a preview seen once comes from the browser cache when the gallery opens ag
   page,
   request,
 }, testInfo) => {
-  // Previews are signed per 10-minute window: never straddle a window boundary.
+  // Previews are signed per 10-minute window: start well clear of a window boundary (the test
+  // takes seconds; the generous margin also covers a slow seed), and check it afterwards.
+  const windowOf = (time: number): number => Math.floor(time / WINDOW_MS);
   const untilNextWindow = WINDOW_MS - (Date.now() % WINDOW_MS);
-  if (untilNextWindow < 15_000) await page.waitForTimeout(untilNextWindow + 1_000);
+  if (untilNextWindow < 60_000) await page.waitForTimeout(untilNextWindow + 1_000);
+  const startWindow = windowOf(Date.now());
+
   const asset = await seedImageAsset(request, uniqueName('cache', testInfo));
   const image = cardOf(page, asset.id).locator('img');
   const cacheHeaders = new Map<string, string | undefined>();
@@ -170,21 +174,27 @@ test('a preview seen once comes from the browser cache when the gallery opens ag
     .poll(() => cacheHeaders.get(firstSrc ?? ''))
     .toBe('private, max-age=1500, immutable');
 
+  // Watch the network from the browser's side: the preview is cross-origin, so resource
+  // timing cannot tell a cache hit from a download, but the DevTools protocol can.
+  const devtools = await page.context().newCDPSession(page);
+  await devtools.send('Network.enable');
+  const previewRequests = new Set<string>();
+  const fromCache = new Set<string>();
+  devtools.on('Network.requestWillBeSent', (event) => {
+    if (event.request.url === firstSrc) previewRequests.add(event.requestId);
+  });
+  devtools.on('Network.requestServedFromCache', (event) => fromCache.add(event.requestId));
+
   // A new page load asks the API again, a few seconds later (signatures are per second): the
   // same window must give the same URL (KILN-27) …
   await page.waitForTimeout(2_000); // the passing of time is what this test is about
   await page.goto('/assets');
   await expect(image).toBeVisible();
-  const secondSrc = await image.getAttribute('src');
-  expect(secondSrc).toBe(firstSrc);
+  await expect(image).toHaveJSProperty('complete', true);
+  expect(await image.getAttribute('src')).toBe(firstSrc);
+  test.skip(windowOf(Date.now()) !== startWindow, 'crossed a signing window; URLs rightly changed');
 
   // … which the browser then serves from its cache: nothing crosses the network.
-  await expect(image).toHaveJSProperty('complete', true);
-  const transferred = await page.evaluate(
-    (src) =>
-      (performance.getEntriesByName(src ?? '')[0] as PerformanceResourceTiming | undefined)
-        ?.transferSize,
-    secondSrc,
-  );
-  expect(transferred).toBe(0);
+  await expect.poll(() => previewRequests.size).toBeGreaterThan(0);
+  expect([...previewRequests].every((id) => fromCache.has(id))).toBe(true);
 });

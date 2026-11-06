@@ -14,9 +14,8 @@ from botocore.auth import SIGV4_TIMESTAMP, S3SigV4QueryAuth
 from botocore.awsrequest import AWSRequest
 from botocore.credentials import Credentials
 
-# S3 accepts presigned URLs valid for 1 second up to 7 days.
-_EXPIRES_MIN_SECONDS = 1
-_EXPIRES_MAX_SECONDS = 7 * 24 * 60 * 60
+from kiln_api.constants import PRESIGN_MAX_SECONDS, PRESIGN_MIN_SECONDS
+
 _NAIVE_TIME = "signed_at must carry a timezone"
 _BAD_EXPIRY = "expires_seconds must be between 1 and 604800"
 _BAD_ENDPOINT = "the storage endpoint must be an http(s) URL without credentials, query or fragment"
@@ -72,7 +71,7 @@ def presign_get_url(  # noqa: PLR0913 - every part of the request is signed
     """A path-style GET URL for `bucket/key`, valid `expires_seconds` from `signed_at`."""
     if signed_at.tzinfo is None:
         raise ValueError(_NAIVE_TIME)
-    if not _EXPIRES_MIN_SECONDS <= expires_seconds <= _EXPIRES_MAX_SECONDS:
+    if not PRESIGN_MIN_SECONDS <= expires_seconds <= PRESIGN_MAX_SECONDS:
         raise ValueError(_BAD_EXPIRY)
     # The same path encoding boto3's S3 serializer uses for a key.
     url = f"{credentials.endpoint.rstrip('/')}/{quote(bucket, safe='')}/{quote(key, safe='/~')}"

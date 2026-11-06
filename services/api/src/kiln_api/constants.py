@@ -35,6 +35,9 @@ DOWNLOAD_URL_TTL_SECONDS = 15 * 60
 # hits) for the whole window; each URL then lives TTL + window, at least TTL after it is handed
 # out (KILN-27).
 DOWNLOAD_URL_WINDOW_SECONDS = 10 * 60
+# S3 accepts presigned URLs valid for 1 second up to 7 days.
+PRESIGN_MIN_SECONDS = 1
+PRESIGN_MAX_SECONDS = 7 * 24 * 60 * 60
 DOWNLOAD_URL_LIFETIME_SECONDS = DOWNLOAD_URL_TTL_SECONDS + DOWNLOAD_URL_WINDOW_SECONDS
 # A version's thumbnail never changes; private keeps it out of shared caches.
 DOWNLOAD_CACHE_CONTROL = f"private, max-age={DOWNLOAD_URL_LIFETIME_SECONDS}, immutable"
