@@ -141,3 +141,40 @@ test('an unknown asset link shows "not found" with a way back', async ({ page })
   await alert.getByRole('link', { name: 'All assets' }).click();
   await expect(page).toHaveURL(/\/assets$/);
 });
+
+/** The API's preview-signing window (`DOWNLOAD_URL_WINDOW_SECONDS`). */
+const WINDOW_MS = 10 * 60_000;
+
+test('a preview seen once comes from the browser cache when the gallery opens again', async ({
+  page,
+  request,
+}, testInfo) => {
+  // Previews are signed per 10-minute window: never straddle a window boundary.
+  const untilNextWindow = WINDOW_MS - (Date.now() % WINDOW_MS);
+  if (untilNextWindow < 15_000) await page.waitForTimeout(untilNextWindow + 1_000);
+  const asset = await seedImageAsset(request, uniqueName('cache', testInfo));
+  const image = cardOf(page, asset.id).locator('img');
+  await expect(async () => {
+    await page.goto('/assets');
+    await expect(image).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 30_000 });
+  const firstSrc = await image.getAttribute('src');
+
+  // A new page load asks the API again, a few seconds later (signatures are per second): the
+  // same window must give the same URL (KILN-27) …
+  await page.waitForTimeout(2_000); // the passing of time is what this test is about
+  await page.goto('/assets');
+  await expect(image).toBeVisible();
+  const secondSrc = await image.getAttribute('src');
+  expect(secondSrc).toBe(firstSrc);
+
+  // … which the browser then serves from its cache: nothing crosses the network.
+  await expect(image).toHaveJSProperty('complete', true);
+  const transferred = await page.evaluate(
+    (src) =>
+      (performance.getEntriesByName(src ?? '')[0] as PerformanceResourceTiming | undefined)
+        ?.transferSize,
+    secondSrc,
+  );
+  expect(transferred).toBe(0);
+});

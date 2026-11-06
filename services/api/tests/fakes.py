@@ -3,6 +3,7 @@
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import IO
+from urllib.parse import urlencode
 
 from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
@@ -121,8 +122,19 @@ class FakeStorage:
         finally:
             self.open_listings -= 1
 
-    def presign_download(self, key: str, ttl_seconds: int) -> str:
-        return f"http://storage.test/kiln-assets/{key}?ttl={ttl_seconds}"
+    def presign_download(
+        self,
+        key: str,
+        *,
+        signed_at: datetime,
+        ttl_seconds: int,
+        cache_control: str | None = None,
+    ) -> str:
+        """Deterministic like the real signer: the same arguments give the same URL."""
+        query = {"signed": signed_at.isoformat(), "ttl": ttl_seconds}
+        if cache_control:
+            query["cache"] = cache_control
+        return f"http://storage.test/kiln-assets/{key}?{urlencode(query)}"
 
     def _check(self) -> None:
         if not self.available:

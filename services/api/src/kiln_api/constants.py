@@ -31,6 +31,13 @@ PAGE_LIMIT_DEFAULT = 24
 OBJECT_KEY_PREFIX = "assets"
 THUMBNAIL_KEY_PREFIX = "thumbs"
 DOWNLOAD_URL_TTL_SECONDS = 15 * 60
+# Previews are signed at the start of a window, so a URL stays the same (and the browser cache
+# hits) for the whole window; each URL then lives TTL + window, at least TTL after it is handed
+# out (KILN-27).
+DOWNLOAD_URL_WINDOW_SECONDS = 10 * 60
+DOWNLOAD_URL_LIFETIME_SECONDS = DOWNLOAD_URL_TTL_SECONDS + DOWNLOAD_URL_WINDOW_SECONDS
+# A version's thumbnail never changes; private keeps it out of shared caches.
+DOWNLOAD_CACHE_CONTROL = f"private, max-age={DOWNLOAD_URL_LIFETIME_SECONDS}, immutable"
 JOB_LEASE_SECONDS = 5 * 60
 # A running job extends its lease every third of it (KILN-24), and stops after this long, so a
 # hung job's lease expires and it is retried or buried like a crashed one.

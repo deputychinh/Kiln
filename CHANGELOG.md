@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Added
 
+- Stable preview URLs (KILN-27): previews are signed at the start of a 10-minute window, so a preview keeps the same URL and the browser serves repeat views from its cache (`Cache-Control: private, max-age=1500, immutable`); each URL is valid 25 minutes, at least 15 after it is handed out.
 - Upload from the browser (KILN-26): drop images and `.glb` files on the gallery or choose them with a button; each file shows its state and upload progress, can be cancelled, retried with the same idempotency key, or removed; at most two upload at a time; the new card appears with its preview without a reload. Unsupported, empty and oversized files are refused before anything is sent. New `Dropzone` and `ProgressBar` components.
 - Storybook 10 for the design system (`make storybook`): every component in each state with autodocs and a dark/light theme toolbar; a unit guard that renders every story and fails when a component has no stories; `make e2e-ui` runs axe over every story in both themes, also in CI (KILN-7).
 

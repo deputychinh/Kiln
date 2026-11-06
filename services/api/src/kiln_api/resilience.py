@@ -257,9 +257,18 @@ class GuardedStorage:
         """See `ObjectStorage.upload`."""
         self._guarded(lambda: self._inner.upload(key, data, content_type))
 
-    def presign_download(self, key: str, ttl_seconds: int) -> str:
+    def presign_download(
+        self,
+        key: str,
+        *,
+        signed_at: datetime,
+        ttl_seconds: int,
+        cache_control: str | None = None,
+    ) -> str:
         """Local signing: never blocked by the circuit."""
-        return self._inner.presign_download(key, ttl_seconds)
+        return self._inner.presign_download(
+            key, signed_at=signed_at, ttl_seconds=ttl_seconds, cache_control=cache_control
+        )
 
     def delete(self, key: str) -> None:
         """See `ObjectStorage.delete`."""

@@ -10,6 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.ports import SignedPost, StoredObject
+from kiln_api.signing import SigningCredentials, presign_get_url
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -34,12 +35,21 @@ class S3ObjectStorage:
     """`ObjectStorage` over any S3 API (SeaweedFS locally, ADR 0003)."""
 
     def __init__(
-        self, client: "S3Client", bucket: str, probe_client: "S3Client | None" = None
+        self,
+        client: "S3Client",
+        bucket: str,
+        *,
+        signing: SigningCredentials,
+        probe_client: "S3Client | None" = None,
     ) -> None:
-        """Use `client` for work and a fast `probe_client` (1 s, one attempt) for readiness."""
+        """Use `client` for work and a fast `probe_client` (1 s, one attempt) for readiness.
+
+        `signing` signs download URLs at a chosen instant (boto3 cannot, KILN-27).
+        """
         self._client = client
         self._probe = probe_client or client
         self._bucket = bucket
+        self._signing = signing
 
     def ensure_bucket(self) -> None:
         """Create the bucket when a fast `HeadBucket` (probe client) says it does not exist."""
@@ -169,8 +179,20 @@ class S3ObjectStorage:
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
 
-    def presign_download(self, key: str, ttl_seconds: int) -> str:
-        """Sign a GET locally."""
-        return self._client.generate_presigned_url(
-            "get_object", Params={"Bucket": self._bucket, "Key": key}, ExpiresIn=ttl_seconds
+    def presign_download(
+        self,
+        key: str,
+        *,
+        signed_at: datetime,
+        ttl_seconds: int,
+        cache_control: str | None = None,
+    ) -> str:
+        """Sign a GET locally at `signed_at` (boto3 can only sign at the current second)."""
+        return presign_get_url(
+            self._signing,
+            bucket=self._bucket,
+            key=key,
+            signed_at=signed_at,
+            expires_seconds=ttl_seconds,
+            response_cache_control=cache_control,
         )

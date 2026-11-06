@@ -1,10 +1,15 @@
 """Asset use cases: create, add a version, confirm an upload, read."""
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from kiln_api.constants import DOWNLOAD_URL_TTL_SECONDS, UPLOAD_URL_TTL_SECONDS
+from kiln_api.constants import (
+    DOWNLOAD_CACHE_CONTROL,
+    DOWNLOAD_URL_LIFETIME_SECONDS,
+    DOWNLOAD_URL_WINDOW_SECONDS,
+    UPLOAD_URL_TTL_SECONDS,
+)
 from kiln_api.domain.assets import (
     Asset,
     AssetVersion,
@@ -242,13 +247,27 @@ class AssetService:
     def _version_thumbnail(self, version: AssetVersion) -> str | None:
         if version.status is not VersionStatus.READY:
             return None
-        return self._storage.presign_download(thumbnail_key(version), DOWNLOAD_URL_TTL_SECONDS)
+        return self._download_url(thumbnail_key(version))
 
     def _cover(self, asset: Asset) -> str | None:
         if asset.cover_version_id is None:
             return None
-        key = thumbnail_key_for(asset.id, asset.cover_version_id)
-        return self._storage.presign_download(key, DOWNLOAD_URL_TTL_SECONDS)
+        return self._download_url(thumbnail_key_for(asset.id, asset.cover_version_id))
+
+    def _download_url(self, key: str) -> str:
+        """Sign at the start of the current window, so the URL is the same all window long.
+
+        The browser cache then hits; each URL is valid at least `DOWNLOAD_URL_TTL_SECONDS` after
+        it is handed out.
+        """
+        now = self._clock.now().timestamp()
+        window_start = datetime.fromtimestamp(now - now % DOWNLOAD_URL_WINDOW_SECONDS, tz=UTC)
+        return self._storage.presign_download(
+            key,
+            signed_at=window_start,
+            ttl_seconds=DOWNLOAD_URL_LIFETIME_SECONDS,
+            cache_control=DOWNLOAD_CACHE_CONTROL,
+        )
 
     @staticmethod
     def _check_declared(version: AssetVersion, stored: StoredObject) -> None:

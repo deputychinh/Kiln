@@ -70,8 +70,18 @@ class ObjectStorage(Protocol):
         """Write a small object (thumbnails) written by Kiln itself."""
         ...
 
-    def presign_download(self, key: str, ttl_seconds: int) -> str:
-        """A time-limited GET URL; signed locally, no network call."""
+    def presign_download(
+        self,
+        key: str,
+        *,
+        signed_at: datetime,
+        ttl_seconds: int,
+        cache_control: str | None = None,
+    ) -> str:
+        """A GET URL valid `ttl_seconds` from `signed_at`; signed locally, no network call.
+
+        The same arguments always give the same URL, so browsers can cache what it returns.
+        """
         ...
 
     def delete(self, key: str) -> None:

@@ -5,12 +5,12 @@ import type { VersionStatus } from '@/interfaces/asset.interface';
 export const ASSETS_PATH = '/api/v1/assets';
 /** One page of the gallery: four rows of six on a wide screen. */
 export const ASSET_PAGE_SIZE = 24;
-/** Signed preview URLs live 15 min; keeping the list fresh for 5 keeps image cache keys stable. */
+/** Signed preview URLs stay the same for a 10-minute window and live 15–25 min (KILN-27); keeping the list fresh for 5 avoids needless refetches. */
 export const ASSET_LIST_STALE_MS = 5 * 60_000;
 export const PROCESSING_POLL_MS = 3_000;
 /** Five minutes of polling per processing spell; a stuck worker must not keep the tab busy. */
 export const PROCESSING_POLL_MAX_MS = 5 * 60_000;
-/** Keep an already-loaded signed URL while it stays valid this long (until KILN-27 makes them stable). */
+/** Keep an already-loaded signed URL while it stays valid this long (the API also keeps a URL stable for 10 minutes, KILN-27). */
 export const SIGNED_URL_MIN_REMAINING_MS = 2 * 60_000;
 /** How often relative times ("2 minutes ago") are recomputed. */
 export const RELATIVE_TIME_TICK_MS = 60_000;

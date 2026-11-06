@@ -162,7 +162,9 @@ def test_signing_is_local_and_never_blocked_by_an_open_circuit() -> None:
         guarded.head("k")
     assert _state(breaker) is CircuitState.OPEN
 
-    assert guarded.presign_download("thumbs/a.webp", 60).startswith("http://storage.test/")
+    assert guarded.presign_download(
+        "thumbs/a.webp", signed_at=datetime(2026, 11, 6, tzinfo=UTC), ttl_seconds=60
+    ).startswith("http://storage.test/")
     assert (
         guarded.presign_upload(
             key="uploads/a/b", content_type="image/png", size_bytes=1, ttl_seconds=60

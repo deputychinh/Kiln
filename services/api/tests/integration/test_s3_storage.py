@@ -297,7 +297,7 @@ def test_upload_download_and_a_signed_get_round_trip(settings: Settings) -> None
     storage.upload(key, b"RIFF....WEBP", "image/webp")
     buffer = io.BytesIO()
     storage.download(key, buffer)
-    fetched = httpx2.get(storage.presign_download(key, 60))
+    fetched = httpx2.get(storage.presign_download(key, signed_at=datetime.now(UTC), ttl_seconds=60))
 
     assert buffer.getvalue() == b"RIFF....WEBP"
     assert fetched.status_code == 200
@@ -376,3 +376,29 @@ def test_a_storage_endpoint_that_refuses_connections_opens_the_circuit(
     assert first.value.cause_code == "EndpointConnectionError"
     assert second.value.cause_code == "CIRCUIT_OPEN"
     assert time.monotonic() - started < 0.05
+
+
+def test_a_signed_get_is_stable_cacheable_and_expires(settings: Settings) -> None:
+    """KILN-27 against real storage: one URL per window, a private cache header, an end."""
+    key = f"thumbs/{uuid.uuid4()}.webp"
+    build_storage(settings).upload(key, b"RIFF....WEBP", "image/webp")
+    window = datetime.now(UTC).replace(second=0, microsecond=0)
+    cache = "private, max-age=1500, immutable"
+
+    first = build_storage(settings).presign_download(
+        key, signed_at=window, ttl_seconds=1500, cache_control=cache
+    )
+    second = build_storage(settings).presign_download(
+        key, signed_at=window, ttl_seconds=1500, cache_control=cache
+    )
+    fetched = httpx2.get(first)
+    expired = httpx2.get(
+        build_storage(settings).presign_download(
+            key, signed_at=window - timedelta(hours=1), ttl_seconds=60
+        )
+    )
+
+    assert first == second
+    assert fetched.status_code == 200
+    assert fetched.headers["cache-control"] == cache
+    assert expired.status_code == 403

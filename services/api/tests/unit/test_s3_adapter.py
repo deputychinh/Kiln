@@ -12,6 +12,11 @@ from botocore.stub import Stubber
 from kiln_api.adapters import S3ObjectStorage
 from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
+from kiln_api.signing import SigningCredentials
+
+_SIGNING = SigningCredentials(
+    endpoint="http://storage.test", region="us-east-1", access_key="k", secret_key="s"
+)
 
 
 @pytest.fixture
@@ -24,7 +29,7 @@ def stubbed() -> Iterator[tuple[S3ObjectStorage, Stubber]]:
         aws_secret_access_key="s",
     )
     with Stubber(client) as stubber:
-        yield S3ObjectStorage(client, "kiln-assets"), stubber
+        yield S3ObjectStorage(client, "kiln-assets", signing=_SIGNING), stubber
         stubber.assert_no_pending_responses()
 
 
@@ -184,7 +189,7 @@ class _HangingClient:
 
 
 def test_a_read_timeout_becomes_unavailable_with_its_class_as_the_cause() -> None:
-    storage = S3ObjectStorage(_HangingClient(), "kiln-assets")  # type: ignore[arg-type]
+    storage = S3ObjectStorage(_HangingClient(), "kiln-assets", signing=_SIGNING)  # type: ignore[arg-type]
 
     with pytest.raises(StorageUnavailableError) as raised:
         storage.head("uploads/a")

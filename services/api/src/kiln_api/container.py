@@ -25,6 +25,7 @@ from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.unit_of_work import SqlUnitOfWork
 from kiln_api.resilience import CircuitBreaker, GuardedStorage
 from kiln_api.services.assets import AssetService
+from kiln_api.signing import SigningCredentials
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -92,7 +93,13 @@ def build_storage(settings: Settings) -> S3ObjectStorage:
         read=STORAGE_PROBE_TIMEOUT_SECONDS,
         attempts=1,
     )
-    return S3ObjectStorage(work, settings.s3_bucket, probe_client=probe)
+    signing = SigningCredentials(
+        endpoint=settings.s3_endpoint,
+        region=settings.s3_region,
+        access_key=settings.s3_access_key,
+        secret_key=settings.s3_secret_key.get_secret_value(),
+    )
+    return S3ObjectStorage(work, settings.s3_bucket, signing=signing, probe_client=probe)
 
 
 def guard_storage(storage: ObjectStorage, settings: Settings) -> GuardedStorage:
