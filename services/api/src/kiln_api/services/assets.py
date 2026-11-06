@@ -19,7 +19,7 @@ from kiln_api.domain.assets import (
 )
 from kiln_api.domain.idempotency import request_fingerprint
 from kiln_api.domain.jobs import new_job
-from kiln_api.enums import AssetKind, FailureReason, JobKind, PromotionResult, VersionStatus
+from kiln_api.enums import FailureReason, JobKind, PromotionResult, VersionStatus
 from kiln_api.errors import (
     IdempotencyKeyInUseError,
     InvalidStatusTransitionError,
@@ -223,7 +223,7 @@ class AssetService:
         """Return an asset with its cover and versions, each with its preview URL."""
         asset = self._repository.get(asset_id)
         versions = [
-            VersionView(version=v, thumbnail_url=self._version_thumbnail(asset, v))
+            VersionView(version=v, thumbnail_url=self._version_thumbnail(v))
             for v in self._repository.versions_of(asset_id)
         ]
         return AssetDetail(asset=asset, thumbnail_url=self._cover(asset), versions=versions)
@@ -231,8 +231,7 @@ class AssetService:
     def get_version(self, version_id: UUID) -> VersionView:
         """Return one version with its preview URL."""
         version = self._repository.get_version(version_id)
-        asset = self._repository.get(version.asset_id)
-        return VersionView(version=version, thumbnail_url=self._version_thumbnail(asset, version))
+        return VersionView(version=version, thumbnail_url=self._version_thumbnail(version))
 
     def list(self, *, cursor: str | None, limit: int) -> Page[AssetCard]:
         """Return assets newest first, each with its cover preview URL."""
@@ -240,13 +239,13 @@ class AssetService:
         cards = tuple(AssetCard(asset=a, thumbnail_url=self._cover(a)) for a in page.items)
         return Page(items=cards, next_cursor=page.next_cursor)
 
-    def _version_thumbnail(self, asset: Asset, version: AssetVersion) -> str | None:
-        if asset.kind is not AssetKind.IMAGE or version.status is not VersionStatus.READY:
+    def _version_thumbnail(self, version: AssetVersion) -> str | None:
+        if version.status is not VersionStatus.READY:
             return None
         return self._storage.presign_download(thumbnail_key(version), DOWNLOAD_URL_TTL_SECONDS)
 
     def _cover(self, asset: Asset) -> str | None:
-        if asset.kind is not AssetKind.IMAGE or asset.cover_version_id is None:
+        if asset.cover_version_id is None:
             return None
         key = thumbnail_key_for(asset.id, asset.cover_version_id)
         return self._storage.presign_download(key, DOWNLOAD_URL_TTL_SECONDS)

@@ -88,3 +88,30 @@ def test_a_failed_version_shows_its_reason(
     assert version["status"] == "failed"
     assert version["failure_reason"] == "UNREADABLE_IMAGE"
     assert version["thumbnail_url"] is None
+
+
+def test_models_expose_their_previews_like_images(
+    client: TestClient, storage: FakeStorage, engine: Engine
+) -> None:
+    model = {"name": "Crate", "file_name": "crate.glb", "content_type": "model/gltf-binary"}
+    created: dict[str, Any] = client.post("/api/v1/assets", json={**model, "size_bytes": 4}).json()
+    storage.put(created["upload"]["fields"]["key"], 4, "model/gltf-binary", b"glTF")
+    asset_id, version_id = created["asset"]["id"], created["version"]["id"]
+    client.post(f"/api/v1/asset-versions/{version_id}/completions")
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE asset_versions SET status = 'ready' WHERE id = :id"), {"id": version_id}
+        )
+        connection.execute(
+            text("UPDATE assets SET cover_version_id = :v WHERE id = :a"),
+            {"v": version_id, "a": asset_id},
+        )
+
+    detail = client.get(f"/api/v1/assets/{asset_id}").json()
+    version = client.get(f"/api/v1/asset-versions/{version_id}").json()
+
+    expected = f"http://storage.test/kiln-assets/thumbs/{asset_id}/{version_id}.webp?ttl=900"
+    assert detail["kind"] == "model"
+    assert detail["thumbnail_url"] == expected
+    assert detail["versions"][0]["thumbnail_url"] == expected
+    assert version["thumbnail_url"] == expected
