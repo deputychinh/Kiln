@@ -1,9 +1,12 @@
 import io
 import logging
+import multiprocessing
 import struct
 import threading
 import time
 import zlib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import timedelta
 from typing import Any
 
@@ -17,6 +20,7 @@ from kiln_api.clock import DatabaseClock
 from kiln_api.config import Settings
 from kiln_api.container import Container, build_container
 from kiln_api.domain.assets import UploadSpec, thumbnail_key
+from kiln_api.domain.jobs import Job
 from kiln_api.enums import Environment, FailureReason, JobStatus, VersionStatus
 from kiln_api.errors import InvalidStatusTransitionError
 from kiln_api.repositories.assets import SqlAssetRepository
@@ -27,7 +31,7 @@ from kiln_worker.heartbeat import LeaseTiming
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.runner import Worker, build_worker
 from kiln_worker.thumbnail import make_thumbnail
-from kiln_worker.watchdog import JobWatchdog
+from kiln_worker.watchdog import JobBeacon, JobWatchdog
 
 
 def _png(size: tuple[int, int] = (1024, 512)) -> bytes:
@@ -874,3 +878,28 @@ def test_a_hung_job_ends_the_worker_process_through_its_watchdog(
     assert ended == [WORKER_OVERRAN_EXIT_CODE]
     assert time.monotonic() - started < 5
     assert _job_status(container.engine, version.id)[1] == 1  # claimed once; retried later
+
+
+def test_a_claim_is_shown_to_the_supervisor_until_its_job_is_watched(
+    container: Container, storage: FakeStorage, clock: FixedClock
+) -> None:
+    """KILN-28: a freeze between a successful claim and the job's watch is seen too."""
+    _uploaded(container, storage, _png())
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
+    seen: list[str] = []
+
+    class _Watchdog(JobWatchdog):
+        @contextmanager
+        def watch(self, job: Job) -> Iterator[None]:
+            seen.append(beacon.read().job_id)  # what the supervisor sees just before the watch
+            with super().watch(job):
+                yield
+
+    watchdog = _Watchdog(stop=threading.Event(), beacon=beacon)
+    worker = build_worker(container.engine, storage=storage, clock=clock, watchdog=watchdog)
+
+    assert worker.run_once()
+    assert not worker.run_once()  # nothing left: the claim marker is cleared
+
+    assert seen == ["(claiming a job)"]
+    assert beacon.read().started == 0.0

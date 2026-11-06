@@ -15,7 +15,7 @@ KILN-24 stops extending a hung job's lease after its 30-minute maximum runtime s
 
 ## Consequences
 
-- A job never runs in two processes at once through a hang or a freeze, during work or during a stop; a test pins every deadline against the lease and heartbeat constants. The claim itself is shown in the beacon, so a freeze around it is seen too. Known gap (KILN-33): a lease heartbeat that fails or is lost while the process stays alive does not end the job.
+- A job never runs in two processes at once through a hang or a freeze of the worker child, during work, a claim or a stop, as long as the supervisor itself runs (a suspended host or container is KILN-33); a test pins every deadline against the lease and heartbeat constants. The claim itself is shown in the beacon, so a freeze around it is seen too. Known gap (KILN-33): a lease heartbeat that fails or is lost while the process stays alive does not end the job.
 - The watchdog's exit and the supervisor's kill drop the database connection (rolled back), and the model sandbox child exits with its parent; thumbnails are written in one PUT; retries and burial use the existing lease and attempts path.
 - A lock-free beacon cannot deadlock the supervisor when a child dies mid-write; the job id in it is for logs only.
 - Deployments must give the worker a stop timeout of at least grace + 10 s (70 s by default).

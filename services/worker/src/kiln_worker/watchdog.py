@@ -123,20 +123,19 @@ class JobWatchdog:
         """Where this process shows its supervisor the running job and that it is alive."""
         return self._beacon
 
-    @contextmanager
-    def claiming(self) -> Iterator[None]:
+    def claiming(self) -> None:
         """Show the supervisor a claim in progress, so a freeze around it is seen too.
 
-        The claim is one bounded database call (statement and connect timeouts), far shorter
-        than the liveness window; `watch` takes over the beacon once a job is claimed.
+        The marker stays until `watch` replaces it with the claimed job, or `claimed_nothing`
+        clears it; the claim is one bounded database call, far shorter than the liveness window.
         """
         if self._beacon is not None:
             self._beacon.started(_CLAIMING, time.monotonic())
-        try:
-            yield
-        finally:
-            if self._beacon is not None:
-                self._beacon.idle()
+
+    def claimed_nothing(self) -> None:
+        """No job came back (or the claim failed): the process is idle again."""
+        if self._beacon is not None:
+            self._beacon.idle()
 
     @contextmanager
     def watch(self, job: Job) -> Iterator[None]:

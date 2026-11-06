@@ -244,13 +244,19 @@ def test_every_backstop_ends_a_stuck_job_before_its_lease_can_lapse() -> None:
     )
 
 
-def test_a_claim_in_progress_is_shown_to_the_supervisor_and_cleared_after() -> None:
+def test_a_claim_stays_visible_until_its_job_is_watched_or_nothing_came_back() -> None:
     beacon = JobBeacon(multiprocessing.get_context("spawn"))
-    watchdog = JobWatchdog(stop=threading.Event(), beacon=beacon)
+    watchdog = JobWatchdog(stop=threading.Event(), beacon=beacon, poll_seconds=POLL)
+    running = job()
 
-    with watchdog.claiming():
-        during = beacon.read()
+    watchdog.claiming()
+    claimed = beacon.read()
+    with watchdog.watch(running):  # the claimed job takes the marker over
+        watched = beacon.read()
+    watchdog.claiming()
+    watchdog.claimed_nothing()
 
-    assert during.started > 0
-    assert during.job_id == "(claiming a job)"
+    assert claimed.started > 0
+    assert claimed.job_id == "(claiming a job)"
+    assert watched.job_id == str(running.id)
     assert beacon.read().started == 0.0

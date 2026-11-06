@@ -419,4 +419,5 @@ def test_a_killed_child_that_cannot_die_does_not_hang_the_supervisor(
         _run_with(_beacon(started_ago=70, alive_ago=61), undying)
 
     assert undying.killed
+    assert undying.join_timeouts[-1] == 0.05  # the reap is bounded, never join(None)
     assert "killed worker not gone after 0 s; moving on" in caplog.text
