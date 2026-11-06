@@ -1,13 +1,16 @@
 import logging
 import signal
 import threading
+from typing import Any
 
 import pytest
 
 from kiln_api.config import Settings
 from kiln_api.enums import Environment
+from kiln_api.resilience import GuardedStorage
 from kiln_worker.__main__ import main
 from kiln_worker.config import WorkerSettings
+from kiln_worker.runner import build_worker
 
 
 @pytest.mark.usefixtures("engine")  # the loop may take a maintenance lease; clean it up
@@ -44,3 +47,23 @@ def test_sigterm_asks_the_loop_to_stop(database_url: str) -> None:
 
     assert code == 0
     assert stop.is_set()
+
+
+@pytest.mark.usefixtures("engine")
+def test_the_worker_guards_its_storage_with_the_breaker(
+    database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    built: dict[str, Any] = {}
+    real_build = build_worker
+
+    def spy(engine: Any, **kwargs: Any) -> Any:
+        built.update(kwargs)
+        return real_build(engine, **kwargs)
+
+    monkeypatch.setattr("kiln_worker.__main__.build_worker", spy)
+    stop = threading.Event()
+    stop.set()
+
+    main(Settings(env=Environment.TEST, database_url=database_url), WorkerSettings(), stop)
+
+    assert isinstance(built["storage"], GuardedStorage)
