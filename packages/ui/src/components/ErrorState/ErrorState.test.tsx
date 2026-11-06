@@ -28,9 +28,14 @@ describe('ErrorState', () => {
     expect(screen.getByRole('link', { name: 'Back to assets' })).toBeInTheDocument();
   });
 
-  it('marks the retry button busy while retrying', () => {
-    render(<ErrorState title="Failed" retryLabel="Try again" onRetry={vi.fn()} isRetrying />);
+  it('keeps the retry button focusable but inert while retrying', async () => {
+    const onRetry = vi.fn();
+    render(<ErrorState title="Failed" retryLabel="Try again" onRetry={onRetry} isRetrying />);
 
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeDisabled();
+    const button = screen.getByRole('button', { name: 'Try again' });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    expect(onRetry).not.toHaveBeenCalled();
   });
 });

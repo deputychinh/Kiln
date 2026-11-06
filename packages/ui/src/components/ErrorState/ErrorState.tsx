@@ -28,7 +28,14 @@ export const ErrorState = ({
     {message ? <p className="error-state__message">{message}</p> : null}
     <div className="error-state__actions">
       {onRetry && retryLabel ? (
-        <Button variant={ButtonVariant.Secondary} onClick={onRetry} disabled={isRetrying}>
+        <Button
+          variant={ButtonVariant.Secondary}
+          // aria-disabled, not disabled: the button keeps focus while the retry runs.
+          aria-disabled={isRetrying}
+          onClick={() => {
+            if (!isRetrying) onRetry();
+          }}
+        >
           {retryLabel}
         </Button>
       ) : null}
