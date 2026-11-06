@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import signal
@@ -5,10 +6,11 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
-from sqlalchemy import Engine
 
 from kiln_api.config import Settings
 from kiln_api.enums import Environment
@@ -17,7 +19,7 @@ from kiln_worker.__main__ import main
 from kiln_worker.config import WorkerSettings
 from kiln_worker.constants import WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.enums import RunEnd
-from kiln_worker.process import child_main, run_worker
+from kiln_worker.process import child_main, run_worker, watch_parent
 from kiln_worker.runner import build_worker
 
 
@@ -92,6 +94,7 @@ def test_the_worker_guards_its_storage_and_passes_the_recycle_policy(
 def test_sigterm_stops_the_supervisor_and_its_spawned_worker(
     database_url: str, caplog: pytest.LogCaptureFixture
 ) -> None:
+    previous = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
     stop = threading.Event()
     timer = threading.Timer(3.0, lambda: signal.raise_signal(signal.SIGTERM))
     timer.start()
@@ -103,6 +106,8 @@ def test_sigterm_stops_the_supervisor_and_its_spawned_worker(
             stop,
         )
     timer.join()
+    for signum, handler in previous.items():
+        signal.signal(signum, handler)  # leave Ctrl-C working for the rest of the run
 
     assert code == 0
     assert stop.is_set()
@@ -128,34 +133,107 @@ def test_a_spawned_child_exits_with_the_worker_s_code(
     assert exited.value.code == WORKER_RECYCLE_EXIT_CODE
 
 
-def test_python_m_kiln_worker_starts_a_child_that_works_and_stops_on_sigterm(
-    database_url: str, engine: Engine
-) -> None:
-    del engine  # cleans the maintenance lease the child may take
+@contextmanager
+def _supervisor_process(database_url: str) -> Iterator[tuple[subprocess.Popen[str], list[str]]]:
+    """`python -m kiln_worker` in its own process group; the group is killed whatever happens."""
     env = {
         **os.environ,
         "KILN_ENV": "test",
         "KILN_DATABASE_URL": database_url,
         "KILN_POLL_INTERVAL_SECONDS": "0.05",
     }
-    supervisor = subprocess.Popen(
+    process = subprocess.Popen(
         [sys.executable, "-m", "kiln_worker"],
         env=env,
         stderr=subprocess.PIPE,
         text=True,
+        start_new_session=True,
     )
     lines: list[str] = []
-    assert supervisor.stderr is not None
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        line = supervisor.stderr.readline()
-        lines.append(line)
-        if "worker started" in line:
-            break
-    supervisor.send_signal(signal.SIGTERM)
-    _, rest = supervisor.communicate(timeout=30)
+    assert process.stderr is not None
+    stream = process.stderr
+    reader = threading.Thread(target=lambda: lines.extend(stream), daemon=True)
+    reader.start()
+    try:
+        yield process, lines
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        process.wait(10)
+        reader.join(5)
+        stream.close()
 
-    assert any("worker started" in line for line in lines), "".join(lines)
-    assert supervisor.returncode == 0
-    assert "supervisor stopped" in rest
-    assert "exited with code" not in "".join(lines) + rest
+
+def _wait_for(lines: list[str], text: str, seconds: float = 30) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if any(text in line for line in lines):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+@pytest.mark.usefixtures("engine")  # cleans the maintenance lease the child may take
+def test_python_m_kiln_worker_starts_a_child_that_works_and_stops_on_sigterm(
+    database_url: str,
+) -> None:
+    with _supervisor_process(database_url) as (supervisor, lines):
+        assert _wait_for(lines, "worker started"), "".join(lines)
+        supervisor.send_signal(signal.SIGTERM)
+        supervisor.wait(30)
+        assert _wait_for(lines, "supervisor stopped", 5), "".join(lines)
+
+        assert supervisor.returncode == 0
+        assert not any("exited with code" in line for line in lines)
+        assert not _group_alive(supervisor.pid)  # no child left behind
+
+
+@pytest.mark.usefixtures("engine")
+def test_a_worker_whose_supervisor_dies_stops_by_itself(database_url: str) -> None:
+    with _supervisor_process(database_url) as (supervisor, lines):
+        assert _wait_for(lines, "worker started"), "".join(lines)
+
+        supervisor.kill()  # SIGKILL: no chance to stop the child
+        supervisor.wait(10)
+
+        assert _wait_for(lines, "supervisor gone; stopping after the current job", 10)
+        deadline = time.monotonic() + 10
+        while _group_alive(supervisor.pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert not _group_alive(supervisor.pid)
+
+
+def test_a_child_watches_its_supervisor_and_stops_when_it_is_gone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Parent:
+        alive = True
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+    parent = _Parent()
+    monkeypatch.setattr("multiprocessing.parent_process", lambda: parent)
+    halt = threading.Event()
+
+    watch_parent(halt, every=0.01)
+    time.sleep(0.05)
+    assert not halt.is_set()
+    parent.alive = False
+
+    assert halt.wait(1)
+
+
+def test_in_process_runs_have_no_supervisor_to_watch() -> None:
+    halt = threading.Event()
+    watch_parent(halt, every=0.01)  # no spawned parent: nothing starts
+
+    assert not any(t.name == "parent-watch" for t in threading.enumerate())

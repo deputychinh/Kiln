@@ -15,16 +15,16 @@ Lint enforces most of these rules; the rest is checked in review.
 
 ## Python (`services/*`, uv workspace)
 
-| Topic         | Rule                                                                                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| API layout    | `kiln_api/{config.py, enums.py, constants.py, errors.py, problems.py, domain/, ports.py, repositories/, services/, routes/, schemas/, db/, container.py, main.py}` |
-| Worker layout | `kiln_worker/{config.py, jobs/, processors/, ports.py, adapters/, __main__.py}`; share models through `kiln_api` rather than copying them                          |
-| Types         | mypy `strict`; no `Any`; `frozen=True, slots=True` dataclasses for values; pydantic only at the API boundary and for AI output                                     |
-| Lint          | ruff with the rule set in the root `pyproject.toml`; every `noqa` states a reason                                                                                  |
-| Classes       | constructor injection, `_private` attributes, one reason to change; services receive abstract ports                                                                |
-| Tests         | `tests/unit` for the domain, `tests/api` through `TestClient` with fakes for ports; test names are sentences; coverage ≥ 90 %                                      |
-| Data          | Alembic is the only way to change the schema; every migration is reversible; dropping a column or table needs an ADR                                               |
-| AI            | Claude only through ports; output parsed by pydantic; never send personal data to a model                                                                          |
+| Topic         | Rule                                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API layout    | `kiln_api/{config.py, enums.py, constants.py, errors.py, problems.py, domain/, ports.py, repositories/, services/, routes/, schemas/, db/, container.py, main.py}`                                                                                |
+| Worker layout | `kiln_worker/{config.py, constants.py, enums.py, errors.py, runner.py, thumbnail.py, heartbeat.py, maintenance.py, recycle.py, supervisor.py, process.py, __main__.py}`; ports, adapters and models come from `kiln_api` rather than being copied |
+| Types         | mypy `strict`; no `Any`; `frozen=True, slots=True` dataclasses for values; pydantic only at the API boundary and for AI output                                                                                                                    |
+| Lint          | ruff with the rule set in the root `pyproject.toml`; every `noqa` states a reason                                                                                                                                                                 |
+| Classes       | constructor injection, `_private` attributes, one reason to change; services receive abstract ports                                                                                                                                               |
+| Tests         | `tests/unit` for the domain, `tests/api` through `TestClient` with fakes for ports; test names are sentences; coverage ≥ 90 %                                                                                                                     |
+| Data          | Alembic is the only way to change the schema; every migration is reversible; dropping a column or table needs an ADR                                                                                                                              |
+| AI            | Claude only through ports; output parsed by pydantic; never send personal data to a model                                                                                                                                                         |
 
 ## TypeScript (`apps/web`, `packages/*`)
 

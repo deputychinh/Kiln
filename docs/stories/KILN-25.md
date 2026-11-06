@@ -1,6 +1,6 @@
 # KILN-25: Recycle the worker process
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -10,18 +10,19 @@ INVEST: Independent ☑ (wraps the KILN-4 loop) · Negotiable ☑ · Valuable �
 
 ## Acceptance criteria
 
-| Id             | Given                                                                              | When                        | Then                                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| AC1            | a worker that has finished `KILN_WORKER_MAX_JOBS` jobs (default 200)               | it would claim the next one | it stops claiming, logs why (jobs done, peak memory), exits with the recycle code, and the supervisor starts a fresh process at once |
-| AC2            | a worker whose peak resident memory passed `KILN_WORKER_MAX_RSS_MB` (default 1024) | a job finishes              | it recycles the same way after that job (never in the middle of one)                                                                 |
-| AC3            | the supervisor receives SIGTERM/SIGINT (or `stop`)                                 | a child is running          | the child gets SIGTERM, finishes its current job, and the supervisor exits 0 once it has; no new child starts                        |
-| AC4 (negative) | a child crashes (non-zero exit other than the recycle code, or killed)             | the supervisor notices      | it logs the exit code and starts a new child after a backoff of 1, 2, 4 … s capped at 30 s; a clean recycle resets the backoff       |
-| AC5 (config)   | the two settings                                                                   | the process starts          | they are validated (> 0) and listed in `.env.example`                                                                                |
+| Id             | Given                                                                              | When                              | Then                                                                                                                                                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1            | a worker that has finished `KILN_WORKER_MAX_JOBS` jobs (default 200)               | it would claim the next one       | it stops claiming, logs why (jobs done, peak memory), exits with the recycle code, and the supervisor starts a fresh process at once                                                                                                                                 |
+| AC2            | a worker whose peak resident memory passed `KILN_WORKER_MAX_RSS_MB` (default 1024) | a job finishes                    | it recycles the same way after that job (never in the middle of one)                                                                                                                                                                                                 |
+| AC3            | the supervisor receives SIGTERM/SIGINT (or `stop`)                                 | a child is running                | the child gets SIGTERM, finishes its current job, and the supervisor exits 0 once it has; no new child starts                                                                                                                                                        |
+| AC4 (negative) | a child crashes (non-zero exit other than the recycle code, or killed)             | the supervisor notices            | it logs the exit code and starts a new child after a backoff of 1, 2, 4 … s capped at 30 s plus up to 25 % jitter; a clean recycle or a minute of healthy running resets the backoff; a child that stopped although nobody asked is restarted the same way (warning) |
+| AC6 (orphans)  | the supervisor dies (SIGKILL, OOM)                                                 | its child is between jobs or busy | the child notices within a second, finishes its current job and exits; no worker is left running without a supervisor                                                                                                                                                |
+| AC5 (config)   | the two settings                                                                   | the process starts                | they are validated (> 0) and listed in `.env.example`                                                                                                                                                                                                                |
 
 ## Non-functional
 
 - Reliability: jobs are never cut short by recycling (checked between jobs only); a child killed mid-job loses nothing — its lease expires and the job is retried (KILN-4/24).
-- Portability: peak RSS from `resource.getrusage` (bytes on macOS, KiB on Linux, normalised); child processes use the `spawn` start method, so nothing (database connections, threads) is inherited.
+- Portability: on Linux the child's `ru_maxrss` starts from the supervisor's peak (~65 MB), irrelevant at the 1 GiB default. Peak RSS from `resource.getrusage` (bytes on macOS, KiB on Linux, normalised); child processes use the `spawn` start method, so nothing (database connections, threads) is inherited.
 - Observability: one line per recycle and per restart, with counts and codes only.
 
 ## Out of scope
@@ -48,16 +49,32 @@ INVEST: Independent ☑ (wraps the KILN-4 loop) · Negotiable ☑ · Valuable �
 | AC1 | `worker/tests/test_runner.py` "run recycles between jobs after the policy says so" (2 of 3 jobs done, the third still queued, log line); `worker/tests/test_recycle.py` "the job count and peak memory decide when to recycle"; `worker/tests/test_main.py` "a worker that should recycle exits with the recycle code", "a spawned child exits with the worker's code"; `worker/tests/test_supervisor.py` "recycled workers are replaced at once and a stop ends the last one" | pass   |
 | AC2 | `worker/tests/test_recycle.py` same test (memory limit, at-the-limit kept), "peak memory is reported in bytes on every platform", "the real peak memory is plausible"; `worker/tests/test_runner.py` "run recycles between jobs…" (checked after a job only)                                                                                                                                                                                                                   | pass   |
 | AC3 | `worker/tests/test_main.py` "python -m kiln worker starts a child that works and stops on sigterm" (the real command as a subprocess), "sigterm stops the supervisor and its spawned worker" (a real `spawn` child); `worker/tests/test_supervisor.py` "recycled workers are replaced at once and a stop ends the last one" (terminate + join), "no child starts once stop was asked"; `worker/tests/test_runner.py` "run without a policy keeps working until asked to stop"  | pass   |
-| AC4 | `worker/tests/test_supervisor.py` "a crashing worker is restarted with a growing backoff" (1, 2, 4, 8, 16, 30, 30, reset by a recycle; exit codes logged), "a child stopped directly ends the supervisor"                                                                                                                                                                                                                                                                      | pass   |
+| AC4 | `worker/tests/test_supervisor.py` "a crashing worker is restarted with a growing backoff" (1, 2, 4, 8, 16, 30, 30, reset by a recycle; exit codes logged), "a child stopped by the same signal ends the supervisor", "a worker that stopped without being asked is restarted", "restart delays get up to a quarter of jitter", "a minute of healthy running forgives earlier crashes"                                                                                          | pass   |
 | AC5 | `worker/tests/test_main.py` "recycle settings must be positive", "the worker guards its storage and passes the recycle policy"; `.env.example`                                                                                                                                                                                                                                                                                                                                 | pass   |
+| AC6 | `worker/tests/test_main.py` "a worker whose supervisor dies stops by itself" (real `python -m kiln_worker`, supervisor SIGKILLed, the process group empties), "a child watches its supervisor and stops when it is gone", "in process runs have no supervisor to watch"                                                                                                                                                                                                        | pass   |
 
-Gates: `make ci` green — Python 472 passed (99 %), ui 16, web 89; `make e2e` 12 passed (the e2e worker now runs through the supervisor and a spawned child).
+Gates (final): `make ci` green — Python 478 passed (99 %), ui 16, web 89; `make e2e` 12 passed (the e2e worker now runs through the supervisor and a spawned child).
 
 Mutation checks (each reverted, `PYTHONDONTWRITEBYTECODE=1`): 10 of 10 killed — job and memory boundaries, platform units, backoff reset and cap, terminate on stop, exit on a directly stopped child, the recycle exit code, the policy passed to `run`, returning on recycle. Two of them (no terminate; no return on recycle) made tests hang rather than fail, which stalled the mutation run until it was killed by hand; every test now has a 120 s limit (`pytest-timeout`).
 
 Exploratory: `make e2e` found a real bug the in-process tests missed — run as `python -m kiln_worker`, the module is `__main__`, so a `spawn` child could not import the target function and every child crashed in a restart loop. The child's code moved to `kiln_worker/process.py`, and a test now runs the real command as a subprocess (it fails with the old layout, checked).
 
+## Review rounds
+
+- Round 1 (independent reviewer, real worker on the real API): **9.0/10, pass** (test depth 0.5, reliability 0.5). Fixed after the gate, self-verified (tests + 7 killed mutants, not re-scored): a child kept working after its supervisor was SIGKILLed — children now watch their parent and stop; the subprocess test could leave processes behind — it now runs in its own process group killed in `finally`; a child stopped although nobody asked ended the whole worker with exit 0 — it is now restarted with a warning; the backoff never reset for idle workers — a minute of healthy running resets it, with 25 % jitter; signal handlers leaked out of a test; the worker layout in `conventions.md` was stale. Accepted: shutdown waits for a hung job without a bound (KILN-28); a `RuntimeError` log test in the heartbeat suite is coverage outside this story.
+
 ## Review score
 
-| #   | Criterion | Score | Evidence |
-| --- | --------- | ----- | -------- |
+| #   | Criterion        | Score    | Evidence (reviewer, round 1)                                                                   |
+| --- | ---------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| 1   | Requirements fit | 1        | AC1–AC5 checked on the real worker: recycles by jobs and memory, Ctrl-C mid-job, kill -9 child |
+| 2   | Test depth       | 0.5      | the subprocess test leaked processes on failure; orphan case untested — fixed after the gate   |
+| 3   | Reliability      | 0.5      | orphaned child after the supervisor died — fixed after the gate                                |
+| 4   | Security         | 1        | settings pickled over a private pipe, never logged                                             |
+| 5   | Maintainability  | 1        | small typed units, `Child` protocol                                                            |
+| 6   | Ergonomics / ops | 1        | exit 75, one log line per recycle or restart, 0.57 s child start                               |
+| 7   | Accessibility    | 1        | no UI change                                                                                   |
+| 8   | Performance      | 1        | ~0.6 s per 200 jobs                                                                            |
+| 9   | Docs             | 1        | story, CHANGELOG, architecture, testing, backlog                                               |
+| 10  | Delivery         | 1        | gates green, pushed                                                                            |
+|     | **Total**        | **9/10** | reviewer: subagent, round 1                                                                    |
