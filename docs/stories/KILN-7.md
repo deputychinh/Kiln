@@ -1,6 +1,6 @@
 # KILN-7: Storybook for the design system
 
-- Release: v0.1 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.1 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -71,3 +71,20 @@ Exploratory: docs canvas in the dark theme first showed a white frame around dar
 | 2     | 8.5   | The round-1 `AssetThumb` change (treat a complete image with no pixels as failed) had no real-browser evidence: Chromium and WebKit fire `error` for the sample without it, and it risked false positives (SVGs without intrinsic size report `naturalWidth` 0) that would trigger signed-URL refetches in the app → reverted; the round-1 "invalid data URL" symptom was the sample's fault, so the story now uses a missing same-origin file that fails asynchronously like a real signed URL. Local e2e could reuse a stale server → `make e2e-ui` builds first and Playwright never reuses one. Unbounded waits → per-story timeouts and a budget from the story count. AC2 state completeness had no guard → enum coverage test. |
 | 3     | 8.5   | AC4: autodocs tables dropped `children` (react-docgen-typescript skips undocumented `children`) and Button's native `disabled`/`type` → `skipChildrenPropWithoutDoc: false`, a prop filter that keeps those two, JSDoc for `children`, and an e2e test that every docs page lists exactly its component's props. Play failures were caught only through the console → the e2e records `playFunctionThrewException`. Wording: the broken sample is "a path with no image behind it" (`vite preview` answers it with HTML, the dev server with a 404); the dead 404 allowance is gone.                                                                                                                                                  |
 | 4     | 8.5   | AC4: 10 component props had no description, so the docs did not replace reading the source → JSDoc on every prop (ErrorState says retry needs both `onRetry` and `retryLabel`, and that `isRetrying` keeps focus) and the docs e2e fails on an undescribed prop. Story-only sample and decorators moved to `.storybook/` (`#storybook/*`); card frames use spacing tokens instead of `12rem`. This is one improve round past the loop's limit of three: the remaining gap was an unmet acceptance criterion with a small, clear fix, so it was fixed rather than filed as debt.                                                                                                                                                       |
+| 5     | 9.5   | Passed. Remaining suggestions (guard non-enum named states, theme decorator side effect, hand-kept docs prop map) filed as **KILN-29**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+## Score
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 1       |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 0.5     |
+| 6   | UX                    | 1       |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 1       |
+| 10  | Delivery              | 1       |
+|     | **Total**             | **9.5** |
