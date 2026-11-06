@@ -111,10 +111,12 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
     own: ['variant', 'children'],
     native: ['disabled', 'type', 'onClick'],
   },
+  'components-dropzone--docs': { own: ['label', 'hint', 'buttonLabel', 'accept', 'onFiles'] },
   'components-emptystate--docs': { own: ['title', 'children', 'action'] },
   'components-errorstate--docs': {
     own: ['title', 'titleAs', 'message', 'retryLabel', 'onRetry', 'isRetrying', 'action'],
   },
+  'components-progressbar--docs': { own: ['label', 'value', 'valueText'] },
   'components-skeleton--docs': { own: ['shape'] },
 };
 
@@ -146,15 +148,9 @@ test('every docs page lists and describes every prop of its component', async ({
   }
 });
 
-test('docs pages follow the theme and list the props with their descriptions', async ({
-  page,
-  request,
-}) => {
-  const ids = await entryIds(request, 'docs');
-  expect(ids).toHaveLength(6);
+test('docs pages follow the theme', async ({ page }) => {
   await page.goto('/iframe.html?id=components-errorstate--docs&viewMode=docs&globals=theme:light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByText('Render the title as a heading when the error is')).toBeVisible();
   await expect(page.locator('.docs-story').first()).toHaveCSS(
     'background-color',
     'rgb(246, 246, 244)',

@@ -1,0 +1,14 @@
+.progress-bar {
+  overflow: hidden;
+  inline-size: 100%;
+  block-size: var(--kiln-space-1);
+  background-color: var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-full);
+}
+
+.progress-bar__fill {
+  block-size: 100%;
+  background-color: var(--kiln-color-primary);
+  border-radius: inherit;
+  transition: inline-size var(--kiln-duration-base) var(--kiln-ease-standard);
+}
