@@ -287,6 +287,7 @@ describe('AssetDetail', () => {
 
     await screen.findByRole('alert');
     expect(document.activeElement).toHaveClass('asset-detail__pane');
+    expect(screen.getByRole('heading', { level: 1, name: 'Asset not found' })).toBeInTheDocument();
   });
 
   it('focuses the heading, not the pane, when a cached asset opens again (compact)', async () => {

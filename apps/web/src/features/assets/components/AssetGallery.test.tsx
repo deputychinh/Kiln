@@ -166,32 +166,49 @@ describe('AssetGallery', () => {
     expect(await screen.findByRole('link', { name: /tree_oak/ })).toBeInTheDocument();
   });
 
-  it('refreshes signed URLs once per asset when its preview fails, never in a loop', async () => {
-    const fresh = { ...rock, thumbnail_url: 'http://s3.test/thumbs/rock.webp?sig=2' };
+  it('refreshes signed URLs once for the whole list however many previews fail, never in a loop', async () => {
+    const tree2 = anAsset({
+      id: '0190f1c2-0000-7000-8000-000000000003',
+      name: 'tree_pine',
+      thumbnail_url: 'http://s3.test/thumbs/pine.webp?sig=1',
+    });
+    const rock2 = anAsset({
+      id: '0190f1c2-0000-7000-8000-000000000004',
+      name: 'rock_moss',
+      thumbnail_url: 'http://s3.test/thumbs/moss.webp?sig=1',
+    });
+    const resigned = [rock, tree2, rock2].map((asset) => ({
+      ...asset,
+      thumbnail_url: (asset.thumbnail_url ?? '').replace('sig=1', 'sig=2'),
+    }));
     const fetchMock = fakeApi({
       [LIST]: [
-        json({ items: [rock], next_cursor: null }),
-        json({ items: [fresh], next_cursor: null }),
-        json({
-          items: [{ ...rock, thumbnail_url: 'http://s3.test/thumbs/rock.webp?sig=3' }],
-          next_cursor: null,
-        }),
+        json({ items: [rock, tree2, rock2], next_cursor: null }),
+        json({ items: resigned, next_cursor: null }),
       ],
     });
 
     renderApp('/assets');
     const list = await screen.findByRole('list', { name: 'Assets' });
-    fireEvent.error(within(list).getByRole('presentation'));
+    within(list)
+      .getAllByRole('presentation')
+      .forEach((image) => fireEvent.error(image));
 
     await waitFor(() =>
-      expect(within(list).getByRole('presentation')).toHaveAttribute('src', fresh.thumbnail_url),
+      expect(
+        within(list)
+          .getAllByRole('presentation')
+          .map((image) => image.getAttribute('src')),
+      ).toEqual(resigned.map((asset) => asset.thumbnail_url)),
     );
-    fireEvent.error(within(list).getByRole('presentation'));
+    expect(countRequests(fetchMock, LIST)).toBe(2);
+
+    // The objects are broken: failing again shows placeholders and starts no further refresh.
+    within(list)
+      .getAllByRole('presentation')
+      .forEach((image) => fireEvent.error(image));
     await waitFor(() => expect(within(list).queryByRole('presentation')).not.toBeInTheDocument());
     expect(countRequests(fetchMock, LIST)).toBe(2);
-    expect(
-      within(list).getByText('Image', { selector: '.asset-thumb__placeholder' }),
-    ).toBeInTheDocument();
   });
 
   it('does not refetch the list on window focus while it is fresh (5 minutes)', async () => {

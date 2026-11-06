@@ -1,7 +1,11 @@
 import { Button, ButtonVariant, EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
 import { type ReactElement, useEffect, useRef, useState } from 'react';
 
-import { ASSET_PAGE_SIZE, THUMB_REFRESH_PER_KEY_MS } from '@/constants/assets.constant';
+import {
+  ASSET_LIST_QUERY_KEY,
+  ASSET_PAGE_SIZE,
+  THUMB_REFRESH_PER_KEY_MS,
+} from '@/constants/assets.constant';
 import { AssetCard } from '@/features/assets/components/AssetCard';
 import { useAssetPages } from '@/features/assets/hooks/useAssetPages';
 import { useCopy } from '@/hooks/useCopy';
@@ -33,6 +37,10 @@ export const AssetGallery = (): ReactElement => {
     setFocusAfterLoad(null);
   }, [focusAfterLoad]);
   const refreshOnce = useKeyedThrottle(THUMB_REFRESH_PER_KEY_MS);
+  // One shared refresh re-signs every preview of the list, however many cards fail at once
+  // (a storage outage, or lazy cards scrolled into view after the signatures expired).
+  const refreshThumbs = (): void =>
+    refreshOnce(ASSET_LIST_QUERY_KEY.join('/'), () => void refetch({ cancelRefetch: false }));
 
   const title = <h1 className="asset-gallery__title">{copy.assets.title}</h1>;
 
@@ -85,10 +93,7 @@ export const AssetGallery = (): ReactElement => {
       <ul className="asset-gallery__grid" aria-label={copy.assets.title}>
         {assets.map((asset) => (
           <li key={asset.id} className="asset-gallery__item">
-            <AssetCard
-              asset={asset}
-              onThumbError={() => refreshOnce(asset.id, () => void refetch())}
-            />
+            <AssetCard asset={asset} onThumbError={refreshThumbs} />
           </li>
         ))}
       </ul>

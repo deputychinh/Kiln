@@ -2,7 +2,12 @@ const AMZ_DATE = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
 
 /** When a SigV4 presigned URL stops working (`X-Amz-Date` + `X-Amz-Expires`), or null if unknown. */
 export const signedUrlExpiresAt = (url: string): number | null => {
-  const params = new URL(url).searchParams;
+  let params: URLSearchParams;
+  try {
+    params = new URL(url).searchParams;
+  } catch {
+    return null; // not an absolute URL: the expiry is unknown, so the URL is not reused
+  }
   const date = AMZ_DATE.exec(params.get('X-Amz-Date') ?? '');
   const seconds = Number(params.get('X-Amz-Expires'));
   if (!date || !Number.isFinite(seconds) || seconds <= 0) return null;

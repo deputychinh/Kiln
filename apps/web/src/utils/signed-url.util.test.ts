@@ -17,6 +17,7 @@ describe('signedUrlExpiresAt', () => {
     'http://s3.test/k.webp?X-Amz-Date=bad&X-Amz-Expires=900',
     'http://s3.test/k.webp?X-Amz-Date=20261106T120000Z&X-Amz-Expires=0',
     'http://s3.test/k.webp?X-Amz-Date=20261106T120000Z&X-Amz-Expires=x',
+    '/relative/k.webp?X-Amz-Date=20261106T120000Z&X-Amz-Expires=900',
   ])('is null when it cannot tell: %s', (url) => {
     expect(signedUrlExpiresAt(url)).toBeNull();
   });

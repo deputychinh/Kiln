@@ -133,6 +133,8 @@ export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
     if (!isExpanded && pane && !pane.contains(document.activeElement)) pane.focus();
   }, [isExpanded]);
 
+  // When the detail replaces the list, its error is the page and names it (the list's h1 is hidden).
+  const errorTitleAs = isExpanded ? 'p' : 'h1';
   let content: ReactElement;
   if (asset.isPending) {
     content = (
@@ -149,12 +151,14 @@ export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
         {isNotFound(asset.error) ? (
           <ErrorState
             title={copy.assets.notFoundTitle}
+            titleAs={errorTitleAs}
             message={copy.assets.notFoundBody}
             action={<BackLink />}
           />
         ) : (
           <ErrorState
             title={copy.assets.loadAssetFailed}
+            titleAs={errorTitleAs}
             message={describeError(asset.error, copy)}
             retryLabel={copy.assets.retry}
             onRetry={() => void refetch()}
