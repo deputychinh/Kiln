@@ -10,7 +10,7 @@ Ids are `KILN-<n>`; once Jira is linked, the Jira key matches the id here.
 | KILN-21 | v0.1    | `Idempotency-Key` replay for `POST /assets` (24 h, stored response)                                                                      | done   |
 | KILN-4  | v0.1    | Postgres job queue (`SKIP LOCKED`, lease, backoff) + worker image thumbnails; ETag recorded at completion and verified before processing | done   |
 | KILN-22 | v0.1    | Scheduled maintenance in the worker: purge orphaned `uploads/` staging objects and expired idempotency keys                              | done   |
-| KILN-23 | v0.1    | Circuit breaker / bulkhead around storage calls in the API                                                                               | todo   |
+| KILN-23 | v0.1    | Circuit breaker / bulkhead around storage calls in the API                                                                               | doing  |
 | KILN-24 | v0.1    | Lease heartbeat for worker jobs longer than the 5-minute lease                                                                           | todo   |
 | KILN-25 | v0.1    | Recycle the worker process after N jobs (Pillow keeps freed memory mapped)                                                               | todo   |
 | KILN-5  | v0.1    | Thumbnails for `.glb` (offscreen render)                                                                                                 | todo   |

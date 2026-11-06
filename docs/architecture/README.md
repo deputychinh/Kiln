@@ -61,5 +61,6 @@ flowchart LR
 - Errors: RFC 9457 + `code`; the web app reacts to the status and `code`, never to message text (it shows the problem `title`).
 - Observability: JSON logs with `request_id` / `job_id`; `/health`, `/ready`; job metrics (queued, failed).
 - Timeouts: Postgres lock 5 s and statement 15 s; storage 3 s connect and 10 s read with 2 attempts in total (worst case 26 s); Claude 30 s; every retry loop has backoff and a cap.
+- Storage resilience (KILN-23): every network call to storage (API and worker) goes through a circuit breaker — open after 5 consecutive failures, fail fast for 30 s with `Retry-After` set to the time left, then one trial call — and a bulkhead of 16 concurrent calls with a 0.5 s wait. Signing URLs is local and never blocked, so the gallery keeps working during an outage; `/ready` fails at once while the circuit is open.
 
 Updated with every ADR in `docs/adr/`.
