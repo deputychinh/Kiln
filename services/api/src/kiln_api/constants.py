@@ -43,6 +43,11 @@ STORAGE_READ_TIMEOUT_SECONDS = 10
 STORAGE_TOTAL_ATTEMPTS = 2
 # Readiness must answer fast: one attempt, 1 s to connect and to read.
 STORAGE_PROBE_TIMEOUT_SECONDS = 1
+# Circuit breaker and bulkhead around storage calls (KILN-23).
+STORAGE_BREAKER_FAILURES = 5
+STORAGE_BREAKER_COOLDOWN_SECONDS = 30.0
+STORAGE_MAX_CONCURRENT = 16
+STORAGE_BULKHEAD_WAIT_SECONDS = 0.5
 DB_LOCK_TIMEOUT_MS = 5_000
 DB_STATEMENT_TIMEOUT_MS = 15_000
 # SQLSTATEs for lock_timeout and statement_timeout: the database is busy, retry later.

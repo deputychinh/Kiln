@@ -2,10 +2,17 @@
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from kiln_api.constants import DB_LOCK_TIMEOUT_MS, DB_STATEMENT_TIMEOUT_MS
+from kiln_api.constants import (
+    DB_LOCK_TIMEOUT_MS,
+    DB_STATEMENT_TIMEOUT_MS,
+    STORAGE_BREAKER_COOLDOWN_SECONDS,
+    STORAGE_BREAKER_FAILURES,
+    STORAGE_BULKHEAD_WAIT_SECONDS,
+    STORAGE_MAX_CONCURRENT,
+)
 from kiln_api.enums import Environment
 
 
@@ -25,6 +32,11 @@ class Settings(BaseSettings):
     s3_bucket: str = "kiln-assets"
     s3_access_key: str = "kiln"
     s3_secret_key: SecretStr = SecretStr("kiln-local-secret")
+    # Circuit breaker and bulkhead around storage (KILN-23).
+    storage_breaker_failures: int = Field(default=STORAGE_BREAKER_FAILURES, gt=0)
+    storage_breaker_cooldown_seconds: float = Field(default=STORAGE_BREAKER_COOLDOWN_SECONDS, gt=0)
+    storage_max_concurrent: int = Field(default=STORAGE_MAX_CONCURRENT, gt=0)
+    storage_bulkhead_wait_seconds: float = Field(default=STORAGE_BULKHEAD_WAIT_SECONDS, gt=0)
 
 
 @lru_cache

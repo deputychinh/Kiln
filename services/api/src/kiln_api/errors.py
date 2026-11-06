@@ -144,6 +144,17 @@ class StorageUnavailableError(DomainError):
     code = ErrorCode.STORAGE_UNAVAILABLE
     default_detail = "File storage is unavailable; try again shortly."
 
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        cause_code: str = "",
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        """`retry_after_seconds` becomes the `Retry-After` header (an open circuit's cool-down)."""
+        super().__init__(detail, cause_code=cause_code)
+        self.retry_after_seconds = retry_after_seconds
+
 
 class DatabaseUnavailableError(DomainError):
     """The database did not answer."""

@@ -22,6 +22,7 @@ from kiln_api.errors import DatabaseUnavailableError
 from kiln_api.ports import Clock, ObjectStorage
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.unit_of_work import SqlUnitOfWork
+from kiln_api.resilience import CircuitBreaker, GuardedStorage
 from kiln_api.services.assets import AssetService
 
 if TYPE_CHECKING:
@@ -91,6 +92,20 @@ def build_storage(settings: Settings) -> S3ObjectStorage:
     return S3ObjectStorage(work, settings.s3_bucket, probe_client=probe)
 
 
+def guard_storage(storage: ObjectStorage, settings: Settings) -> GuardedStorage:
+    """Wrap storage with the circuit breaker and bulkhead configured in `settings` (KILN-23)."""
+    breaker = CircuitBreaker(
+        failures=settings.storage_breaker_failures,
+        cooldown=settings.storage_breaker_cooldown_seconds,
+    )
+    return GuardedStorage(
+        storage,
+        breaker,
+        max_concurrent=settings.storage_max_concurrent,
+        wait_seconds=settings.storage_bulkhead_wait_seconds,
+    )
+
+
 def build_container(
     settings: Settings,
     *,
@@ -100,7 +115,7 @@ def build_container(
 ) -> Container:
     """Wire real adapters; tests pass their engine and fakes for storage and the clock."""
     engine = engine or build_engine(settings)
-    resolved_storage = storage or build_storage(settings)
+    resolved_storage = storage or guard_storage(build_storage(settings), settings)
     service = AssetService(
         SqlAssetRepository(engine),
         resolved_storage,

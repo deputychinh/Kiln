@@ -49,7 +49,7 @@ def _problem(
     }
     merged = dict(options.get("headers", {}))
     if status == HTTPStatus.SERVICE_UNAVAILABLE:
-        merged["Retry-After"] = str(RETRY_AFTER_SECONDS)
+        merged.setdefault("Retry-After", str(RETRY_AFTER_SECONDS))
     return JSONResponse(body, status_code=status.value, media_type=PROBLEM_JSON, headers=merged)
 
 
@@ -63,7 +63,9 @@ async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
             getattr(request.state, "request_id", "-"),
             exc.cause_code or "-",
         )
-    return _problem(request, exc.status, exc.code, exc.detail)
+    retry_after = getattr(exc, "retry_after_seconds", None)
+    headers = {} if retry_after is None else {"Retry-After": str(retry_after)}
+    return _problem(request, exc.status, exc.code, exc.detail, headers=headers)
 
 
 async def _http_handler(request: Request, exc: Exception) -> JSONResponse:

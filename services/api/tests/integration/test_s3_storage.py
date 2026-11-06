@@ -15,10 +15,17 @@ from sqlalchemy import Engine
 
 from kiln_api.adapters import S3ObjectStorage
 from kiln_api.config import Settings
-from kiln_api.container import build_container, build_storage
+from kiln_api.container import build_container, build_storage, guard_storage
 from kiln_api.enums import Environment, PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.main import create_app
+
+
+def _closed_port() -> int:
+    """A local port with nothing listening (bound, then released)."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
 
 
 @pytest.fixture
@@ -339,3 +346,25 @@ def test_listing_finds_old_objects_under_a_prefix_only(settings: Settings) -> No
         f"{prefix}c",
     ]
     assert list(storage.iter_keys(prefix, older_than=datetime.now(UTC) - timedelta(hours=1))) == []
+
+
+def test_a_storage_endpoint_that_refuses_connections_opens_the_circuit(
+    database_url: str,
+) -> None:
+    settings = Settings(
+        env=Environment.TEST,
+        database_url=database_url,
+        s3_endpoint=f"http://127.0.0.1:{_closed_port()}",
+        storage_breaker_failures=1,
+    )
+    storage = guard_storage(build_storage(settings), settings)
+    with pytest.raises(StorageUnavailableError) as first:
+        storage.head("uploads/x")
+
+    started = time.monotonic()
+    with pytest.raises(StorageUnavailableError) as second:
+        storage.head("uploads/x")
+
+    assert first.value.cause_code == "EndpointConnectionError"
+    assert second.value.cause_code == "CIRCUIT_OPEN"
+    assert time.monotonic() - started < 0.05

@@ -91,3 +91,11 @@ class JobStatus(StrEnum):
     RUNNING = "running"
     DONE = "done"
     DEAD = "dead"
+
+
+class CircuitState(StrEnum):
+    """State of the storage circuit breaker (KILN-23)."""
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
