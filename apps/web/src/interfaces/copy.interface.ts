@@ -1,3 +1,5 @@
+import type { UploadRejection } from '@/enums/upload-rejection.enum';
+import type { UploadStatus } from '@/enums/upload-status.enum';
 import type { AssetKind, FailureReason, VersionStatus } from '@/interfaces/asset.interface';
 
 export interface Copy {
@@ -34,5 +36,25 @@ export interface Copy {
     loadAssetFailed: string;
     notFoundTitle: string;
     notFoundBody: string;
+  };
+  uploads: {
+    panelLabel: string;
+    dropLabel: string;
+    dropHint: string;
+    choose: string;
+    listLabel: string;
+    summary: (finished: number, total: number) => string;
+    status: Record<UploadStatus, string>;
+    progress: (percent: number) => string;
+    progressLabel: (fileName: string) => string;
+    cancelShort: string;
+    retryShort: string;
+    removeShort: string;
+    cancel: (fileName: string) => string;
+    retry: (fileName: string) => string;
+    remove: (fileName: string) => string;
+    announce: (fileName: string, status: string) => string;
+    rejected: Record<UploadRejection, string>;
+    storageRejected: string;
   };
 }

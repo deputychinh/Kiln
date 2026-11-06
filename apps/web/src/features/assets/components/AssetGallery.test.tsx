@@ -63,7 +63,38 @@ describe('AssetGallery', () => {
     renderApp('/assets');
 
     expect(await screen.findByRole('heading', { name: 'No assets yet' })).toBeInTheDocument();
-    expect(screen.getByText(/Publish your first image/)).toBeInTheDocument();
+    expect(screen.getByText(/Drop an image or a glTF model/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose files' })).toBeInTheDocument();
+  });
+
+  it('offers no upload while the first page loads', async () => {
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => undefined));
+
+    renderApp('/assets');
+
+    expect(await screen.findByRole('status')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose files' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the upload list when the gallery goes from empty to a list', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [], next_cursor: null }), json({ items: [rock], next_cursor: null })],
+    });
+    const { queryClient } = renderApp('/assets');
+    const input = (
+      await screen.findByRole('group', { name: 'Drop images or .glb files here' })
+    ).querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    await userEvent.upload(input, new File(['x'], 'notes.txt', { type: 'text/plain' }), {
+      applyAccept: false,
+    });
+    expect(
+      await screen.findByText('Only PNG, JPEG, WebP and .glb files can be uploaded.'),
+    ).toBeInTheDocument();
+
+    await queryClient.invalidateQueries();
+    expect(await screen.findByRole('list', { name: 'Assets' })).toBeInTheDocument();
+    expect(screen.getByText('notes.txt')).toBeInTheDocument();
   });
 
   it('shows the problem title with a retry that fetches again', async () => {

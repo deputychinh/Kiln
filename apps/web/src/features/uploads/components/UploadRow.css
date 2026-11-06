@@ -1,0 +1,56 @@
+.upload-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name actions'
+    'state actions'
+    'progress progress'
+    'error error';
+  gap: var(--kiln-space-1) var(--kiln-space-3);
+  align-items: center;
+  padding: var(--kiln-space-2) 0;
+  border-block-end: 1px solid var(--kiln-color-outline);
+}
+
+.upload-row__name {
+  overflow: hidden;
+  font-size: var(--kiln-text-sm);
+  white-space: nowrap;
+  grid-area: name;
+  text-overflow: ellipsis;
+}
+
+.upload-row__link {
+  color: inherit;
+}
+
+.upload-row__state {
+  grid-area: state;
+}
+
+.upload-row__progress {
+  grid-area: progress;
+}
+
+.upload-row__error {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-danger);
+  grid-area: error;
+}
+
+.upload-row__actions {
+  display: flex;
+  gap: var(--kiln-space-2);
+  grid-area: actions;
+}
+
+/* Wide panes: name, state and progress on one line. */
+@container upload-panel (min-width: 600px) {
+  .upload-row {
+    grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name state progress actions'
+      'error error error error';
+  }
+}

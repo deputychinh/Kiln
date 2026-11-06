@@ -25,18 +25,42 @@ const problemOf = async (response: Response): Promise<ApiError> => {
   }
 };
 
-/** GET a JSON resource of the Kiln API; any failure becomes an `ApiError` (status 0 = unreachable). */
-export const apiGet = async <T>(path: string, signal?: AbortSignal): Promise<T> => {
+const send = async <T>(
+  path: string,
+  init: RequestInit & { headers: Record<string, string> },
+  signal: AbortSignal | undefined,
+): Promise<T> => {
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      headers: { Accept: 'application/json' },
-      signal: signal ?? null,
-    });
+    response = await fetch(`${apiBaseUrl()}${path}`, { ...init, signal: signal ?? null });
   } catch (cause) {
-    if (signal?.aborted) throw cause; // a cancelled query, not a failure
+    if (signal?.aborted) throw cause; // a cancelled request, not a failure
     throw apiError(0, cause instanceof Error ? cause.message : String(cause));
   }
   if (!response.ok) throw await problemOf(response);
   return (await response.json()) as T;
 };
+
+/** GET a JSON resource of the Kiln API; any failure becomes an `ApiError` (status 0 = unreachable). */
+export const apiGet = <T>(path: string, signal?: AbortSignal): Promise<T> =>
+  send<T>(path, { headers: { Accept: 'application/json' } }, signal);
+
+/** POST JSON to the Kiln API; a key makes a retry replay the first result (KILN-21). */
+export const apiPost = <T>(
+  path: string,
+  body: unknown,
+  options: { idempotencyKey?: string; signal?: AbortSignal } = {},
+): Promise<T> =>
+  send<T>(
+    path,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
+      },
+      body: JSON.stringify(body),
+    },
+    options.signal,
+  );

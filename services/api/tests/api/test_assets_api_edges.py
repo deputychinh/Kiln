@@ -262,6 +262,23 @@ def test_a_completion_resumes_when_only_the_final_file_remains(
 ORIGIN = {"Origin": "http://127.0.0.1:5173", "X-Request-Id": "req-42"}
 
 
+def test_a_browser_may_send_an_idempotency_key_across_origins(client: TestClient) -> None:
+    """The web app uploads with `Idempotency-Key` (KILN-26), so the preflight must allow it."""
+    response = client.options(
+        "/api/v1/assets",
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,idempotency-key",
+        },
+    )
+
+    assert response.status_code == 200
+    allowed = response.headers["access-control-allow-headers"].lower()
+    assert "idempotency-key" in allowed
+    assert "content-type" in allowed
+
+
 def test_a_413_keeps_cors_and_the_request_id(client: TestClient) -> None:
     response = client.post(
         "/api/v1/assets",

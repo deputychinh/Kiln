@@ -9,7 +9,13 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from kiln_api.config import Settings, get_settings
-from kiln_api.constants import API_PREFIX, API_TITLE, API_VERSION, REQUEST_ID_HEADER
+from kiln_api.constants import (
+    API_PREFIX,
+    API_TITLE,
+    API_VERSION,
+    IDEMPOTENCY_KEY_HEADER,
+    REQUEST_ID_HEADER,
+)
 from kiln_api.container import Container, build_container
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.problems import (
@@ -60,7 +66,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         CORSMiddleware,
         allow_origins=resolved.cors_origins,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", REQUEST_ID_HEADER],
+        allow_headers=["Content-Type", IDEMPOTENCY_KEY_HEADER, REQUEST_ID_HEADER],
         expose_headers=["Location", "Retry-After", REQUEST_ID_HEADER],
     )
     install_error_handlers(app)

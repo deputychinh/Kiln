@@ -8,6 +8,8 @@ import {
 } from '@/constants/assets.constant';
 import { AssetCard } from '@/features/assets/components/AssetCard';
 import { useAssetPages } from '@/features/assets/hooks/useAssetPages';
+import { UploadPanel } from '@/features/uploads/components/UploadPanel';
+import { useUploads } from '@/features/uploads/hooks/useUploads';
 import { useCopy } from '@/hooks/useCopy';
 import { useKeyedThrottle } from '@/hooks/useKeyedThrottle';
 import { describeError } from '@/utils/error.util';
@@ -20,6 +22,8 @@ const SKELETON_TILES = Array.from({ length: ASSET_PAGE_SIZE / 3 }, (_, index) =>
 export const AssetGallery = (): ReactElement => {
   const copy = useCopy();
   const pages = useAssetPages();
+  // Held here, above the state branches, so uploads survive the gallery going from empty to a list.
+  const uploads = useUploads();
   const { refetch } = pages;
   const galleryRef = useRef<HTMLDivElement>(null);
   // After "Load more": the index of the first new card, or 'error' for the retry button.
@@ -91,6 +95,7 @@ export const AssetGallery = (): ReactElement => {
     return (
       <div className="asset-gallery">
         {title}
+        <UploadPanel uploads={uploads} />
         <EmptyState title={copy.assets.emptyTitle}>{copy.assets.emptyBody}</EmptyState>
       </div>
     );
@@ -104,6 +109,7 @@ export const AssetGallery = (): ReactElement => {
   return (
     <div className="asset-gallery" ref={galleryRef}>
       {title}
+      <UploadPanel uploads={uploads} />
       <ul className="asset-gallery__grid" aria-label={copy.assets.title}>
         {assets.map((asset) => (
           <li key={asset.id} className="asset-gallery__item">

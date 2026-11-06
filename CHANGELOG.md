@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Added
 
+- Upload from the browser (KILN-26): drop images and `.glb` files on the gallery or choose them with a button; each file shows its state and upload progress, can be cancelled, retried with the same idempotency key, or removed; at most two upload at a time; the new card appears with its preview without a reload. Unsupported, empty and oversized files are refused before anything is sent. New `Dropzone` and `ProgressBar` components.
 - Storybook 10 for the design system (`make storybook`): every component in each state with autodocs and a dark/light theme toolbar; a unit guard that renders every story and fails when a component has no stories; `make e2e-ui` runs axe over every story in both themes, also in CI (KILN-7).
 
 - Model previews (KILN-5): the worker renders a 512 × 512 transparent WebP preview of every `.glb` (glTF 2.0 binary) — node transforms applied, three-quarter view from above, flat key-and-fill shading, back faces drawn first — with a defensive reader that checks every offset, length, stride, count and index, never fetches a URI and refuses required extensions (Draco, meshopt) as `UNREADABLE_MODEL`; the node graph must be a strict tree and any malformed structure is unreadable; texture-, material- and light-only required extensions are accepted; triangle strips and fans are drawn; files over 256 MB, more than 2,000,000 triangles or 6,000,000 vertices, or a JSON chunk above 16 MB fail as `MODEL_TOO_LARGE` before any geometry is decoded (migration `0005`); each accessor is decoded once and positions are made model-relative in float64 before the float32 cast. Only the JSON and BIN chunks are read, object and primitive lists are capped at 100,000 entries and drawing stops after 20 s (`MODEL_TOO_LARGE`). Reading and rendering run in a disposable child process — killed after 60 s, with its own 65 s CPU limit, a 2 GiB address space on Linux (macOS bounds only time), and it exits if the worker dies — so no model can hang the worker; the file is streamed into it and folders left by a killed worker are removed at start-up. The API returns `thumbnail_url` for models too; models made ready before this change are re-queued for a preview, their covers cleared until it exists. 1M triangles render in about 1 s; the 2M worst case peaks near 580 MB
@@ -29,3 +30,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 ### Changed
 
 - `/` opens the gallery; the walking-skeleton API status block is gone (the gallery's error state reports an unreachable API).
+
+### Fixed
+
+- The API's CORS preflight now allows the `Idempotency-Key` header, which browser clients need to create assets safely (KILN-26).

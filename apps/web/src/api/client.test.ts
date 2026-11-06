@@ -1,4 +1,4 @@
-import { apiError, apiGet, isApiError } from '@/api/client';
+import { apiError, apiGet, apiPost, isApiError } from '@/api/client';
 import { json, problem } from '@/test/fake-api';
 
 describe('apiGet', () => {
@@ -79,5 +79,57 @@ describe('isApiError', () => {
     expect(isApiError(apiError(404, 'Not found'))).toBe(true);
     expect(isApiError(new Error('boom'))).toBe(false);
     expect(isApiError({ name: 'ApiError' })).toBe(false);
+  });
+});
+
+describe('apiPost', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('sends a JSON body with the idempotency key and returns the JSON reply', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ id: 'a' }, 201));
+
+    await expect(
+      apiPost('/api/v1/assets', { name: 'rock' }, { idempotencyKey: 'key-1' }),
+    ).resolves.toEqual({ id: 'a' });
+    expect(fetchMock).toHaveBeenCalledWith('http://api.test/api/v1/assets', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'key-1',
+      },
+      body: '{"name":"rock"}',
+      signal: null,
+    });
+  });
+
+  it('sends no idempotency header without a key', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({}));
+
+    await apiPost('/x', {});
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Idempotency-Key');
+  });
+
+  it('maps problems and unreachable servers like apiGet', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(problem(415, 'Unsupported type', 'UNSUPPORTED_MEDIA_TYPE'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await expect(apiPost('/x', {})).rejects.toMatchObject({
+      status: 415,
+      code: 'UNSUPPORTED_MEDIA_TYPE',
+    });
+    await expect(apiPost('/x', {})).rejects.toMatchObject({ status: 0 });
+  });
+
+  it('rethrows an abort instead of calling it unreachable', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+
+    await expect(apiPost('/x', {}, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
   });
 });
