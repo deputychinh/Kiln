@@ -6,7 +6,7 @@ import threading
 from datetime import timedelta
 
 from kiln_api.config import Settings
-from kiln_api.container import build_engine, build_storage
+from kiln_api.container import build_engine, build_storage, guard_storage
 from kiln_worker.config import WorkerSettings
 from kiln_worker.runner import build_worker
 
@@ -28,7 +28,7 @@ def main(
     engine = build_engine(resolved)
     worker = build_worker(
         engine,
-        storage=build_storage(resolved),
+        storage=guard_storage(build_storage(resolved), resolved),
         maintenance_interval=timedelta(seconds=options.maintenance_interval_seconds),
     )
     logger.info("worker started; polling every %.1f s", options.poll_interval_seconds)
