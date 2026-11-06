@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { fn } from 'storybook/test';
+import { expect, fn, waitFor, within } from 'storybook/test';
 
 import { AssetThumb } from '#ui/components/AssetThumb/AssetThumb';
 
@@ -43,6 +43,15 @@ export const NonSquareImage: Story = { args: { src: WIDE, alt: 'banner_wide.png'
 
 export const NoPreview: Story = { args: { src: null, alt: '', placeholder: '3D model' } };
 
-export const BrokenImage: Story = { args: { src: BROKEN, alt: 'missing.png' } };
+export const BrokenImage: Story = {
+  args: { src: BROKEN, alt: 'missing.png' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByText('Image')).toBeVisible());
+    await expect(canvas.queryByRole('img')).not.toBeInTheDocument();
+    await expect(args.onError).toHaveBeenCalledTimes(1);
+    await expect(args.onError).toHaveBeenCalledWith(BROKEN);
+  },
+};
 
 export const Eager: Story = { args: { isEager: true } };

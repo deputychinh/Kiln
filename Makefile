@@ -1,6 +1,6 @@
 # Kiln — one command per task. `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install lint format test e2e ci up down api worker web storybook build migrate openapi blender-zip
+.PHONY: help install lint format test e2e e2e-ui ci up down api worker web storybook build migrate openapi blender-zip
 SHELL := /bin/bash
 API_PORT ?= 8000
 WEB_PORT ?= 5173

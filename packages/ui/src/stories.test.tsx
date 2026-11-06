@@ -11,6 +11,22 @@ const componentFiles = Object.keys(
 
 const folderOf = (path: string): string => path.split('/')[2] ?? path;
 
+// jsdom never decodes images, so a browser's verdict on the one undecodable sample
+// (`AssetThumb` BrokenImage) is emulated: complete with no pixels, i.e. broken.
+const UNDECODABLE_SAMPLE = 'data:image/png;base64,AAAA';
+
+beforeAll(() => {
+  vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(function (
+    this: HTMLImageElement,
+  ) {
+    return this.getAttribute('src') === UNDECODABLE_SAMPLE;
+  });
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
+});
+
 describe('Storybook coverage', () => {
   it('has a stories file for every component folder', () => {
     const withStories = new Set(Object.keys(storyModules).map(folderOf));

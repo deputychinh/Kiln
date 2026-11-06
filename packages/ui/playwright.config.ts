@@ -9,8 +9,8 @@ export default defineConfig({
   use: { baseURL: STORYBOOK_URL, trace: 'retain-on-failure' },
   projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command:
-      'npm run build && vite preview --outDir storybook-static --host 127.0.0.1 --port 6007 --strictPort',
+    // CI has just built Storybook in the build step; locally the build is always fresh.
+    command: `${process.env.CI ? '' : 'npm run build && '}vite preview --outDir storybook-static --host 127.0.0.1 --port 6007 --strictPort`,
     url: STORYBOOK_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
