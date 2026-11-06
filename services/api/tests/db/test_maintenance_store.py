@@ -1,5 +1,6 @@
 import threading
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from fakes import FakeStorage, FixedClock
 from sqlalchemy import Engine
@@ -8,6 +9,7 @@ from kiln_api.config import Settings
 from kiln_api.container import build_container
 from kiln_api.domain.assets import UploadSpec
 from kiln_api.enums import Environment
+from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.maintenance import SqlMaintenanceStore
 
 T0 = datetime(2026, 11, 4, 9, 0, tzinfo=UTC)
@@ -73,3 +75,21 @@ def test_stale_pending_versions_are_found_oldest_first_and_bounded(
         second.id,
     ]
     assert store.stale_pending_versions(older_than=day, limit=1, now=later) == [first.id]
+
+
+def test_versions_are_looked_up_by_id_in_one_query(database_url: str, engine: Engine) -> None:
+    container = build_container(
+        Settings(env=Environment.TEST, database_url=database_url),
+        engine=engine,
+        storage=FakeStorage(),
+        clock=FixedClock(T0),
+    )
+    spec = UploadSpec(file_name="rock.png", content_type="image/png", size_bytes=10)
+    first = container.assets.create("First", spec).version
+    second = container.assets.create("Second", spec).version
+    repository = SqlAssetRepository(engine)
+
+    found = repository.versions_by_id([first.id, second.id, uuid4()])
+
+    assert found == {first.id: first, second.id: second}
+    assert repository.versions_by_id([]) == {}

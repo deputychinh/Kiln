@@ -333,12 +333,9 @@ def test_listing_finds_old_objects_under_a_prefix_only(settings: Settings) -> No
     storage.upload(f"thumbs/{uuid.uuid4()}.webp", b"x", "image/webp")
     later = datetime.now(UTC) + timedelta(minutes=1)
 
-    assert sorted(storage.list_keys(prefix, older_than=later, limit=10)) == [
+    assert sorted(storage.iter_keys(prefix, older_than=later)) == [
         f"{prefix}a",
         f"{prefix}b",
         f"{prefix}c",
     ]
-    assert len(storage.list_keys(prefix, older_than=later, limit=2)) == 2
-    assert (
-        storage.list_keys(prefix, older_than=datetime.now(UTC) - timedelta(hours=1), limit=10) == []
-    )
+    assert list(storage.iter_keys(prefix, older_than=datetime.now(UTC) - timedelta(hours=1))) == []

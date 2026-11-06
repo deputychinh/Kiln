@@ -1,6 +1,6 @@
 """Fakes for ports that leave the process (storage, clock)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import IO
 
@@ -25,6 +25,7 @@ class FakeStorage:
         self.delete_available = True
         self.modified: dict[str, datetime] = {}
         self.list_available = True
+        self.listed = 0
 
     def ensure_bucket(self) -> None:
         self.ensure_calls += 1
@@ -98,16 +99,14 @@ class FakeStorage:
         self._check()
         self.put(key, len(data), content_type, data)
 
-    def list_keys(self, prefix: str, *, older_than: datetime, limit: int) -> list[str]:
+    def iter_keys(self, prefix: str, *, older_than: datetime) -> Iterator[str]:
         self._check()
         if not self.list_available:
             raise StorageUnavailableError
-        old = sorted(
-            key
-            for key in self.objects
-            if key.startswith(prefix) and self.modified.get(key, older_than) < older_than
-        )
-        return old[:limit]
+        for key in sorted(self.objects):  # S3 lists in key order
+            if key.startswith(prefix) and self.modified.get(key, older_than) < older_than:
+                self.listed += 1
+                yield key
 
     def presign_download(self, key: str, ttl_seconds: int) -> str:
         return f"http://storage.test/kiln-assets/{key}?ttl={ttl_seconds}"

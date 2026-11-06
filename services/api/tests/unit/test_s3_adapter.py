@@ -3,6 +3,7 @@ import io
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from itertools import islice
 
 import boto3
 import pytest
@@ -212,7 +213,7 @@ def test_a_download_error_other_than_412_is_reported_as_unavailable(
         storage.download("assets/a.png", io.BytesIO(), if_match='"x"')
 
 
-def test_listing_keeps_only_old_keys_and_stops_at_the_limit(
+def test_listing_yields_only_old_keys_page_by_page(
     stubbed: tuple[S3ObjectStorage, Stubber],
 ) -> None:
     storage, stubber = stubbed
@@ -229,7 +230,7 @@ def test_listing_keeps_only_old_keys_and_stops_at_the_limit(
             "IsTruncated": True,
             "NextContinuationToken": "t",
         },
-        {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 3},
+        {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 1000},
     )
     stubber.add_response(
         "list_objects_v2",
@@ -240,11 +241,11 @@ def test_listing_keeps_only_old_keys_and_stops_at_the_limit(
             ],
             "IsTruncated": False,
         },
-        {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 3, "ContinuationToken": "t"},
+        {"Bucket": "kiln-assets", "Prefix": "uploads/", "MaxKeys": 1000, "ContinuationToken": "t"},
     )
 
-    # Pages until three old keys are found; young ones are skipped, the rest is not read.
-    assert storage.list_keys("uploads/", older_than=cutoff, limit=3) == [
+    # Lazy: the second page is fetched only when read; young keys are skipped; the caller stops.
+    assert list(islice(storage.iter_keys("uploads/", older_than=cutoff), 3)) == [
         "uploads/a/1",
         "uploads/a/3",
         "uploads/b/4",
@@ -258,5 +259,5 @@ def test_listing_errors_are_reported_as_unavailable(
     stubber.add_client_error("list_objects_v2", service_error_code="SlowDown", http_status_code=503)
 
     with pytest.raises(StorageUnavailableError) as raised:
-        storage.list_keys("uploads/", older_than=datetime.now(UTC), limit=10)
+        list(storage.iter_keys("uploads/", older_than=datetime.now(UTC)))
     assert raised.value.cause_code == "SlowDown"

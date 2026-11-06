@@ -1,6 +1,6 @@
 """Postgres adapter for the `AssetRepository` port."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
@@ -166,6 +166,14 @@ class SqlAssetRepository:
         if row is None:
             raise AssetVersionNotFoundError(version_id)
         return _version(row)
+
+    def versions_by_id(self, version_ids: Sequence[UUID]) -> dict[UUID, AssetVersion]:
+        """The versions among `version_ids` that exist, in one query."""
+        with self._read() as connection:
+            rows = connection.execute(
+                select(asset_versions).where(asset_versions.c.id.in_(version_ids))
+            ).all()
+        return {row.id: _version(row) for row in rows}
 
     def versions_of(self, asset_id: UUID) -> list[AssetVersion]:
         """Return the versions of `asset_id` in number order, at most `MAX_VERSIONS_PER_READ`."""

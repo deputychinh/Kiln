@@ -1,6 +1,6 @@
 """Abstract ports the services depend on; adapters live in `repositories/` and `adapters/`."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -78,8 +78,8 @@ class ObjectStorage(Protocol):
         """Remove `key`; a missing key is not an error."""
         ...
 
-    def list_keys(self, prefix: str, *, older_than: datetime, limit: int) -> list[str]:
-        """Up to `limit` keys under `prefix` last modified before `older_than`."""
+    def iter_keys(self, prefix: str, *, older_than: datetime) -> Iterator[str]:
+        """Keys under `prefix` last modified before `older_than`, fetched page by page as read."""
         ...
 
 
@@ -114,6 +114,10 @@ class AssetRepository(Protocol):
 
     def get_version(self, version_id: UUID) -> AssetVersion:
         """Return a version or raise `AssetVersionNotFoundError`."""
+        ...
+
+    def versions_by_id(self, version_ids: Sequence[UUID]) -> dict[UUID, AssetVersion]:
+        """The versions among `version_ids` that exist, in one query."""
         ...
 
     def versions_of(self, asset_id: UUID) -> list[AssetVersion]:
@@ -213,4 +217,18 @@ class UnitOfWork(Protocol):
 
     def __call__(self) -> AbstractContextManager[Transaction]:
         """Start a transaction."""
+        ...
+
+
+class MaintenanceStore(Protocol):
+    """Run lease and stale-upload query for scheduled maintenance (KILN-22)."""
+
+    def try_start(self, task: str, *, every: timedelta, now: datetime | None = None) -> bool:
+        """Take the run of `task` if none started within `every`."""
+        ...
+
+    def stale_pending_versions(
+        self, *, older_than: timedelta, limit: int, now: datetime | None = None
+    ) -> list[UUID]:
+        """Ids of versions still waiting for their upload after `older_than`, oldest first."""
         ...

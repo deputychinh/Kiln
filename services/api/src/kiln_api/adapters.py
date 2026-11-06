@@ -1,5 +1,6 @@
 """Adapters for ports that talk to external systems (object storage)."""
 
+from collections.abc import Iterator
 from datetime import datetime
 from http import HTTPStatus
 from typing import IO, TYPE_CHECKING
@@ -124,24 +125,18 @@ class S3ObjectStorage:
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
 
-    def list_keys(self, prefix: str, *, older_than: datetime, limit: int) -> list[str]:
-        """Page through `ListObjectsV2` under `prefix`, stopping once `limit` old keys are found."""
-        keys: list[str] = []
+    def iter_keys(self, prefix: str, *, older_than: datetime) -> Iterator[str]:
+        """Page through `ListObjectsV2` under `prefix` lazily: the caller decides when to stop."""
         try:
             pages = self._client.get_paginator("list_objects_v2").paginate(
-                Bucket=self._bucket,
-                Prefix=prefix,
-                PaginationConfig={"PageSize": min(limit, _LIST_PAGE_MAX)},
+                Bucket=self._bucket, Prefix=prefix, PaginationConfig={"PageSize": _LIST_PAGE_MAX}
             )
             for page in pages:
                 for item in page.get("Contents", []):
                     if item["LastModified"] < older_than:
-                        keys.append(item["Key"])
-                        if len(keys) >= limit:
-                            return keys
+                        yield item["Key"]
         except (BotoCoreError, ClientError) as error:
             raise _unavailable(error) from error
-        return keys
 
     def download(self, key: str, into: IO[bytes], *, if_match: str | None = None) -> bool:
         """Stream with the work client; with `if_match`, refuse an object that changed (412)."""

@@ -58,6 +58,11 @@ IDEMPOTENCY_WINDOW_HOURS = 24
 # old whose version moved on are garbage. Each sweep handles at most a batch per run.
 UPLOAD_ABANDONED_AFTER_HOURS = 24
 MAINTENANCE_BATCH_SIZE = 500
+# The staging sweep reads at most this many old keys per run (skipped ones included), so keys it
+# must keep (still waiting, or not written by Kiln) cannot make a run unbounded.
+MAINTENANCE_SCAN_LIMIT = 10 * MAINTENANCE_BATCH_SIZE
+# Versions are looked up this many keys at a time (one query per chunk, not per key).
+MAINTENANCE_LOOKUP_CHUNK = 100
 MAINTENANCE_INTERVAL_SECONDS = 60 * 60
 MAINTENANCE_TASK = "cleanup"
 LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
