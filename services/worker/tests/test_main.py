@@ -10,6 +10,7 @@ from kiln_worker.__main__ import main
 from kiln_worker.config import WorkerSettings
 
 
+@pytest.mark.usefixtures("engine")  # the loop may take a maintenance lease; clean it up
 def test_the_worker_starts_polls_and_stops_cleanly(
     database_url: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -28,6 +29,7 @@ def test_the_worker_starts_polls_and_stops_cleanly(
     assert "worker stopped" in caplog.text
 
 
+@pytest.mark.usefixtures("engine")  # the loop may take a maintenance lease; clean it up
 def test_sigterm_asks_the_loop_to_stop(database_url: str) -> None:
     stop = threading.Event()
     timer = threading.Timer(0.2, lambda: signal.raise_signal(signal.SIGTERM))

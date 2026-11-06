@@ -23,3 +23,5 @@ IDLE_POLL_SECONDS = 1.0
 # Pillow reads a whole WebP into memory (animated files can hold many frames), so WebP sources
 # are also capped by file size; a 450 MB animated WebP on a 1 MP canvas peaked at 950 MB.
 MAX_SOURCE_BYTES_BY_MEDIA_TYPE: dict[str, int] = {"image/webp": 64 * 1024 * 1024}
+# How often a worker asks the database whether a maintenance run is due (KILN-22).
+MAINTENANCE_CHECK_SECONDS = 60.0

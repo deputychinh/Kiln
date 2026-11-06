@@ -10,21 +10,25 @@ from tempfile import SpooledTemporaryFile
 from sqlalchemy import Engine
 
 from kiln_api.clock import DatabaseClock
-from kiln_api.constants import JOB_LEASE_SECONDS, JOB_MAX_ATTEMPTS
+from kiln_api.constants import JOB_LEASE_SECONDS, JOB_MAX_ATTEMPTS, MAINTENANCE_INTERVAL_SECONDS
 from kiln_api.domain.assets import Asset, AssetVersion, thumbnail_key, transition
 from kiln_api.domain.jobs import Job, next_attempt_delay
 from kiln_api.enums import AssetKind, FailureReason, VersionStatus
 from kiln_api.errors import InvalidStatusTransitionError
 from kiln_api.ports import AssetRepository, Clock, JobQueue, ObjectStorage, UnitOfWork
 from kiln_api.repositories.assets import SqlAssetRepository
+from kiln_api.repositories.idempotency import purge_expired_keys
 from kiln_api.repositories.jobs import SqlJobQueue
+from kiln_api.repositories.maintenance import SqlMaintenanceStore
 from kiln_api.repositories.unit_of_work import SqlUnitOfWork
 from kiln_worker.constants import (
     IDLE_POLL_SECONDS,
+    MAINTENANCE_CHECK_SECONDS,
     MAX_SOURCE_BYTES_BY_MEDIA_TYPE,
     SPOOL_MAX_BYTES,
 )
 from kiln_worker.errors import ImageTooLargeError, UnreadableImageError
+from kiln_worker.maintenance import Maintenance, MaintenancePorts, MaintenanceReport
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
 
 logger = logging.getLogger("kiln_worker")
@@ -45,7 +49,14 @@ class WorkerPorts:
 class Worker:
     """Processes one job at a time; safe to run several copies (SKIP LOCKED + leases)."""
 
-    def __init__(self, ports: WorkerPorts, clock: Clock, *, database_clock: bool = True) -> None:
+    def __init__(
+        self,
+        ports: WorkerPorts,
+        clock: Clock,
+        *,
+        database_clock: bool = True,
+        maintenance: Maintenance | None = None,
+    ) -> None:
         """Receive every collaborator through its port.
 
         With `database_clock`, leases and retries use the database's `now()` so workers with
@@ -57,10 +68,13 @@ class Worker:
         self._unit_of_work = ports.unit_of_work
         self._clock = clock
         self._database_clock = database_clock
+        self._maintenance = maintenance
+        self._next_maintenance_check = 0.0
 
     def run(self, *, stop: threading.Event, idle_seconds: float = IDLE_POLL_SECONDS) -> None:
         """Work until `stop` is set; never dies on an error, sleeps when idle or failing."""
         while not stop.is_set():
+            self.maintain_if_due()
             try:
                 worked = self.run_once()
             except Exception as error:
@@ -68,6 +82,19 @@ class Worker:
                 worked = False
             if not worked:
                 stop.wait(idle_seconds)
+
+    def maintain_if_due(self, *, now: float | None = None) -> MaintenanceReport | None:
+        """Ask at most once a minute whether maintenance is due; its failures never stop jobs."""
+        current = time.monotonic() if now is None else now
+        if self._maintenance is None or current < self._next_maintenance_check:
+            return None
+        self._next_maintenance_check = current + MAINTENANCE_CHECK_SECONDS
+        try:
+            return self._maintenance.run_if_due()
+        except Exception as error:
+            cause = getattr(error, "cause_code", "") or type(error).__name__
+            logger.exception("maintenance failed: %s", cause)
+            return None
 
     def run_once(self) -> bool:
         """Bury exhausted jobs, then claim and process one job; False when nothing ran."""
@@ -196,12 +223,34 @@ def _require_owner(owned: bool) -> None:
         raise _LeaseLostError(msg)
 
 
-def build_worker(engine: Engine, *, storage: ObjectStorage, clock: Clock | None = None) -> Worker:
+def build_worker(
+    engine: Engine,
+    *,
+    storage: ObjectStorage,
+    clock: Clock | None = None,
+    maintenance_interval: timedelta = timedelta(seconds=MAINTENANCE_INTERVAL_SECONDS),
+) -> Worker:
     """Wire the worker on the API's adapters; an injected clock also drives the queue (tests)."""
+    assets = SqlAssetRepository(engine)
     ports = WorkerPorts(
         jobs=SqlJobQueue(engine),
-        assets=SqlAssetRepository(engine),
+        assets=assets,
         storage=storage,
         unit_of_work=SqlUnitOfWork(engine),
     )
-    return Worker(ports, clock or DatabaseClock(engine), database_clock=clock is None)
+    database_clock = clock is None
+    resolved = clock or DatabaseClock(engine)
+    maintenance = Maintenance(
+        MaintenancePorts(
+            store=SqlMaintenanceStore(engine),
+            assets=assets,
+            storage=storage,
+            purge_keys=lambda limit: purge_expired_keys(
+                engine, now=None if database_clock else resolved.now(), limit=limit
+            ),
+        ),
+        resolved,
+        interval=maintenance_interval,
+        database_clock=database_clock,
+    )
+    return Worker(ports, resolved, database_clock=database_clock, maintenance=maintenance)

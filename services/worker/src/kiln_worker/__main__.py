@@ -3,6 +3,7 @@
 import logging
 import signal
 import threading
+from datetime import timedelta
 
 from kiln_api.config import Settings
 from kiln_api.container import build_engine, build_storage
@@ -25,7 +26,11 @@ def main(
     for signum in (signal.SIGTERM, signal.SIGINT):
         signal.signal(signum, lambda *_: halt.set())
     engine = build_engine(resolved)
-    worker = build_worker(engine, storage=build_storage(resolved))
+    worker = build_worker(
+        engine,
+        storage=build_storage(resolved),
+        maintenance_interval=timedelta(seconds=options.maintenance_interval_seconds),
+    )
     logger.info("worker started; polling every %.1f s", options.poll_interval_seconds)
     try:
         worker.run(stop=halt, idle_seconds=options.poll_interval_seconds)
