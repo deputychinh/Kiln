@@ -171,3 +171,107 @@ def test_migration_0004_downgrade_maps_expired_uploads_to_a_reason_the_old_check
 
     assert reason == "PROCESSING_GAVE_UP"
     assert "maintenance_runs" not in tables
+
+
+def test_migration_0005_sends_ready_models_back_for_a_preview(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0004_maintenance")
+    with engine.begin() as connection:
+        for asset, kind, version, extension in (
+            (
+                "00000000-0000-7000-8000-000000000051",
+                "model",
+                "00000000-0000-7000-8000-0000000005a1",
+                "glb",
+            ),
+            (
+                "00000000-0000-7000-8000-000000000052",
+                "image",
+                "00000000-0000-7000-8000-0000000005a2",
+                "png",
+            ),
+        ):
+            connection.execute(
+                text(
+                    "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                    " VALUES (:id, 'A', :kind, now(), now())"
+                ),
+                {"id": asset, "kind": kind},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO asset_versions (id, asset_id, number, status, file_name,"
+                    " content_type, size_bytes, object_key, created_at, updated_at) VALUES"
+                    " (:id, :asset, 1, 'ready', 'a', 'x', 1, :key, now(), now())"
+                ),
+                {"id": version, "asset": asset, "key": f"assets/{asset}/v1.{extension}"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO jobs (id, kind, version_id, status, attempts, run_after,"
+                    " created_at, updated_at) VALUES"
+                    " (gen_random_uuid(), 'thumbnail', :v, 'done', 1, now(), now(), now())"
+                ),
+                {"v": version},
+            )
+
+    command.upgrade(alembic_config, "head")
+
+    with engine.connect() as connection:
+        versions: dict[str, str] = dict(
+            connection.execute(text("SELECT file_name || id, status FROM asset_versions")).all()
+        )
+        jobs: dict[str, str] = dict(
+            connection.execute(
+                text("SELECT version_id::text, status || ':' || attempts FROM jobs")
+            ).all()
+        )
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM jobs"))
+        connection.execute(text("DELETE FROM asset_versions"))
+        connection.execute(text("DELETE FROM assets"))
+    engine.dispose()
+
+    assert versions == {
+        "a00000000-0000-7000-8000-0000000005a1": "processing",
+        "a00000000-0000-7000-8000-0000000005a2": "ready",
+    }
+    assert jobs == {
+        "00000000-0000-7000-8000-0000000005a1": "queued:0",
+        "00000000-0000-7000-8000-0000000005a2": "done:1",
+    }
+
+
+def test_migration_0005_downgrade_maps_model_reasons_to_one_the_old_check_allows(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                " VALUES ('00000000-0000-7000-8000-000000000053', 'M', 'model', now(), now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO asset_versions (id, asset_id, number, status, failure_reason,"
+                " file_name, content_type, size_bytes, object_key, created_at, updated_at) VALUES"
+                " ('00000000-0000-7000-8000-0000000005a3', '00000000-0000-7000-8000-000000000053',"
+                " 1, 'failed', 'MODEL_TOO_LARGE', 'm.glb', 'model/gltf-binary', 1,"
+                " 'assets/m/v1.glb', now(), now())"
+            )
+        )
+
+    command.downgrade(alembic_config, "0004_maintenance")
+    with engine.connect() as connection:
+        reason = connection.execute(text("SELECT failure_reason FROM asset_versions")).scalar_one()
+    command.upgrade(alembic_config, "head")
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM asset_versions"))
+        connection.execute(text("DELETE FROM assets"))
+    engine.dispose()
+
+    assert reason == "PROCESSING_GAVE_UP"
