@@ -8,8 +8,11 @@ from collections.abc import Callable
 from typing import Protocol
 
 from kiln_worker.constants import (
+    JOB_STOP_GRACE_SECONDS,
+    SUPERVISOR_KILL_MARGIN_SECONDS,
     SUPERVISOR_POLL_SECONDS,
     WORKER_HEALTHY_UPTIME_SECONDS,
+    WORKER_OVERRAN_EXIT_CODE,
     WORKER_RECYCLE_EXIT_CODE,
     WORKER_RESTART_BACKOFF_MAX_SECONDS,
     WORKER_RESTART_JITTER,
@@ -31,7 +34,11 @@ class Child(Protocol):
         ...
 
     def terminate(self) -> None:
-        """Send SIGTERM: the worker finishes its current job, then exits."""
+        """Send SIGTERM: the worker finishes its current job (within its grace), then exits."""
+        ...
+
+    def kill(self) -> None:
+        """Send SIGKILL: for a child that outlived its stop grace."""
         ...
 
 
@@ -43,12 +50,13 @@ class Supervisor:
     healthy run of a minute resets.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - clock, jitter and timings are injectable for tests
         self,
         start_child: Callable[[], Child],
         stop: threading.Event,
         *,
         poll_seconds: float = SUPERVISOR_POLL_SECONDS,
+        stop_grace_seconds: float = JOB_STOP_GRACE_SECONDS,
         monotonic: Callable[[], float] = time.monotonic,
         jitter: Callable[[], float] = random.random,
     ) -> None:
@@ -56,6 +64,7 @@ class Supervisor:
         self._start_child = start_child
         self._stop = stop
         self._poll_seconds = poll_seconds
+        self._stop_timeout = stop_grace_seconds + SUPERVISOR_KILL_MARGIN_SECONDS
         self._monotonic = monotonic
         self._jitter = jitter
 
@@ -67,15 +76,17 @@ class Supervisor:
             child = self._start_child()
             code = self._wait(child)
             if code is None:  # stop was asked while the child ran
-                logger.info("stopping: waiting for the worker to finish its current job")
-                child.terminate()
-                child.join()
+                self._stop_child(child)
                 break
             if self._stop.is_set():
                 break  # the child got the same signal (Ctrl-C reaches the process group)
             if code == WORKER_RECYCLE_EXIT_CODE:
                 crashes = 0
                 logger.info("worker recycled; starting a fresh one")
+                continue
+            if code == WORKER_OVERRAN_EXIT_CODE:  # the process was healthy, the job was not
+                crashes = 0
+                logger.warning("worker ended by its watchdog (a job overran); starting a fresh one")
                 continue
             if self._monotonic() - started >= WORKER_HEALTHY_UPTIME_SECONDS:
                 crashes = 0  # a long healthy run forgives earlier crashes
@@ -89,6 +100,18 @@ class Supervisor:
             self._stop.wait(delay)
         logger.info("supervisor stopped")
         return 0
+
+    def _stop_child(self, child: Child) -> None:
+        """Ask the child to stop; kill it if it outlives its grace (it should end itself)."""
+        logger.info("stopping: waiting for the worker to finish its current job")
+        child.terminate()
+        child.join(self._stop_timeout)
+        if child.exitcode is None:
+            logger.error(
+                "worker still running %.0f s after the stop; killing it", self._stop_timeout
+            )
+            child.kill()
+            child.join()
 
     def _wait(self, child: Child) -> int | None:
         """The child's exit code, or None if stop was asked first."""

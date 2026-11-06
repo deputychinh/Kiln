@@ -4,6 +4,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ## [Unreleased]
 
+### Added
+
+- A hung job no longer blocks its worker (KILN-28): a watchdog ends the worker process (exit 76) when a job reaches its 30-minute maximum runtime, before its lease can expire, or has not finished 60 s after a stop (`KILN_JOB_STOP_GRACE_SECONDS`); the supervisor starts a fresh process at once and kills a child that outlives its grace, so shutdowns are bounded too.
+
 ## [0.1.0] - 2026-11-06
 
 Phase 1, upload and gallery: images and glTF binaries go from the browser (or the API) through presigned uploads to worker-made previews, shown in an adaptive gallery with an asset detail; the design system has Storybook with an axe pass.

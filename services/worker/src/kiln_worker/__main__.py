@@ -32,7 +32,7 @@ def main(
         child.start()
         return child
 
-    return Supervisor(start_child, halt).run()
+    return Supervisor(start_child, halt, stop_grace_seconds=options.job_stop_grace_seconds).run()
 
 
 if __name__ == "__main__":

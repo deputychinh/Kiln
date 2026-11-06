@@ -21,11 +21,13 @@ from kiln_api.enums import Environment, FailureReason, JobStatus, VersionStatus
 from kiln_api.errors import InvalidStatusTransitionError
 from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.jobs import SqlJobQueue
+from kiln_worker.constants import WORKER_OVERRAN_EXIT_CODE
 from kiln_worker.enums import RunEnd
 from kiln_worker.heartbeat import LeaseTiming
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.runner import Worker, build_worker
 from kiln_worker.thumbnail import make_thumbnail
+from kiln_worker.watchdog import JobWatchdog
 
 
 def _png(size: tuple[int, int] = (1024, 512)) -> bytes:
@@ -842,3 +844,33 @@ def test_run_without_a_policy_keeps_working_until_asked_to_stop(
     assert worker.run(stop=stop, idle_seconds=0.01) is RunEnd.STOPPED
     with engine.connect() as connection:
         assert connection.execute(text("SELECT status FROM jobs")).scalar_one() == "done"
+
+
+def test_a_hung_job_ends_the_worker_process_through_its_watchdog(
+    container: Container, storage: FakeStorage, clock: FixedClock
+) -> None:
+    """KILN-28: a download that never returns ends the process at the job's budget."""
+    version = _uploaded(container, storage, _png())
+    release = threading.Event()
+    ended: list[int] = []
+
+    def hang(*_args: Any, **_kwargs: Any) -> bool:
+        release.wait(10)  # a read that never returns, until the watchdog fires
+        raise ConnectionError
+
+    def end_process(code: int) -> None:
+        ended.append(code)
+        release.set()  # in production os._exit ends here; the test lets the job unwind
+
+    storage.download = hang  # type: ignore[method-assign]
+    watchdog = JobWatchdog(
+        stop=threading.Event(), max_runtime_seconds=0.2, exit=end_process, poll_seconds=0.01
+    )
+    worker = build_worker(container.engine, storage=storage, clock=clock, watchdog=watchdog)
+
+    started = time.monotonic()
+    assert worker.run_once()
+
+    assert ended == [WORKER_OVERRAN_EXIT_CODE]
+    assert time.monotonic() - started < 5
+    assert _job_status(container.engine, version.id)[1] == 1  # claimed once; retried later

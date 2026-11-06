@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from tempfile import SpooledTemporaryFile
@@ -43,6 +44,7 @@ from kiln_worker.maintenance import Maintenance, MaintenancePorts, MaintenanceRe
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.sandbox import render_glb_sandboxed
 from kiln_worker.thumbnail import THUMBNAIL_MEDIA_TYPE, make_thumbnail
+from kiln_worker.watchdog import JobWatchdog
 
 logger = logging.getLogger("kiln_worker")
 
@@ -58,6 +60,8 @@ class WorkerPorts:
     assets: AssetRepository
     storage: ObjectStorage
     unit_of_work: UnitOfWork
+    # Ends the process when a job overruns (KILN-28); tests running in-process leave it out.
+    watchdog: JobWatchdog | None = None
 
 
 class Worker:
@@ -86,6 +90,7 @@ class Worker:
         self._maintenance = maintenance
         self._next_maintenance_check = 0.0
         self._timing = timing
+        self._watchdog = ports.watchdog
         self._heartbeat: LeaseHeartbeat | None = None
 
     def run(
@@ -153,7 +158,10 @@ class Worker:
         heartbeat = LeaseHeartbeat(self._jobs, job, timing=self._timing, queue_now=self._queue_now)
         self._heartbeat = heartbeat
         try:
-            with heartbeat:  # long jobs keep their lease while they run (KILN-24)
+            # Long jobs keep their lease while they run (KILN-24); a hung one ends this process
+            # at its maximum runtime, before the lease can expire (KILN-28).
+            guard = self._watchdog.watch(job) if self._watchdog else nullcontext()
+            with guard, heartbeat:
                 outcome = self._handle(job)
         finally:
             self._heartbeat = None
@@ -299,13 +307,14 @@ def _require_owner(owned: bool) -> None:
         raise _LeaseLostError(msg)
 
 
-def build_worker(
+def build_worker(  # noqa: PLR0913 - test seams: clock, timing, maintenance interval, watchdog
     engine: Engine,
     *,
     storage: ObjectStorage,
     clock: Clock | None = None,
     maintenance_interval: timedelta = timedelta(seconds=MAINTENANCE_INTERVAL_SECONDS),
     timing: LeaseTiming = _TIMING,
+    watchdog: JobWatchdog | None = None,
 ) -> Worker:
     """Wire the worker on the API's adapters; an injected clock also drives the queue (tests)."""
     assets = SqlAssetRepository(engine)
@@ -314,6 +323,7 @@ def build_worker(
         assets=assets,
         storage=storage,
         unit_of_work=SqlUnitOfWork(engine),
+        watchdog=watchdog,
     )
     database_clock = clock is None
     resolved = clock or DatabaseClock(engine)
@@ -331,5 +341,9 @@ def build_worker(
         database_clock=database_clock,
     )
     return Worker(
-        ports, resolved, database_clock=database_clock, maintenance=maintenance, timing=timing
+        ports,
+        resolved,
+        database_clock=database_clock,
+        maintenance=maintenance,
+        timing=timing,
     )

@@ -4,7 +4,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from kiln_worker.constants import WORKER_RECYCLE_EXIT_CODE
+from kiln_worker.constants import WORKER_OVERRAN_EXIT_CODE, WORKER_RECYCLE_EXIT_CODE
 from kiln_worker.supervisor import Child, Supervisor
 
 
@@ -15,18 +15,26 @@ class _Child:
         self.code = code
         self.terminated = False
         self.joined = False
+        self.killed = False
+        self.ignores_terminate = False
+        self.join_timeouts: list[float | None] = []
 
     @property
     def exitcode(self) -> int | None:
         return self.code
 
     def join(self, timeout: float | None = None) -> None:
-        del timeout
+        self.join_timeouts.append(timeout)
         self.joined = True
 
     def terminate(self) -> None:
         self.terminated = True
-        self.code = 0
+        if not self.ignores_terminate:
+            self.code = 0
+
+    def kill(self) -> None:
+        self.killed = True
+        self.code = -9
 
 
 def _children(*codes: int | None) -> Iterator[_Child]:
@@ -184,3 +192,61 @@ def test_no_child_starts_once_stop_was_asked() -> None:
         raise AssertionError("must not start")
 
     assert Supervisor(start, stop).run() == 0
+
+
+def test_a_worker_ended_by_its_watchdog_is_replaced_at_once(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KILN-28: a hung job is the job's fault, not the process's: no crash backoff."""
+    stop = threading.Event()
+    waits: list[float] = []
+    _no_wait(stop, waits, monkeypatch)
+    codes = iter([1, WORKER_OVERRAN_EXIT_CODE, WORKER_OVERRAN_EXIT_CODE, 1])
+
+    def start() -> Child:
+        code = next(codes, None)
+        if code is None:
+            stop.set()
+            return _Child(0)
+        return _Child(code)
+
+    with caplog.at_level(logging.WARNING, logger="kiln_worker"):
+        Supervisor(start, stop, poll_seconds=0.01, jitter=lambda: 0.0).run()
+
+    assert waits == [1, 1]  # the overruns restart at once and reset the crash backoff
+    assert caplog.text.count("worker ended by its watchdog (a job overran)") == 2
+
+
+def test_a_stop_waits_the_grace_then_kills_a_child_that_will_not_end(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """KILN-28 AC4: the supervisor never hangs on a stuck child."""
+    stop = threading.Event()
+    child = _Child(None)
+    child.ignores_terminate = True
+
+    def start() -> Child:
+        threading.Timer(0.05, stop.set).start()
+        return child
+
+    with caplog.at_level(logging.ERROR, logger="kiln_worker"):
+        Supervisor(start, stop, poll_seconds=0.01, stop_grace_seconds=60).run()
+
+    assert child.terminated
+    assert 70 in child.join_timeouts  # the 60 s grace plus a 10 s margin
+    assert child.killed
+    assert "worker still running 70 s after the stop; killing it" in caplog.text
+
+
+def test_a_child_that_ends_within_the_grace_is_not_killed() -> None:
+    stop = threading.Event()
+    child = _Child(None)
+
+    def start() -> Child:
+        threading.Timer(0.05, stop.set).start()
+        return child
+
+    Supervisor(start, stop, poll_seconds=0.01).run()
+
+    assert child.terminated
+    assert not child.killed

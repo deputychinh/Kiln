@@ -30,6 +30,14 @@ WORKER_MAX_JOBS = 200
 WORKER_MAX_RSS_MB = 1024  # on Linux the child starts from the supervisor's peak (~65 MB)
 # Exit code of a worker process that asks to be replaced (EX_TEMPFAIL).
 WORKER_RECYCLE_EXIT_CODE = 75
+# Exit code of a worker process ended by its watchdog because a job overran (KILN-28).
+WORKER_OVERRAN_EXIT_CODE = 76
+# After a stop is asked, a running job gets this long to finish before the process exits.
+JOB_STOP_GRACE_SECONDS = 60.0
+# How often the watchdog looks at the running job.
+WATCHDOG_POLL_SECONDS = 0.5
+# The supervisor kills a child that has not exited this long after its stop grace.
+SUPERVISOR_KILL_MARGIN_SECONDS = 10.0
 # Restarting a crashed worker waits 1, 2, 4 … s, at most this long.
 WORKER_RESTART_BACKOFF_MAX_SECONDS = 30.0
 # How often the supervisor checks whether its child exited or a stop was asked.

@@ -19,6 +19,7 @@ from kiln_worker.enums import RunEnd
 from kiln_worker.recycle import RecyclePolicy
 from kiln_worker.runner import build_worker
 from kiln_worker.sandbox import remove_stale_folders
+from kiln_worker.watchdog import JobWatchdog
 
 logger = logging.getLogger("kiln_worker")
 
@@ -36,7 +37,10 @@ def run_worker(
     options: WorkerSettings,
     stop: threading.Event,
 ) -> int:
-    """The child's work: run until `stop` (exit 0) or until it should be recycled (exit 75)."""
+    """The child's work: run until `stop` (exit 0) or until it should be recycled (exit 75).
+
+    Its watchdog ends it with exit 76 when a job overruns (KILN-28).
+    """
     removed = remove_stale_folders()
     if removed:
         logger.info("removed %d model folders left by a killed worker", removed)
@@ -45,6 +49,7 @@ def run_worker(
         engine,
         storage=guard_storage(build_storage(settings), settings),
         maintenance_interval=timedelta(seconds=options.maintenance_interval_seconds),
+        watchdog=JobWatchdog(stop=stop, stop_grace_seconds=options.job_stop_grace_seconds),
     )
     policy = RecyclePolicy(
         max_jobs=options.worker_max_jobs, max_rss_bytes=options.worker_max_rss_mb * _BYTES_PER_MB
