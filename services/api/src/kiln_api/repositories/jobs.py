@@ -134,9 +134,25 @@ class SqlJobQueue:
         return [_job(row) for row in rows]
 
     def extend(self, job: Job, *, lease: timedelta, now: datetime | None = None) -> bool:
-        """Push the claimed job's lease to `now + lease`; False if this claim no longer owns it."""
+        """Push the claimed job's still-valid lease to `now + lease`.
+
+        False if this claim no longer owns the job or its lease already expired.
+        """
         at = _clock(now)
-        return self._set(job, now=now, status=JobStatus.RUNNING, leased_until=at + lease)
+        with self._write() as connection:
+            result = connection.execute(
+                update(jobs)
+                .where(
+                    jobs.c.id == job.id,
+                    jobs.c.status == JobStatus.RUNNING.value,
+                    jobs.c.attempts == job.attempts,
+                    # An expired lease may already be reclaimed or reaped as exhausted by another
+                    # worker (a read, then a guarded write): never bring it back to life.
+                    jobs.c.leased_until >= at,
+                )
+                .values(leased_until=at + lease, updated_at=at)
+            )
+        return result.rowcount == 1
 
     def finish(self, job: Job, *, now: datetime | None = None) -> bool:
         """Mark the claimed job done; False if this claim no longer owns it."""

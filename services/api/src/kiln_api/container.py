@@ -12,6 +12,7 @@ from kiln_api.adapters import S3ObjectStorage
 from kiln_api.clock import SystemClock
 from kiln_api.config import Settings
 from kiln_api.constants import (
+    DB_CONNECT_TIMEOUT_SECONDS,
     STORAGE_CONNECT_TIMEOUT_SECONDS,
     STORAGE_PROBE_TIMEOUT_SECONDS,
     STORAGE_READ_TIMEOUT_SECONDS,
@@ -47,13 +48,15 @@ class Container:
 
 
 def build_engine(settings: Settings) -> Engine:
-    """An engine whose sessions cannot wait forever on a lock or a query."""
+    """An engine whose sessions cannot wait forever to connect, on a lock or on a query."""
     options = (
         f"-c lock_timeout={settings.db_lock_timeout_ms}"
         f" -c statement_timeout={settings.db_statement_timeout_ms}"
     )
     return create_engine(
-        settings.database_url, pool_pre_ping=True, connect_args={"options": options}
+        settings.database_url,
+        pool_pre_ping=True,
+        connect_args={"options": options, "connect_timeout": DB_CONNECT_TIMEOUT_SECONDS},
     )
 
 

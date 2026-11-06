@@ -184,7 +184,7 @@ class JobQueue(Protocol):
         ...
 
     def extend(self, job: Job, *, lease: timedelta, now: datetime | None = None) -> bool:
-        """Push the claimed job's lease to `now + lease`; False if this claim no longer owns it."""
+        """Push the claimed job's still-valid lease to `now + lease`; False otherwise."""
         ...
 
     def finish(self, job: Job, *, now: datetime | None = None) -> bool:

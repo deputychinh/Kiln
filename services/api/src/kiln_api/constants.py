@@ -36,6 +36,8 @@ JOB_LEASE_SECONDS = 5 * 60
 # hung job's lease expires and it is retried or buried like a crashed one.
 JOB_HEARTBEAT_SECONDS = JOB_LEASE_SECONDS / 3
 JOB_MAX_RUNTIME_SECONDS = 30 * 60
+# How long a finished job waits for an in-flight extension before moving on.
+JOB_HEARTBEAT_JOIN_SECONDS = 10.0
 JOB_MAX_ATTEMPTS = 5
 JOB_BACKOFF_BASE_SECONDS = 5
 # Signed forms write only to a staging key; completion copies to the final key (immutable).
@@ -54,6 +56,7 @@ STORAGE_MAX_CONCURRENT = 16
 # Sync endpoints share AnyIO's 40-thread pool; keep 8 threads free for requests not on storage.
 STORAGE_MAX_CONCURRENT_LIMIT = 32
 STORAGE_BULKHEAD_WAIT_SECONDS = 0.5
+DB_CONNECT_TIMEOUT_SECONDS = 5
 DB_LOCK_TIMEOUT_MS = 5_000
 DB_STATEMENT_TIMEOUT_MS = 15_000
 # SQLSTATEs for lock_timeout and statement_timeout: the database is busy, retry later.

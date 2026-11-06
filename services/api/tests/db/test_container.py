@@ -7,6 +7,7 @@ from sqlalchemy import Engine, text
 from kiln_api import clock as kiln_clock
 from kiln_api.clock import DatabaseClock
 from kiln_api.config import Settings
+from kiln_api.constants import DB_CONNECT_TIMEOUT_SECONDS
 from kiln_api.container import build_engine, build_storage
 from kiln_api.enums import Environment
 
@@ -61,3 +62,19 @@ def test_the_database_clock_ignores_a_skewed_local_clock(
     monkeypatch.setattr(kiln_clock, "datetime", SkewedDatetime)
 
     assert DatabaseClock(engine).now().year >= 2026
+
+
+def test_the_engine_gives_up_connecting_after_a_few_seconds(
+    database_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_create_engine(_url: str, **kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("kiln_api.container.create_engine", fake_create_engine)
+
+    build_engine(Settings(env=Environment.TEST, database_url=database_url))
+
+    assert captured["connect_args"]["connect_timeout"] == DB_CONNECT_TIMEOUT_SECONDS

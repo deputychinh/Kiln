@@ -607,3 +607,44 @@ def test_a_job_longer_than_its_lease_is_kept_by_the_heartbeat_and_not_taken_twic
     assert not any(taken_twice)
     assert SqlAssetRepository(engine).get_version(version.id).status is VersionStatus.READY
     assert _job_status(engine, version.id) == ("done", 1)
+
+
+def test_the_heartbeat_stops_before_the_outcome_is_written(
+    container: Container,
+    storage: FakeStorage,
+    engine: Engine,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    eager = LeaseTiming(
+        lease=timedelta(minutes=5), heartbeat_seconds=0.0005, max_runtime_seconds=60
+    )
+    worker = build_worker(engine, storage=storage, timing=eager)
+    extensions_after_finish: list[bool] = []
+    finished = threading.Event()
+    real_finish, real_extend = SqlJobQueue.finish, SqlJobQueue.extend
+
+    def finish_then_linger(self: SqlJobQueue, job: Any, **kwargs: Any) -> bool:
+        done = real_finish(self, job, **kwargs)
+        finished.set()
+        time.sleep(0.05)  # a heartbeat still running would tick here and be refused
+        return done
+
+    def watched_extend(self: SqlJobQueue, job: Any, **kwargs: Any) -> bool:
+        extensions_after_finish.append(finished.is_set())
+        return real_extend(self, job, **kwargs)
+
+    monkeypatch.setattr(SqlJobQueue, "finish", finish_then_linger)
+    monkeypatch.setattr(SqlJobQueue, "extend", watched_extend)
+    for _ in range(5):
+        _uploaded(container, storage, _png((64, 64)))
+
+    with caplog.at_level(logging.WARNING, logger="kiln_worker"):
+        while worker.run_once():
+            finished.clear()
+
+    assert not any(extensions_after_finish)
+    assert "lease lost" not in caplog.text
+    with engine.connect() as connection:
+        statuses = connection.execute(text("SELECT status FROM jobs")).scalars().all()
+    assert statuses == ["done"] * 5

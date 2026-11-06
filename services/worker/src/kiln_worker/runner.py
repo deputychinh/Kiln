@@ -76,6 +76,7 @@ class Worker:
         self._maintenance = maintenance
         self._next_maintenance_check = 0.0
         self._timing = timing
+        self._heartbeat: LeaseHeartbeat | None = None
 
     def run(self, *, stop: threading.Event, idle_seconds: float = IDLE_POLL_SECONDS) -> None:
         """Work until `stop` is set; never dies on an error, sleeps when idle or failing."""
@@ -115,8 +116,12 @@ class Worker:
         )
         started = time.monotonic()
         heartbeat = LeaseHeartbeat(self._jobs, job, timing=self._timing, queue_now=self._queue_now)
-        with heartbeat:  # long jobs keep their lease while they run (KILN-24)
-            outcome = self._handle(job)
+        self._heartbeat = heartbeat
+        try:
+            with heartbeat:  # long jobs keep their lease while they run (KILN-24)
+                outcome = self._handle(job)
+        finally:
+            self._heartbeat = None
         logger.info(
             "job %s for version %s: %s in %.0f ms (attempt %d)",
             job.id,
@@ -166,7 +171,13 @@ class Worker:
         self._storage.upload(thumbnail_key(version), preview, THUMBNAIL_MEDIA_TYPE)
         return None
 
+    def _stop_heartbeat(self) -> None:
+        """No extension may race the outcome write (KILN-24)."""
+        if self._heartbeat is not None:
+            self._heartbeat.stop()
+
     def _finish(self, job: Job, version: AssetVersion, reason: FailureReason | None) -> str:
+        self._stop_heartbeat()
         now = self._clock.now()
         status = VersionStatus.READY if reason is None else VersionStatus.FAILED
         done = transition(version, status, now=now, failure_reason=reason)
@@ -183,11 +194,13 @@ class Worker:
         return status.value if reason is None else f"failed {reason.value}"
 
     def _close(self, job: Job, outcome: str) -> str:
+        self._stop_heartbeat()
         if not self._jobs.finish(job, now=self._queue_now()):
             return "lease lost; another worker owns the job"
         return outcome
 
     def _retry_or_give_up(self, job: Job, error: Exception) -> str:
+        self._stop_heartbeat()
         cause = getattr(error, "cause_code", "") or type(error).__name__
         delay = next_attempt_delay(job)
         if delay is not None:

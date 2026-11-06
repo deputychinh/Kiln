@@ -228,3 +228,13 @@ def test_a_stale_claim_cannot_extend_a_reclaimed_or_finished_job(engine: Engine)
     assert queue.extend(first, lease=LEASE, now=T0 + LEASE + timedelta(seconds=2)) is False
     assert queue.finish(second, now=T0 + LEASE + timedelta(seconds=3)) is True
     assert queue.extend(second, lease=LEASE, now=T0 + LEASE + timedelta(seconds=4)) is False
+
+
+def test_an_expired_lease_is_never_extended_even_if_nobody_reclaimed_it(engine: Engine) -> None:
+    _enqueue(engine)
+    queue = SqlJobQueue(engine)
+    job = _claim(queue)
+    assert job is not None
+
+    assert queue.extend(job, lease=LEASE, now=T0 + LEASE) is True  # still valid at its last instant
+    assert queue.extend(job, lease=LEASE, now=T0 + 2 * LEASE + timedelta(seconds=1)) is False
