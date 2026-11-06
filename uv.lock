@@ -400,7 +400,7 @@ wheels = [
 
 [[package]]
 name = "kiln-api"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "services/api" }
 dependencies = [
     { name = "alembic" },
@@ -425,7 +425,7 @@ requires-dist = [
 
 [[package]]
 name = "kiln-worker"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "services/worker" }
 dependencies = [
     { name = "kiln-api" },
@@ -444,7 +444,7 @@ requires-dist = [
 
 [[package]]
 name = "kiln-workspace"
-version = "0.0.0"
+version = "0.1.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]

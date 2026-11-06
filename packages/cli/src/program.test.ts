@@ -1,5 +1,6 @@
 import { CommanderError } from 'commander';
 
+import { CLI_VERSION } from './constants/cli.constant.js';
 import { createProgram } from './program.js';
 
 describe('createProgram', () => {
@@ -9,7 +10,7 @@ describe('createProgram', () => {
     program.configureOutput({ writeOut: (text) => (output += text) });
 
     expect(() => program.parse(['--version'], { from: 'user' })).toThrow(CommanderError);
-    expect(output.trim()).toBe('0.0.0');
+    expect(output.trim()).toBe(CLI_VERSION);
   });
 
   it('describes itself in the help text', () => {

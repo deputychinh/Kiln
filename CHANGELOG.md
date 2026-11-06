@@ -4,6 +4,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-06
+
+Phase 1, upload and gallery: images and glTF binaries go from the browser (or the API) through presigned uploads to worker-made previews, shown in an adaptive gallery with an asset detail; the design system has Storybook with an axe pass.
+
 ### Added
 
 - Stable preview URLs (KILN-27): previews are signed at the start of a 10-minute window, so a preview keeps the same URL and the browser serves repeat views from its cache (`Cache-Control: private, max-age=1500, immutable`); each URL is valid 25 minutes, at least 15 after it is handed out. Signing uses botocore's own SigV4 with a pinned time (ADR 0008).

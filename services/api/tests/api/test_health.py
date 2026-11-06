@@ -1,12 +1,14 @@
 from fakes import FakeStorage
 from fastapi.testclient import TestClient
 
+from kiln_api.constants import API_VERSION
+
 
 def test_health_reports_ok_with_the_version(client: TestClient) -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "0.0.0"}
+    assert response.json() == {"status": "ok", "version": API_VERSION}
 
 
 def test_ready_checks_database_and_storage_and_creates_the_bucket(
