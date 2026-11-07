@@ -99,7 +99,11 @@ export const en: Copy = {
     errors: {
       [ViewerError.Download]:
         'Could not download the model. Check your connection, then try again.',
+      [ViewerError.SceneLoad]:
+        'Could not load the 3D viewer. Check your connection, then try again.',
       [ViewerError.TooLarge]: 'This model is larger than the 256 MB the viewer opens.',
+      [ViewerError.TooComplex]:
+        'This model is too complex for the viewer (limits: a 16 MB description, 2 million triangles, 6 million vertices).',
       [ViewerError.Unreadable]: 'This file is not a glTF binary (.glb) the viewer can read.',
       [ViewerError.ExternalReference]:
         'This model points to files outside it, which Kiln never downloads.',

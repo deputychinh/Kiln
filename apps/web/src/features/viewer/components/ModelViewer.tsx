@@ -1,11 +1,8 @@
 import { AssetThumb, Button, ButtonVariant, ProgressBar } from '@kiln/ui';
 import {
-  type ComponentType,
   type KeyboardEvent,
-  lazy,
   type ReactElement,
   type ReactNode,
-  Suspense,
   useCallback,
   useId,
   useState,
@@ -13,22 +10,23 @@ import {
 
 import { REDUCED_MOTION_QUERY, RETRYABLE_VIEWER_ERRORS } from '@/constants/viewer.constant';
 import type { ViewerError } from '@/enums/viewer-error.enum';
+import { SceneBoundary } from '@/features/viewer/components/SceneBoundary';
 import { ViewerControls } from '@/features/viewer/components/ViewerControls';
 import { useModelFile } from '@/features/viewer/hooks/useModelFile';
+import { useSceneModule } from '@/features/viewer/hooks/useSceneModule';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import type { ModelSceneProps, ViewerController } from '@/interfaces/viewer.interface';
+import type { ModelSceneModule, ViewerController } from '@/interfaces/viewer.interface';
 import { formatBytes } from '@/utils/format.util';
 import { withoutQuery } from '@/utils/signed-url.util';
 
 import './ModelViewer.css';
 
 /** three.js and the scene load only when a model is shown (their own chunk). */
-const LazyModelScene = lazy(() =>
+const loadModelScene = (): Promise<ModelSceneModule> =>
   import('@/features/viewer/components/ModelScene').then((module) => ({
     default: module.ModelScene,
-  })),
-);
+  }));
 
 interface ModelViewerProps {
   /** The version's signed `download_url`. */
@@ -39,8 +37,8 @@ interface ModelViewerProps {
   onPreviewError: (src: string) => void;
   /** Fetches fresh signed links; a retry starts once it settles. */
   onRetry: () => Promise<unknown>;
-  /** The renderer; tests pass a fake because jsdom has no WebGL. */
-  scene?: ComponentType<ModelSceneProps>;
+  /** Loads the renderer; tests pass a fake because jsdom has no WebGL. */
+  loadScene?: () => Promise<ModelSceneModule>;
   /** Shown under the controls (facts about the version). */
   children?: ReactNode;
 }
@@ -69,7 +67,7 @@ const ModelStage = ({
   previewUrl,
   onPreviewError,
   onRetry,
-  scene: Scene = LazyModelScene,
+  loadScene = loadModelScene,
   children,
 }: Omit<ModelViewerProps, 'onRetry'> & { onRetry: () => void }): ReactElement => {
   const copy = useCopy();
@@ -77,6 +75,14 @@ const ModelStage = ({
   const file = useModelFile(fileUrl, sizeBytes);
   const [scene, setScene] = useState<SceneState>({ status: 'preparing' });
   const [sceneError, setSceneError] = useState<ViewerError | null>(null);
+  // The first reason stays: a lost context after a parse error is not the news.
+  const onSceneError = useCallback(
+    (next: ViewerError) => setSceneError((current) => current ?? next),
+    [],
+  );
+  // The scene module's own `ModelScene` export, held in state: one identity for the whole mount.
+  // eslint-disable-next-line @eslint-react/static-components -- loaded, not created, in render
+  const Scene = useSceneModule(loadScene, onSceneError);
   const isReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const onReady = useCallback(
     (controller: ViewerController) => setScene({ status: 'ready', controller }),
@@ -135,16 +141,17 @@ const ModelStage = ({
         tabIndex={controller ? 0 : -1}
         onKeyDown={onKeyDown}
       >
-        {file.status === 'ready' && sceneError === null ? (
+        {file.status === 'ready' && sceneError === null && Scene ? (
           <div className="model-viewer__canvas">
-            <Suspense fallback={null}>
+            <SceneBoundary onError={onSceneError}>
+              {/* eslint-disable-next-line react-hooks/static-components, @eslint-react/static-components -- a module export kept in state (useSceneModule), not a component made in render */}
               <Scene
                 model={file.model}
                 isReducedMotion={isReducedMotion}
                 onReady={onReady}
-                onError={setSceneError}
+                onError={onSceneError}
               />
-            </Suspense>
+            </SceneBoundary>
           </div>
         ) : null}
         {controller ? null : (

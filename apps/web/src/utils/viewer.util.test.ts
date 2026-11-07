@@ -1,7 +1,13 @@
 import { ViewerError } from '@/enums/viewer-error.enum';
 import { aDetail, aVersion } from '@/test/fake-api';
 import { parseViewerSearch } from '@/utils/viewer-search.util';
-import { isViewable, pickViewable, viewerErrorOf, viewerFailure } from '@/utils/viewer.util';
+import {
+  isViewable,
+  pickViewable,
+  sceneErrorOf,
+  viewerErrorOf,
+  viewerFailure,
+} from '@/utils/viewer.util';
 
 const model = (number: number, overrides = {}) =>
   aVersion({
@@ -83,5 +89,18 @@ describe('viewer failures', () => {
   it('treat anything else as a failed download', () => {
     expect(viewerErrorOf(new TypeError('Failed to fetch'))).toBe(ViewerError.Download);
     expect(viewerErrorOf('nope')).toBe(ViewerError.Download);
+  });
+});
+
+describe('sceneErrorOf', () => {
+  it('keeps the reason a viewer failure carries', () => {
+    expect(sceneErrorOf(viewerFailure(ViewerError.SceneLoad))).toBe(ViewerError.SceneLoad);
+  });
+
+  it('treats anything else from parsing or drawing as an unreadable model, not a download', () => {
+    expect(sceneErrorOf(new Error('THREE.GLTFLoader: No DRACOLoader instance provided.'))).toBe(
+      ViewerError.Unreadable,
+    );
+    expect(sceneErrorOf(undefined)).toBe(ViewerError.Unreadable);
   });
 });

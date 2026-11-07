@@ -34,19 +34,24 @@ export const parseModel = (buffer: ArrayBuffer): Promise<Group> =>
       isBlocked = true;
       reject(viewerFailure(ViewerError.ExternalReference));
     });
-    new GLTFLoader(manager).parse(
-      buffer,
-      '',
-      (gltf) => {
-        if (isBlocked) return;
-        resolve(gltf.scene);
-      },
-      (error: unknown) => {
-        reject(
-          isBlocked || viewerErrorOf(error) === ViewerError.ExternalReference
-            ? viewerFailure(ViewerError.ExternalReference)
-            : viewerFailure(ViewerError.Unreadable),
-        );
-      },
-    );
+    try {
+      new GLTFLoader(manager).parse(
+        buffer,
+        '',
+        (gltf) => {
+          if (isBlocked) return;
+          resolve(gltf.scene);
+        },
+        (error: unknown) => {
+          reject(
+            isBlocked || viewerErrorOf(error) === ViewerError.ExternalReference
+              ? viewerFailure(ViewerError.ExternalReference)
+              : viewerFailure(ViewerError.Unreadable),
+          );
+        },
+      );
+    } catch {
+      // Some failures (a decoder the file uses but the viewer lacks) throw before the callback.
+      reject(viewerFailure(ViewerError.Unreadable));
+    }
   });

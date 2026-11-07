@@ -4,10 +4,12 @@ import {
   VIEWER_REQUIRED_EXTENSIONS,
 } from '@/constants/viewer.constant';
 import { ViewerError } from '@/enums/viewer-error.enum';
+import { checkGeometry } from '@/utils/glb-geometry.util';
 
 const GLB_MAGIC = 0x46546c67; // "glTF"
 const GLB_VERSION = 2;
 const JSON_CHUNK = 0x4e4f534a;
+const BIN_CHUNK = 0x004e4942;
 const HEADER_BYTES = 12;
 const CHUNK_HEADER_BYTES = 8;
 const EMBEDDED_URL = /^(?:blob|data):/i;
@@ -33,7 +35,7 @@ const readJson = (buffer: ArrayBuffer): Record<string, unknown> | ViewerError =>
   const view = new DataView(buffer);
   const jsonLength = view.getUint32(HEADER_BYTES, true);
   if (view.getUint32(HEADER_BYTES + 4, true) !== JSON_CHUNK) return ViewerError.Unreadable;
-  if (jsonLength > GLB_MAX_JSON_BYTES) return ViewerError.TooLarge;
+  if (jsonLength > GLB_MAX_JSON_BYTES) return ViewerError.TooComplex;
   const start = HEADER_BYTES + CHUNK_HEADER_BYTES;
   if (start + jsonLength > buffer.byteLength) return ViewerError.Unreadable;
   try {
@@ -47,11 +49,22 @@ const readJson = (buffer: ArrayBuffer): Record<string, unknown> | ViewerError =>
   }
 };
 
+/** The BIN chunk's length (0 when there is none), or null when its header runs past the file. */
+const binChunkLength = (buffer: ArrayBuffer): number | null => {
+  const view = new DataView(buffer);
+  const at = HEADER_BYTES + CHUNK_HEADER_BYTES + view.getUint32(HEADER_BYTES, true);
+  if (at + CHUNK_HEADER_BYTES > buffer.byteLength) return 0;
+  if (view.getUint32(at + 4, true) !== BIN_CHUNK) return 0;
+  const length = view.getUint32(at, true);
+  return at + CHUNK_HEADER_BYTES + length <= buffer.byteLength ? length : null;
+};
+
 /**
  * Checks an untrusted .glb before it is parsed (glTF 2.0 §4.4): a GLB 2 header whose length is the
  * file's, a JSON chunk first and no larger than the worker reads, no buffer that names a file, no
- * image outside the file, and no required extension that needs a decoder from elsewhere.
- * Returns why it cannot be shown, or null.
+ * image outside the file, no required extension that needs a decoder from elsewhere, and every
+ * accessor bounded by its bytes and the worker's budgets (`checkGeometry`). Returns why it cannot
+ * be shown, or null.
  */
 export const inspectGlb = (buffer: ArrayBuffer): ViewerError | null => {
   if (buffer.byteLength < HEADER_BYTES + CHUNK_HEADER_BYTES) return ViewerError.Unreadable;
@@ -80,5 +93,6 @@ export const inspectGlb = (buffer: ArrayBuffer): ViewerError | null => {
     (typeof entry.uri !== 'string' || !entry.uri.startsWith('data:'));
   if (images.some(isOutside)) return ViewerError.ExternalReference;
   if (!required.every(isSupportedExtension)) return ViewerError.Unsupported;
-  return null;
+  const binLength = binChunkLength(buffer);
+  return binLength === null ? ViewerError.Unreadable : checkGeometry(json, binLength);
 };

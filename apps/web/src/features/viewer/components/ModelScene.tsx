@@ -9,7 +9,7 @@ import { ViewerError } from '@/enums/viewer-error.enum';
 import { parseModel } from '@/features/viewer/services/gltf.service';
 import { createViewerController, frameObject } from '@/features/viewer/services/scene.service';
 import type { ModelSceneProps } from '@/interfaces/viewer.interface';
-import { viewerErrorOf } from '@/utils/viewer.util';
+import { sceneErrorOf, viewerFailure } from '@/utils/viewer.util';
 import { canUseWebGl } from '@/utils/webgl.util';
 
 /** Blur of the studio environment: soft, neutral light from every side. */
@@ -49,7 +49,7 @@ const SceneContent = ({
   const invalidate = useThree((state) => state.invalidate);
   const [object, setObject] = useState<Group | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  const fail = useEffectEvent((error: unknown) => onError(viewerErrorOf(error)));
+  const fail = useEffectEvent((error: unknown) => onError(sceneErrorOf(error)));
   const ready = useEffectEvent(onReady);
   const reducedMotion = useEffectEvent(() => isReducedMotion);
 
@@ -109,6 +109,16 @@ const SceneContent = ({
     };
   }, [object, camera, gl, invalidate]);
 
+  // A context lost while the model is shown (GPU reset, too many contexts) ends the view; the
+  // viewer keeps the first error it was told, and the listener goes with the model.
+  useEffect(() => {
+    if (!object) return undefined;
+    const canvas = gl.domElement;
+    const onLost = (): void => fail(viewerFailure(ViewerError.WebGl));
+    canvas.addEventListener('webglcontextlost', onLost);
+    return () => canvas.removeEventListener('webglcontextlost', onLost);
+  }, [object, gl]);
+
   // Reduced motion: no inertia after a drag, so nothing keeps moving by itself.
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.enableDamping = !isReducedMotion;
@@ -141,9 +151,8 @@ export const ModelScene = ({ onError, ...props }: ModelSceneProps): ReactElement
       frameloop="demand"
       dpr={[1, MAX_PIXEL_RATIO]}
       camera={{ fov: VIEW_FOV_DEGREES }}
-      onCreated={({ gl, scene }) => {
+      onCreated={({ scene }) => {
         scene.environmentIntensity = ENVIRONMENT_INTENSITY;
-        gl.domElement.addEventListener('webglcontextlost', () => onError(ViewerError.WebGl));
       }}
     >
       <SceneContent {...props} onError={onError} />

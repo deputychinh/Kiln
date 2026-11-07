@@ -98,7 +98,10 @@ export const vi: Copy = {
     fallback: 'Đang hiển thị ảnh xem trước thay thế.',
     errors: {
       [ViewerError.Download]: 'Không tải được mô hình. Kiểm tra kết nối rồi thử lại.',
+      [ViewerError.SceneLoad]: 'Không tải được trình xem 3D. Kiểm tra kết nối rồi thử lại.',
       [ViewerError.TooLarge]: 'Mô hình này lớn hơn mức 256 MB mà trình xem mở được.',
+      [ViewerError.TooComplex]:
+        'Mô hình này quá phức tạp với trình xem (giới hạn: phần mô tả 16 MB, 2 triệu tam giác, 6 triệu đỉnh).',
       [ViewerError.Unreadable]: 'File này không phải glTF binary (.glb) mà trình xem đọc được.',
       [ViewerError.ExternalReference]:
         'Mô hình này trỏ tới file bên ngoài, Kiln không bao giờ tải các file đó.',

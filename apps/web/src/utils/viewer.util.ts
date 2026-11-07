@@ -31,11 +31,18 @@ export const pickViewable = (
 export const viewerFailure = (code: ViewerError): Error & { code: ViewerError } =>
   Object.assign(new Error(code), { name: VIEWER_FAILURE, code });
 
-/** The viewer error behind a rejection; anything unexpected while downloading is a download error. */
-export const viewerErrorOf = (error: unknown): ViewerError => {
+const failureCodeOf = (error: unknown): ViewerError | null => {
   if (error instanceof Error && error.name === VIEWER_FAILURE && 'code' in error) {
     const { code } = error;
     if (typeof code === 'string' && VIEWER_ERRORS.has(code)) return code as ViewerError;
   }
-  return ViewerError.Download;
+  return null;
 };
+
+/** The viewer error behind a rejection; anything unexpected while downloading is a download error. */
+export const viewerErrorOf = (error: unknown): ViewerError =>
+  failureCodeOf(error) ?? ViewerError.Download;
+
+/** The same for the scene: anything unexpected while parsing or drawing means an unreadable model. */
+export const sceneErrorOf = (error: unknown): ViewerError =>
+  failureCodeOf(error) ?? ViewerError.Unreadable;

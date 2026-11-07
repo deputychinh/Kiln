@@ -60,6 +60,11 @@ describe('parseModel', () => {
     );
   });
 
+  it('reports a decoder the file uses without requiring it as unreadable', async () => {
+    const json = { ...cubeJson, extensionsUsed: ['KHR_draco_mesh_compression'] };
+    expect(await failureOf(parseModel(buildGlb(json)))).toBe(ViewerError.Unreadable);
+  });
+
   it('reports a file three cannot parse as unreadable', async () => {
     const json = {
       ...cubeJson,

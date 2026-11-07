@@ -58,13 +58,14 @@ const renderViewer = ({
   scene = fakeScene(controller()).Scene,
   onRetry = vi.fn(() => Promise.resolve()),
 }: RenderViewerProps = {}) => {
+  const loadScene = () => Promise.resolve({ default: scene });
   const props = {
     versionNumber: 2,
     sizeBytes,
     previewUrl,
     onPreviewError: vi.fn(),
     onRetry,
-    scene,
+    loadScene,
   };
   const view = render(<ModelViewer fileUrl={url} {...props} />);
   return {
@@ -291,6 +292,67 @@ describe('ModelViewer', () => {
     );
     expect(within(stage()).getByRole('img', { name: 'Still preview of version 2' })).toBeVisible();
     expect(within(stage()).queryByTestId('scene')).toBeNull();
+  });
+
+  it('maps a scene that fails while drawing to an unreadable model, not a failed download', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined); // React reports the throw
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(fileReply());
+    const Broken = (): ReactElement => {
+      throw new Error('THREE.WebGLRenderer: shader error');
+    };
+    renderViewer({ scene: Broken });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This file is not a glTF binary (.glb) the viewer can read.',
+    );
+    expect(within(stage()).getByRole('img', { name: 'Still preview of version 2' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+
+  it('offers a retry when the viewer code cannot be loaded, and loads it again', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fileReply()));
+    const { Scene } = fakeScene(controller());
+    const loadScene = vi
+      .fn<() => Promise<{ default: ComponentType<ModelSceneProps> }>>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch dynamically imported module'))
+      .mockResolvedValue({ default: Scene });
+    render(
+      <ModelViewer
+        fileUrl={signed('1')}
+        sizeBytes={CUBE.byteLength}
+        versionNumber={2}
+        previewUrl={PREVIEW}
+        onPreviewError={vi.fn()}
+        onRetry={() => Promise.resolve()}
+        loadScene={loadScene}
+      />,
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Could not load the 3D viewer. Check your connection, then try again.',
+    );
+    expect(within(stage()).getByRole('img', { name: 'Still preview of version 2' })).toBeVisible();
+    await userEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(resetButton()).toBeEnabled());
+    expect(loadScene).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the first error when the scene reports another', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(fileReply());
+    const Twice = ({ onError }: ModelSceneProps): ReactElement => {
+      useEffect(() => {
+        onError(ViewerError.WebGl);
+        onError(ViewerError.Unreadable);
+      }, [onError]);
+      return <canvas />;
+    };
+    renderViewer({ scene: Twice });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This browser could not start 3D graphics (WebGL).',
+    );
   });
 
   it('says so when there is no still preview to fall back to', async () => {

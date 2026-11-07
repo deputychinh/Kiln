@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react';
+
 import type { ViewerError } from '@/enums/viewer-error.enum';
 import type { AssetVersion } from '@/interfaces/asset.interface';
 
@@ -20,6 +22,11 @@ export interface ModelSceneProps {
   isReducedMotion: boolean;
   onReady: (controller: ViewerController) => void;
   onError: (error: ViewerError) => void;
+}
+
+/** The lazily imported scene module, as `React.lazy` wants it. */
+export interface ModelSceneModule {
+  default: ComponentType<ModelSceneProps>;
 }
 
 export interface ViewerSearch {

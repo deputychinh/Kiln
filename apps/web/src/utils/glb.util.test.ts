@@ -1,4 +1,11 @@
-import { GLB_MAX_JSON_BYTES } from '@/constants/viewer.constant';
+import { readFileSync } from 'node:fs';
+
+import {
+  GLB_MAX_JSON_BYTES,
+  MODEL_MAX_ACCESSOR_ELEMENTS,
+  MODEL_MAX_TRIANGLES,
+  MODEL_MAX_VERTICES,
+} from '@/constants/viewer.constant';
 import { ViewerError } from '@/enums/viewer-error.enum';
 import { buildGlb, cubeJson, cubeGlb } from '@/test/glb';
 import { inspectGlb, isEmbeddedUrl } from '@/utils/glb.util';
@@ -49,10 +56,10 @@ describe('inspectGlb', () => {
     expect(inspectGlb(buffer)).toBe(ViewerError.Unreadable);
   });
 
-  it('refuses a JSON chunk above the worker limit as too large, before reading it', () => {
+  it('refuses a JSON chunk above the worker limit as too complex, before reading it', () => {
     const buffer = buildGlb(cubeJson, null);
     new DataView(buffer).setUint32(12, GLB_MAX_JSON_BYTES + 4, true);
-    expect(inspectGlb(buffer)).toBe(ViewerError.TooLarge);
+    expect(inspectGlb(buffer)).toBe(ViewerError.TooComplex);
   });
 
   it.each([
@@ -111,5 +118,137 @@ describe('isEmbeddedUrl', () => {
     ' data:,x',
   ])('blocks %s', (url) => {
     expect(isEmbeddedUrl(url)).toBe(false);
+  });
+});
+
+// KILN-9 review: three.js allocates every accessor a file names, whatever the scene draws.
+describe('inspectGlb and accessors', () => {
+  /** The review's 768-byte proof of concept: COLOR_0 of 200,000,000 VEC4 with no bufferView. */
+  const colourBomb = (): ArrayBuffer => {
+    // Vitest runs from apps/web (under jsdom `import.meta.url` is not a file URL).
+    const crate = readFileSync(`${process.cwd()}/e2e/fixtures/crate.glb`);
+    const length = crate.readUInt32LE(12);
+    const json = JSON.parse(crate.subarray(20, 20 + length).toString()) as typeof cubeJson & {
+      meshes: { primitives: { attributes: Record<string, number> }[] }[];
+    };
+    json.accessors.push({ componentType: 5126, count: 200_000_000, type: 'VEC4' } as never);
+    const [primitive] = json.meshes[0]?.primitives ?? [];
+    if (primitive) primitive.attributes.COLOR_0 = 2;
+    return buildGlb(json, new Uint8Array(crate.subarray(20 + length + 8)));
+  };
+
+  const withAccessor = (accessor: object): ArrayBuffer =>
+    withJson({ accessors: [...cubeJson.accessors, accessor] });
+
+  it('refuses the 768-byte colour accessor bomb before three.js sees it', () => {
+    const bomb = colourBomb();
+    expect(bomb.byteLength).toBe(768);
+    expect(inspectGlb(bomb)).toBe(ViewerError.Unreadable);
+  });
+
+  it.each([
+    ['without a bufferView', { componentType: 5126, count: 8, type: 'VEC3' }],
+    ['one element past its view', { bufferView: 0, componentType: 5126, count: 9, type: 'VEC3' }],
+    [
+      'pushed past its view by its offset',
+      { bufferView: 0, byteOffset: 4, componentType: 5126, count: 8, type: 'VEC3' },
+    ],
+    [
+      'a matrix larger than its view',
+      { bufferView: 0, componentType: 5126, count: 2, type: 'MAT4' },
+    ],
+    [
+      'sparse',
+      { bufferView: 0, componentType: 5126, count: 2, type: 'VEC3', sparse: { count: 1 } },
+    ],
+    ['misaligned', { bufferView: 0, byteOffset: 2, componentType: 5126, count: 1, type: 'SCALAR' }],
+    [
+      'of an unknown component type',
+      { bufferView: 0, componentType: 5124, count: 1, type: 'SCALAR' },
+    ],
+    ['of an unknown type', { bufferView: 0, componentType: 5126, count: 1, type: 'VEC5' }],
+    [
+      'with a count that is not a whole number',
+      { bufferView: 0, componentType: 5126, count: 1.5, type: 'SCALAR' },
+    ],
+    [
+      'in a view that is not there',
+      { bufferView: 7, componentType: 5126, count: 1, type: 'SCALAR' },
+    ],
+  ])('refuses an accessor %s, even one nothing draws', (_case, accessor) => {
+    expect(inspectGlb(withAccessor(accessor))).toBe(ViewerError.Unreadable);
+  });
+
+  it('accepts an accessor inside its view that nothing draws', () => {
+    expect(
+      inspectGlb(withAccessor({ bufferView: 0, componentType: 5126, count: 24, type: 'SCALAR' })),
+    ).toBeNull();
+  });
+
+  it('bounds an accessor by the stride of its view', () => {
+    const views = [{ ...cubeJson.bufferViews[0], byteStride: 24 }, cubeJson.bufferViews[1]];
+    const accessors = [
+      ...cubeJson.accessors,
+      { bufferView: 0, componentType: 5126, count: 5, type: 'VEC3' },
+    ];
+    expect(inspectGlb(withJson({ bufferViews: views, accessors }))).toBe(ViewerError.Unreadable);
+  });
+
+  it.each([
+    ['a view past its buffer', { bufferViews: [{ buffer: 0, byteOffset: 200, byteLength: 96 }] }],
+    ['a buffer longer than the binary chunk', { buffers: [{ byteLength: 4096 }] }],
+    ['a second buffer', { buffers: [{ byteLength: 240 }, { byteLength: 4 }] }],
+    ['a view of another buffer', { bufferViews: [{ buffer: 1, byteLength: 96 }] }],
+    [
+      'a stride above the glTF maximum',
+      { bufferViews: [{ buffer: 0, byteLength: 96, byteStride: 256 }] },
+    ],
+  ])('refuses %s', (_case, extra) => {
+    expect(inspectGlb(withJson(extra))).toBe(ViewerError.Unreadable);
+  });
+
+  it.each(['attributes', 'targets'])('refuses %s of a primitive with different counts', (where) => {
+    const accessors = [
+      ...cubeJson.accessors,
+      { bufferView: 0, componentType: 5126, count: 4, type: 'VEC3' },
+    ];
+    const primitive =
+      where === 'attributes'
+        ? { attributes: { POSITION: 0, NORMAL: 2 }, indices: 1 }
+        : { attributes: { POSITION: 0 }, indices: 1, targets: [{ POSITION: 2 }] };
+    expect(inspectGlb(withJson({ accessors, meshes: [{ primitives: [primitive] }] }))).toBe(
+      ViewerError.Unreadable,
+    );
+  });
+
+  it('counts the vertices of every mesh, drawn or not, against the worker budget', () => {
+    const accessors = [
+      ...cubeJson.accessors,
+      { bufferView: 0, componentType: 5126, count: MODEL_MAX_VERTICES, type: 'VEC3' },
+    ];
+    const meshes = [...cubeJson.meshes, { primitives: [{ attributes: { POSITION: 2 } }] }];
+    expect(inspectGlb(withJson({ accessors, meshes }))).toBe(ViewerError.TooComplex);
+  });
+
+  it('counts the indices of every mesh against the worker triangle budget', () => {
+    const accessors = [
+      ...cubeJson.accessors,
+      { bufferView: 1, componentType: 5125, count: 3 * MODEL_MAX_TRIANGLES + 3, type: 'SCALAR' },
+    ];
+    const meshes = [
+      ...cubeJson.meshes,
+      { primitives: [{ attributes: { POSITION: 0 }, indices: 2 }] },
+    ];
+    expect(inspectGlb(withJson({ accessors, meshes }))).toBe(ViewerError.TooComplex);
+  });
+
+  it('caps all accessor elements together', () => {
+    const accessor = {
+      bufferView: 0,
+      componentType: 5126,
+      count: MODEL_MAX_ACCESSOR_ELEMENTS + 1,
+      type: 'SCALAR',
+    };
+    expect(inspectGlb(withAccessor(accessor))).toBe(ViewerError.TooComplex);
   });
 });
