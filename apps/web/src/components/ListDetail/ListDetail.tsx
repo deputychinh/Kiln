@@ -12,6 +12,8 @@ interface ListDetailProps {
   hasSelection: boolean;
   /** Names the detail pane, which scrolls on its own (and so takes focus) when expanded. */
   detailLabel: string;
+  /** Nothing worth a pane (no selection where room is short, or nothing to select): the list takes the full width. */
+  isDetailHidden?: boolean;
 }
 
 /** Material 3 list-detail: one pane when compact or medium, two side by side when expanded. */
@@ -20,10 +22,13 @@ export const ListDetail = ({
   detail,
   hasSelection,
   detailLabel,
+  isDetailHidden = false,
 }: ListDetailProps): ReactElement => {
   const isExpanded = useMediaQuery(EXPANDED_MEDIA_QUERY);
   return (
-    <div className={`list-detail list-detail--${hasSelection ? 'detail' : 'list'}`}>
+    <div
+      className={`list-detail list-detail--${hasSelection ? 'detail' : 'list'}${isDetailHidden ? ' list-detail--single' : ''}`}
+    >
       <div className="list-detail__list">{list}</div>
       <section
         className="list-detail__detail"

@@ -105,14 +105,13 @@
   margin-inline-start: auto;
 }
 
-/* Compact: a bottom navigation bar. */
+/*
+ * Material 3 uses a navigation bar for 3–5 destinations; Kiln has one (Assets) so far, so a
+ * compact window shows none and gives the height back (the brand link leads to Assets). From the
+ * medium class a slim rail anchors the app; it grows into labelled items as destinations arrive.
+ */
 .app-shell__nav {
-  position: fixed;
-  inset: auto 0 0;
-  z-index: var(--kiln-z-nav);
-  block-size: var(--kiln-shell-bottom-nav);
-  background-color: var(--kiln-color-surface-raised);
-  border-block-start: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  display: none;
 }
 
 .app-shell__nav-list {
@@ -166,8 +165,7 @@
 
 .app-shell__main {
   min-inline-size: 0;
-  padding: var(--kiln-space-4) var(--kiln-space-4)
-    calc(var(--kiln-shell-bottom-nav) + var(--kiln-space-5));
+  padding: var(--kiln-space-4) var(--kiln-space-4) var(--kiln-space-6);
 }
 
 .app-shell__main:focus {
@@ -197,15 +195,14 @@
   .app-shell__nav {
     position: sticky;
     top: var(--kiln-shell-bar);
+    display: block;
     grid-column: 1;
     grid-row: 2;
     align-self: start;
     block-size: calc(100dvh - var(--kiln-shell-bar));
     padding-block: var(--kiln-space-3);
     background-color: var(--kiln-color-surface);
-    border-block-start: 0;
     border-inline-end: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
-    inset-inline: auto;
   }
 
   .app-shell__nav-list {
@@ -224,44 +221,5 @@
     grid-column: 2;
     grid-row: 2;
     padding: var(--kiln-space-5) var(--kiln-space-5) var(--kiln-space-6);
-  }
-}
-
-/* Large: an expanded sidebar with labels beside the icons. */
-@media (min-width: 1200px) {
-  .app-shell {
-    grid-template-columns: var(--kiln-shell-sidebar) minmax(0, 1fr);
-  }
-
-  .app-shell__nav {
-    padding: var(--kiln-space-3);
-  }
-
-  .app-shell__nav-list {
-    align-items: stretch;
-  }
-
-  .app-shell__nav-item {
-    flex-direction: row;
-    gap: var(--kiln-space-2);
-    justify-content: flex-start;
-    min-block-size: var(--kiln-target-control);
-    padding: 0 var(--kiln-space-1);
-    font-size: var(--kiln-text-ui);
-    border-radius: var(--kiln-radius-md);
-  }
-
-  .app-shell__nav-icon {
-    inline-size: var(--kiln-space-6);
-    block-size: var(--kiln-space-6);
-    border-radius: var(--kiln-radius-sm);
-  }
-
-  .app-shell__nav-item[aria-current='page'] {
-    background-color: var(--kiln-color-surface-selected);
-  }
-
-  .app-shell__nav-item[aria-current='page'] .app-shell__nav-icon {
-    background-color: transparent;
   }
 }

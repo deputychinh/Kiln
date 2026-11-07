@@ -2,8 +2,9 @@ import { createFileRoute, Outlet, useParams } from '@tanstack/react-router';
 import { type ReactElement, useEffect, useRef } from 'react';
 
 import { ListDetail } from '@/components/ListDetail/ListDetail';
-import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
+import { EXPANDED_MEDIA_QUERY, LARGE_MEDIA_QUERY } from '@/constants/layout.constant';
 import { AssetGallery } from '@/features/assets/components/AssetGallery';
+import { useAssetPages } from '@/features/assets/hooks/useAssetPages';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { parseGallerySearch } from '@/utils/gallery.util';
@@ -12,6 +13,10 @@ const AssetsLayout = (): ReactElement => {
   const copy = useCopy();
   const { assetId } = useParams({ strict: false });
   const isExpanded = useMediaQuery(EXPANDED_MEDIA_QUERY);
+  const isLarge = useMediaQuery(LARGE_MEDIA_QUERY);
+  // The gallery's own query (shared cache, no extra request): an empty studio needs no inspector.
+  const pages = useAssetPages();
+  const isEmpty = pages.data?.pages.every((page) => page.items.length === 0) ?? false;
   const lastAssetIdRef = useRef<string | undefined>(assetId);
 
   // Back from a one-pane detail: return focus (and so the scroll position) to the card it came
@@ -29,6 +34,8 @@ const AssetsLayout = (): ReactElement => {
       detail={<Outlet />}
       hasSelection={Boolean(assetId)}
       detailLabel={copy.assets.detailLabel}
+      // An empty inspector only earns its column on large windows, and never with no assets.
+      isDetailHidden={!assetId && (isEmpty || !isLarge)}
     />
   );
 };

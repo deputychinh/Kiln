@@ -1,7 +1,7 @@
-/* Compact: full width above the bottom navigation bar. */
+/* Compact: full width along the bottom edge. */
 .upload-tray {
   position: fixed;
-  inset: auto var(--kiln-space-3) calc(var(--kiln-shell-bottom-nav) + var(--kiln-space-2));
+  inset: auto var(--kiln-space-3) var(--kiln-space-3);
   z-index: var(--kiln-z-tray);
   display: flex;
   flex-direction: column;

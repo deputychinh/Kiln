@@ -45,3 +45,12 @@
     display: block;
   }
 }
+
+/* No pane to show: one column, the detail stays out of the way at every size. */
+.list-detail--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.list-detail--single .list-detail__detail {
+  display: none;
+}

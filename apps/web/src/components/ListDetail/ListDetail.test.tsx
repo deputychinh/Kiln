@@ -27,4 +27,18 @@ describe('ListDetail', () => {
     );
     expect(screen.getByRole('region', { name: 'Asset details' })).toHaveAttribute('tabindex', '0');
   });
+
+  it('can leave out the detail pane so the list takes the full width', () => {
+    const { container } = render(
+      <ListDetail
+        list="grid"
+        detail="pane"
+        hasSelection={false}
+        detailLabel="Asset details"
+        isDetailHidden
+      />,
+    );
+
+    expect(container.firstElementChild).toHaveClass('list-detail--list', 'list-detail--single');
+  });
 });

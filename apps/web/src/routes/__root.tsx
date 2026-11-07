@@ -1,11 +1,18 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { lazy, Suspense } from 'react';
 
 import { AppShell } from '@/components/AppShell/AppShell';
 import { UPLOAD_BUTTON_ID } from '@/constants/upload.constant';
 import { UploadButton } from '@/features/uploads/components/UploadButton';
 import { UploadDropOverlay } from '@/features/uploads/components/UploadDropOverlay';
-import { UploadTray } from '@/features/uploads/components/UploadTray';
 import { UploadsProvider } from '@/features/uploads/context/UploadsContext';
+
+// The tray shows only once files are added: its code loads after the first screen.
+const UploadTray = lazy(() =>
+  import('@/features/uploads/components/UploadTray').then((module) => ({
+    default: module.UploadTray,
+  })),
+);
 
 export const Route = createRootRoute({
   component: () => (
@@ -16,7 +23,9 @@ export const Route = createRootRoute({
         actions={<UploadButton id={UPLOAD_BUTTON_ID} />}
         overlays={
           <>
-            <UploadTray />
+            <Suspense fallback={null}>
+              <UploadTray />
+            </Suspense>
             <UploadDropOverlay />
           </>
         }

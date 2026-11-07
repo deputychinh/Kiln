@@ -5,10 +5,8 @@
 }
 
 html {
-  /* The sticky top bar (and, on compact screens, the bottom bar and the upload tray) must never
-     cover the focused element (WCAG 2.4.11). */
-  scroll-padding-block: calc(var(--kiln-shell-bar) + var(--kiln-space-2))
-    calc(var(--kiln-shell-bottom-nav) + var(--kiln-space-2));
+  /* The sticky top bar must never cover the focused element (WCAG 2.4.11). */
+  scroll-padding-block-start: calc(var(--kiln-shell-bar) + var(--kiln-space-2));
 }
 
 body {
