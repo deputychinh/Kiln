@@ -64,7 +64,7 @@ describe('SettingsPage tokens', () => {
     expect(first).toHaveTextContent('Blender laptop');
     expect(first).toHaveTextContent('kiln_pat_Ab3dEf…');
     expect(first).toHaveTextContent('ReadWrite');
-    expect(first).toHaveTextContent('Never used');
+    expect(first).toHaveTextContent('Last usednever');
     expect(first).not.toHaveTextContent('Expired');
     expect(second).toHaveTextContent('Expired');
     expect(within(list).getByRole('button', { name: 'Revoke Old CLI' })).toBeInTheDocument();
@@ -120,7 +120,7 @@ describe('SettingsPage tokens', () => {
 
     await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), '  Render farm ');
     await userEvent.click(screen.getByRole('radio', { name: 'Read only' }));
-    await userEvent.click(screen.getByRole('radio', { name: '30 days' }));
+    await userEvent.click(screen.getByRole('radio', { name: '30' }));
     await userEvent.click(screen.getByRole('button', { name: 'Create token' }));
 
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({

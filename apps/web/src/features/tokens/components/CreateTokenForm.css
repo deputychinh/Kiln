@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--kiln-space-4);
-  padding: var(--kiln-space-5);
+  padding: var(--kiln-space-4);
   background-color: var(--kiln-color-surface-raised);
   border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
   border-radius: var(--kiln-radius-lg);
@@ -37,4 +37,10 @@
 
 .create-token-form__submit {
   align-self: flex-start;
+}
+
+@media (min-width: 600px) {
+  .create-token-form {
+    padding: var(--kiln-space-5);
+  }
 }
