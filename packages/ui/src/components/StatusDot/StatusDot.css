@@ -1,0 +1,44 @@
+.status-dot {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  white-space: nowrap;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.status-dot__dot {
+  flex-shrink: 0;
+  inline-size: var(--kiln-space-2);
+  block-size: var(--kiln-space-2);
+  background-color: currentcolor;
+  border-radius: var(--kiln-radius-full);
+}
+
+.status-dot--info {
+  color: var(--kiln-color-info);
+}
+
+.status-dot--success {
+  color: var(--kiln-color-success);
+}
+
+.status-dot--warning {
+  color: var(--kiln-color-warning);
+}
+
+.status-dot--danger {
+  color: var(--kiln-color-danger);
+}
+
+.status-dot--active .status-dot__dot {
+  animation: status-dot-pulse var(--kiln-duration-pulse) var(--kiln-ease-standard) infinite
+    alternate;
+}
+
+@keyframes status-dot-pulse {
+  to {
+    opacity: 0.35;
+  }
+}

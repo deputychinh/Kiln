@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Upload } from 'lucide-react';
 import { expect, fn, userEvent, within } from 'storybook/test';
 
 import { Button } from '#ui/components/Button/Button';
+import { ICON_SIZE } from '#ui/constants/icon.constant';
 import { ButtonVariant } from '#ui/enums/button-variant.enum';
 
 const meta = {
@@ -27,6 +29,14 @@ export const Secondary: Story = {
 };
 
 export const Ghost: Story = { args: { variant: ButtonVariant.Ghost, children: 'Back to assets' } };
+
+export const WithIcon: Story = {
+  args: {
+    variant: ButtonVariant.Primary,
+    children: 'Upload',
+    icon: <Upload size={ICON_SIZE.sm} />,
+  },
+};
 
 export const Disabled: Story = {
   args: { disabled: true },

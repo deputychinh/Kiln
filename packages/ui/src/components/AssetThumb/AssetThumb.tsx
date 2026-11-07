@@ -17,7 +17,10 @@ interface AssetThumbProps {
   onError?: (src: string) => void;
 }
 
-/** A square preview with a fixed intrinsic size, so loading it never shifts the layout. */
+/**
+ * A 4:3 preview well with a fixed intrinsic size, so loading it never shifts the layout; the
+ * image is contained over a checkerboard so transparent pixels read as transparent.
+ */
 export const AssetThumb = ({
   src,
   alt,
@@ -28,7 +31,7 @@ export const AssetThumb = ({
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const showImage = src !== null && src !== failedSrc;
   return (
-    <div className="asset-thumb">
+    <div className={showImage ? 'asset-thumb' : 'asset-thumb asset-thumb--empty'}>
       {showImage ? (
         <img
           className="asset-thumb__image"

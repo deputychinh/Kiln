@@ -14,4 +14,15 @@ describe('EmptyState', () => {
     expect(screen.getByText('Publish one from the CLI.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Read how' })).toBeInTheDocument();
   });
+
+  it('can be the page heading and shows a decorative icon', () => {
+    render(
+      <EmptyState title="Nothing to compare yet" titleAs="h1" icon={<svg data-testid="icon" />} />,
+    );
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Nothing to compare yet' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('icon').parentElement).toHaveAttribute('aria-hidden', 'true');
+  });
 });

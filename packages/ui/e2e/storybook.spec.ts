@@ -106,18 +106,44 @@ for (const theme of THEMES) {
 // the native `onClick` to an action (React's types have no descriptions for those).
 const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
   'components-assetthumb--docs': { own: ['src', 'alt', 'placeholder', 'isEager', 'onError'] },
-  'components-badge--docs': { own: ['tone', 'children'] },
+  'components-badge--docs': { own: ['tone', 'icon', 'children'] },
   'components-button--docs': {
-    own: ['variant', 'children'],
+    own: ['variant', 'icon', 'children', 'ref'],
     native: ['disabled', 'type', 'onClick'],
   },
+  'components-dropoverlay--docs': { own: ['title', 'targets', 'onDrop', 'isEnabled'] },
   'components-dropzone--docs': { own: ['label', 'hint', 'buttonLabel', 'accept', 'onFiles'] },
-  'components-emptystate--docs': { own: ['title', 'children', 'action'] },
+  'components-emptystate--docs': { own: ['title', 'titleAs', 'icon', 'children', 'action'] },
   'components-errorstate--docs': {
     own: ['title', 'titleAs', 'message', 'retryLabel', 'onRetry', 'isRetrying', 'action'],
   },
+  'components-filepickerbutton--docs': {
+    own: [
+      'children',
+      'accessibleName',
+      'icon',
+      'variant',
+      'accept',
+      'isMultiple',
+      'onFiles',
+      'ref',
+    ],
+  },
+  'components-iconbutton--docs': {
+    own: ['label', 'icon', 'variant', 'size', 'isPressed', 'tooltipPlacement', 'ref'],
+    native: ['disabled', 'type', 'onClick'],
+  },
   'components-progressbar--docs': { own: ['label', 'value', 'valueText'] },
+  'components-segmentedcontrol--docs': {
+    own: ['label', 'isLabelHidden', 'name', 'value', 'options', 'isIconOnly', 'onChange'],
+  },
   'components-skeleton--docs': { own: ['shape'] },
+  'components-statusdot--docs': { own: ['tone', 'isActive', 'children'] },
+  'components-tabs--docs': {
+    own: ['label', 'tabs', 'defaultSelectedId', 'selectedId', 'onSelect'],
+  },
+  'components-toolbar--docs': { own: ['label', 'children', 'end'] },
+  'components-tooltip--docs': { own: ['content', 'placement', 'isBlock', 'children'] },
 };
 
 test('every docs page lists and describes every prop of its component', async ({
@@ -153,6 +179,6 @@ test('docs pages follow the theme', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(page.locator('.docs-story').first()).toHaveCSS(
     'background-color',
-    'rgb(246, 246, 244)',
+    'rgb(250, 250, 250)',
   );
 });

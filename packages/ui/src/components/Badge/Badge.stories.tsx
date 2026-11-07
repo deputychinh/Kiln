@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Box } from 'lucide-react';
 
 import { Badge } from '#ui/components/Badge/Badge';
+import { ICON_SIZE } from '#ui/constants/icon.constant';
 import { BadgeTone } from '#ui/enums/badge-tone.enum';
 
 const meta = {
@@ -22,3 +24,7 @@ export const Success: Story = { args: { tone: BadgeTone.Success, children: 'Read
 export const Warning: Story = { args: { tone: BadgeTone.Warning, children: 'Pending' } };
 
 export const Danger: Story = { args: { tone: BadgeTone.Danger, children: 'Failed' } };
+
+export const WithIcon: Story = {
+  args: { tone: BadgeTone.Neutral, children: 'Model', icon: <Box size={ICON_SIZE.sm} /> },
+};

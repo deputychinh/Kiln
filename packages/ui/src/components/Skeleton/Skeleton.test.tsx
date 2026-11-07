@@ -17,4 +17,13 @@ describe('Skeleton', () => {
 
     expect(container.firstElementChild).toHaveClass('skeleton--line');
   });
+
+  it('draws a whole gallery card: a preview tile and two text lines', () => {
+    const { container } = render(<Skeleton shape={SkeletonShape.Card} />);
+
+    const card = container.firstElementChild;
+    expect(card).toHaveClass('skeleton--card');
+    expect(card).toHaveAttribute('aria-hidden', 'true');
+    expect(card?.querySelectorAll('.skeleton__line')).toHaveLength(2);
+  });
 });

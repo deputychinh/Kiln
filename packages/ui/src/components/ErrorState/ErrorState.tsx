@@ -1,6 +1,8 @@
+import { CircleAlert, RotateCw } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 
 import { Button } from '#ui/components/Button/Button';
+import { ICON_SIZE } from '#ui/constants/icon.constant';
 import { ButtonVariant } from '#ui/enums/button-variant.enum';
 
 import './ErrorState.css';
@@ -33,12 +35,16 @@ export const ErrorState = ({
   action,
 }: ErrorStateProps): ReactElement => (
   <div className="error-state" role="alert">
+    <span className="error-state__icon" aria-hidden="true">
+      <CircleAlert size={ICON_SIZE.md} />
+    </span>
     <Title className="error-state__title">{title}</Title>
     {message ? <p className="error-state__message">{message}</p> : null}
     <div className="error-state__actions">
       {onRetry && retryLabel ? (
         <Button
           variant={ButtonVariant.Secondary}
+          icon={<RotateCw size={ICON_SIZE.sm} />}
           // aria-disabled, not disabled: the button keeps focus while the retry runs.
           aria-disabled={isRetrying}
           onClick={() => {

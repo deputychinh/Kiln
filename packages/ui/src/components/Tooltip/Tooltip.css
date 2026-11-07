@@ -1,0 +1,68 @@
+.tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip--block {
+  display: flex;
+  min-inline-size: 0;
+}
+
+.tooltip__bubble {
+  position: absolute;
+  z-index: var(--kiln-z-tooltip);
+  inline-size: max-content;
+  max-inline-size: 18rem;
+  padding: var(--kiln-space-1) var(--kiln-space-2);
+  font-size: var(--kiln-text-xs);
+  font-weight: var(--kiln-weight-medium);
+  line-height: var(--kiln-leading-normal);
+  overflow-wrap: anywhere;
+  color: var(--kiln-color-on-tooltip);
+  background-color: var(--kiln-color-tooltip);
+  border-radius: var(--kiln-radius-sm);
+  box-shadow: var(--kiln-shadow-2);
+  opacity: 0;
+  transition:
+    opacity var(--kiln-duration-fast) var(--kiln-ease-standard),
+    visibility var(--kiln-duration-fast);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.tooltip--top .tooltip__bubble {
+  inset: auto auto calc(100% + var(--kiln-space-1)) 50%;
+  translate: -50% 0;
+}
+
+.tooltip--bottom .tooltip__bubble {
+  inset: calc(100% + var(--kiln-space-1)) auto auto 50%;
+  translate: -50% 0;
+}
+
+.tooltip--end .tooltip__bubble {
+  inset: 50% auto auto calc(100% + var(--kiln-space-2));
+  translate: 0 -50%;
+}
+
+/* Hover (after a delay, and the bubble itself keeps it open) or keyboard focus shows it. */
+.tooltip:hover .tooltip__bubble,
+.tooltip:has(:focus-visible) .tooltip__bubble {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: var(--kiln-delay-tooltip);
+  visibility: visible;
+}
+
+.tooltip--dismissed:hover .tooltip__bubble,
+.tooltip--dismissed:has(:focus-visible) .tooltip__bubble {
+  opacity: 0;
+  transition-delay: 0s;
+  visibility: hidden;
+}
+
+@media (hover: none) {
+  .tooltip:hover .tooltip__bubble {
+    visibility: hidden;
+  }
+}

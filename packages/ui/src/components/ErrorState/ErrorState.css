@@ -1,22 +1,31 @@
 .error-state {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kiln-space-2);
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--kiln-space-1) var(--kiln-space-3);
+  align-items: start;
   padding: var(--kiln-space-4);
   background-color: var(--kiln-color-surface-raised);
-  border: 1px solid var(--kiln-color-danger);
-  border-radius: var(--kiln-radius-md);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+  border-inline-start: var(--kiln-space-1) solid var(--kiln-color-danger);
+}
+
+.error-state__icon {
+  display: inline-flex;
+  grid-row: span 3;
+  color: var(--kiln-color-danger);
 }
 
 .error-state__title {
   margin: 0;
   font-size: var(--kiln-text-md);
-  font-weight: var(--kiln-weight-bold);
+  font-weight: var(--kiln-weight-semibold);
+  line-height: var(--kiln-leading-tight);
 }
 
 .error-state__message {
   margin: 0;
+  font-size: var(--kiln-text-ui);
   color: var(--kiln-color-on-surface-muted);
 }
 
@@ -25,4 +34,9 @@
   flex-wrap: wrap;
   gap: var(--kiln-space-3);
   align-items: center;
+  margin-block-start: var(--kiln-space-2);
+}
+
+.error-state__actions:empty {
+  display: none;
 }

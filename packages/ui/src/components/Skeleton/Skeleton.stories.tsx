@@ -18,3 +18,5 @@ type Story = StoryObj<typeof meta>;
 export const Line: Story = { args: { shape: SkeletonShape.Line } };
 
 export const Tile: Story = { args: { shape: SkeletonShape.Tile } };
+
+export const Card: Story = { args: { shape: SkeletonShape.Card } };

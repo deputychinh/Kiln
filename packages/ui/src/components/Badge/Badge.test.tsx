@@ -15,4 +15,11 @@ describe('Badge', () => {
 
     expect(screen.getByText('Failed')).toHaveClass('badge--danger');
   });
+
+  it('shows a decorative leading icon', () => {
+    render(<Badge icon={<svg data-testid="icon" />}>Model</Badge>);
+
+    expect(screen.getByText('Model')).toContainElement(screen.getByTestId('icon'));
+    expect(screen.getByTestId('icon').parentElement).toHaveAttribute('aria-hidden', 'true');
+  });
 });

@@ -25,6 +25,8 @@ describe('AssetThumb', () => {
 
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
     expect(screen.getByText('Model')).toBeInTheDocument();
+    // No checkerboard behind a placeholder: it would read as a transparent image.
+    expect(screen.getByText('Model').parentElement).toHaveClass('asset-thumb--empty');
   });
 
   it('falls back to the placeholder and reports once when the image fails', () => {

@@ -1,0 +1,87 @@
+.icon-button {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  inline-size: var(--kiln-target-control);
+  block-size: var(--kiln-target-control);
+  padding: 0;
+  color: var(--kiln-color-on-surface-muted);
+  background-color: transparent;
+  border: var(--kiln-border-hairline) solid transparent;
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--kiln-duration-fast) var(--kiln-ease-standard),
+    color var(--kiln-duration-fast) var(--kiln-ease-standard);
+}
+
+.icon-button:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
+}
+
+.icon-button:disabled,
+.icon-button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.icon-button__icon {
+  display: inline-flex;
+  inline-size: var(--kiln-icon-md);
+  block-size: var(--kiln-icon-md);
+}
+
+.icon-button--small {
+  inline-size: calc(var(--kiln-target-control) - var(--kiln-space-1));
+  block-size: calc(var(--kiln-target-control) - var(--kiln-space-1));
+}
+
+.icon-button--small .icon-button__icon {
+  inline-size: var(--kiln-icon-sm);
+  block-size: var(--kiln-icon-sm);
+}
+
+.icon-button--large {
+  inline-size: var(--kiln-target-primary);
+  block-size: var(--kiln-target-primary);
+}
+
+.icon-button--secondary {
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-raised);
+  border-color: var(--kiln-color-outline);
+}
+
+.icon-button--primary {
+  color: var(--kiln-color-on-primary);
+  background-color: var(--kiln-color-primary);
+}
+
+.icon-button[aria-pressed='true'] {
+  color: var(--kiln-color-on-selected);
+  background-color: var(--kiln-color-surface-selected);
+}
+
+@media (hover: hover) {
+  .icon-button--ghost:not(:disabled):hover,
+  .icon-button--secondary:not(:disabled):hover {
+    color: var(--kiln-color-on-surface);
+    background-color: var(--kiln-color-surface-hover);
+  }
+
+  .icon-button--primary:not(:disabled):hover {
+    background-color: var(--kiln-color-primary-hover);
+  }
+}
+
+.icon-button--ghost:not(:disabled):active,
+.icon-button--secondary:not(:disabled):active {
+  background-color: var(--kiln-color-surface-pressed);
+}
+
+@media (forced-colors: active) {
+  .icon-button {
+    border-color: currentcolor;
+  }
+}

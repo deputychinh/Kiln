@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { Button } from '#ui/components/Button/Button';
+import { Button, buttonClassName } from '#ui/components/Button/Button';
 import { ButtonVariant } from '#ui/enums/button-variant.enum';
 
 describe('Button', () => {
@@ -39,5 +39,20 @@ describe('Button', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
 
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a leading icon that is hidden from assistive technology', () => {
+    render(<Button icon={<svg data-testid="icon" />}>Upload</Button>);
+
+    const button = screen.getByRole('button', { name: 'Upload' });
+    expect(screen.getByTestId('icon').parentElement).toHaveAttribute('aria-hidden', 'true');
+    expect(button).toHaveTextContent('Upload');
+  });
+
+  it('gives a link the same look through its class names', () => {
+    expect(buttonClassName()).toBe('button button--primary');
+    expect(buttonClassName({ variant: ButtonVariant.Secondary, className: 'x' })).toBe(
+      'button button--secondary x',
+    );
   });
 });

@@ -1,28 +1,46 @@
 .badge {
   display: inline-flex;
+  gap: var(--kiln-space-1);
   align-items: center;
+  min-block-size: calc(var(--kiln-space-5) - var(--kiln-space-1));
   padding: 0 var(--kiln-space-2);
   font-size: var(--kiln-text-xs);
   font-weight: var(--kiln-weight-medium);
-  line-height: var(--kiln-leading-normal);
+  line-height: var(--kiln-leading-tight);
   white-space: nowrap;
   color: var(--kiln-color-on-surface-muted);
-  border: 1px solid currentcolor;
-  border-radius: var(--kiln-radius-full);
+  background-color: var(--kiln-color-surface-hover);
+  border-radius: var(--kiln-radius-sm);
+}
+
+.badge__icon {
+  display: inline-flex;
+  inline-size: var(--kiln-icon-sm);
+  block-size: var(--kiln-icon-sm);
 }
 
 .badge--info {
-  color: var(--kiln-color-focus);
+  color: var(--kiln-color-info);
+  background-color: color-mix(in srgb, var(--kiln-color-info) 10%, transparent);
 }
 
 .badge--success {
   color: var(--kiln-color-success);
+  background-color: color-mix(in srgb, var(--kiln-color-success) 10%, transparent);
 }
 
 .badge--warning {
   color: var(--kiln-color-warning);
+  background-color: color-mix(in srgb, var(--kiln-color-warning) 10%, transparent);
 }
 
 .badge--danger {
   color: var(--kiln-color-danger);
+  background-color: color-mix(in srgb, var(--kiln-color-danger) 10%, transparent);
+}
+
+@media (forced-colors: active) {
+  .badge {
+    border: var(--kiln-border-hairline) solid CanvasText;
+  }
 }

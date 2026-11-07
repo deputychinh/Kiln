@@ -3,7 +3,9 @@ import { composeStories } from '@storybook/react';
 import { BROKEN_PREVIEW_SAMPLE } from '#storybook/sample.constant';
 import { BadgeTone } from '#ui/enums/badge-tone.enum';
 import { ButtonVariant } from '#ui/enums/button-variant.enum';
+import { IconButtonSize } from '#ui/enums/icon-button-size.enum';
 import { SkeletonShape } from '#ui/enums/skeleton-shape.enum';
+import { TooltipPlacement } from '#ui/enums/tooltip-placement.enum';
 
 type StoriesModule = Parameters<typeof composeStories>[0];
 
@@ -58,6 +60,9 @@ describe('Storybook coverage', () => {
     ['Badge', 'tone', Object.values(BadgeTone)],
     ['Button', 'variant', Object.values(ButtonVariant)],
     ['Skeleton', 'shape', Object.values(SkeletonShape)],
+    ['StatusDot', 'tone', Object.values(BadgeTone)],
+    ['IconButton', 'size', Object.values(IconButtonSize)],
+    ['Tooltip', 'placement', Object.values(TooltipPlacement)],
   ])('has a %s story for every %s', (component, prop, values) => {
     const module = storyModules[`./components/${component}/${component}.stories.tsx`];
     const stories = Object.values<{ args: Record<string, unknown> }>(composeStories(module!));

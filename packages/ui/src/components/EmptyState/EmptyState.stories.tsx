@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Images, Upload } from 'lucide-react';
 
 import { Button } from '#ui/components/Button/Button';
 import { EmptyState } from '#ui/components/EmptyState/EmptyState';
+import { ICON_SIZE } from '#ui/constants/icon.constant';
 
 const meta = {
   title: 'Components/EmptyState',
@@ -20,7 +22,16 @@ export const WithBody: Story = {
 
 export const WithAction: Story = {
   args: {
-    children: 'Upload a PNG, JPEG, WebP or .glb file to see it here.',
-    action: <Button>Upload asset</Button>,
+    icon: <Images size={ICON_SIZE.lg} />,
+    children: 'Upload a PNG, JPEG, WebP or .glb file, or drop files anywhere on this page.',
+    action: <Button icon={<Upload size={ICON_SIZE.sm} />}>Upload files</Button>,
+  },
+};
+
+export const PageHeading: Story = {
+  args: {
+    titleAs: 'h1',
+    title: 'Nothing to compare yet',
+    children: 'Add a second version to this asset to compare the two.',
   },
 };

@@ -1,19 +1,81 @@
-/* Kiln design tokens: the only place raw values live (docs/design-system.md). Dark is the default. */
+/*
+ * Kiln design tokens: the only place raw values live (docs/design-system.md).
+ * Three tiers: primitives (--kiln-zinc-*, --kiln-ember-*, …) → semantic roles (--kiln-color-*) →
+ * components (their own CSS uses only the roles). Dark is designed first and is the default; the
+ * light set follows `prefers-color-scheme` unless the person chose a theme (`data-theme`).
+ */
 :root {
+  /* Primitives: neutral zinc greys (no tint, so texture colours are judged correctly). */
+  --kiln-zinc-0: #fff;
+  --kiln-zinc-50: #fafafa;
+  --kiln-zinc-100: #f4f4f5;
+  --kiln-zinc-150: #ececee;
+  --kiln-zinc-200: #e4e4e7;
+  --kiln-zinc-300: #d4d4d8;
+  --kiln-zinc-400: #a1a1aa;
+  --kiln-zinc-500: #8b8b94;
+  --kiln-zinc-600: #6b6b74;
+  --kiln-zinc-650: #52525b;
+  --kiln-zinc-700: #3f3f46;
+  --kiln-zinc-750: #323238;
+  --kiln-zinc-800: #27272a;
+  --kiln-zinc-850: #1f1f23;
+  --kiln-zinc-900: #18181b;
+  --kiln-zinc-925: #131316;
+  --kiln-zinc-950: #0d0d0f;
+
+  /* Primitives: one accent (ember, the kiln's fire) and the status hues. */
+  --kiln-ember-300: #fdba8c;
+  --kiln-ember-400: #fb923c;
+  --kiln-ember-500: #f97316;
+  --kiln-ember-700: #c2410c;
+  --kiln-ember-800: #9a3412;
+  --kiln-ember-950: #2b1407;
+  --kiln-ember-tint-dark: #3a1d0c;
+  --kiln-ember-tint-light: #fff1e6;
+  --kiln-green-400: #4ade80;
+  --kiln-green-800: #166534;
+  --kiln-amber-400: #fbbf24;
+  --kiln-amber-800: #854d0e;
+  --kiln-red-400: #f87171;
+  --kiln-red-700: #b91c1c;
+  --kiln-blue-400: #7aa7ff;
+  --kiln-blue-600: #2563eb;
+  --kiln-sky-400: #60a5fa;
+  --kiln-sky-700: #1d4ed8;
+
+  /* Semantic roles, dark (default). */
   color-scheme: dark;
 
-  --kiln-color-surface: #16171a;
-  --kiln-color-surface-raised: #1f2125;
-  --kiln-color-on-surface: #eceef2;
-  --kiln-color-on-surface-muted: #a3a8b3;
-  --kiln-color-primary: #f08a4b;
-  --kiln-color-on-primary: #1b0f07;
-  --kiln-color-outline: #4a4f59;
-  --kiln-color-success: #5fc28a;
-  --kiln-color-warning: #e8b84a;
-  --kiln-color-danger: #ef6f6c;
-  --kiln-color-focus: #8ab4ff;
+  --kiln-color-surface: var(--kiln-zinc-925);
+  --kiln-color-surface-sunken: var(--kiln-zinc-950);
+  --kiln-color-surface-raised: var(--kiln-zinc-900);
+  --kiln-color-surface-overlay: var(--kiln-zinc-850);
+  --kiln-color-surface-hover: var(--kiln-zinc-800);
+  --kiln-color-surface-pressed: var(--kiln-zinc-750);
+  --kiln-color-surface-selected: var(--kiln-ember-tint-dark);
+  --kiln-color-on-surface: var(--kiln-zinc-100);
+  --kiln-color-on-surface-muted: var(--kiln-zinc-400);
+  --kiln-color-primary: var(--kiln-ember-400);
+  --kiln-color-primary-hover: var(--kiln-ember-300);
+  --kiln-color-on-primary: var(--kiln-ember-950);
+  --kiln-color-on-selected: var(--kiln-ember-300);
+  --kiln-color-outline: var(--kiln-zinc-600);
+  --kiln-color-outline-variant: var(--kiln-zinc-800);
+  --kiln-color-success: var(--kiln-green-400);
+  --kiln-color-warning: var(--kiln-amber-400);
+  --kiln-color-danger: var(--kiln-red-400);
+  --kiln-color-info: var(--kiln-sky-400);
+  --kiln-color-focus: var(--kiln-blue-400);
+  --kiln-color-tooltip: var(--kiln-zinc-100);
+  --kiln-color-on-tooltip: var(--kiln-zinc-900);
+  --kiln-color-scrim: rgb(0 0 0 / 62%);
+  --kiln-color-media-scrim: rgb(0 0 0 / 55%);
+  --kiln-color-on-media: var(--kiln-zinc-0);
+  --kiln-color-checker-a: var(--kiln-zinc-850);
+  --kiln-color-checker-b: var(--kiln-zinc-800);
 
+  /* Spacing: a 4 px scale. */
   --kiln-space-1: 4px;
   --kiln-space-2: 8px;
   --kiln-space-3: 12px;
@@ -22,81 +84,154 @@
   --kiln-space-6: 32px;
   --kiln-space-7: 40px;
   --kiln-space-8: 48px;
+  --kiln-space-9: 64px;
 
+  /* Type: Inter (self-hosted variable font), a 1.125 scale around a 14 px UI base. */
   --kiln-font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --kiln-font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
   --kiln-text-xs: 0.75rem;
-  --kiln-text-sm: 0.875rem;
+  --kiln-text-sm: 0.8125rem;
+  --kiln-text-ui: 0.875rem;
   --kiln-text-md: 1rem;
-  --kiln-text-lg: 1.25rem;
-  --kiln-text-xl: 1.5rem;
-  --kiln-text-2xl: 2rem;
+  --kiln-text-lg: 1.125rem;
+  --kiln-text-xl: 1.375rem;
+  --kiln-text-2xl: 1.75rem;
   --kiln-weight-regular: 400;
   --kiln-weight-medium: 500;
+  --kiln-weight-semibold: 600;
   --kiln-weight-bold: 650;
-  --kiln-leading-tight: 1.2;
+  --kiln-leading-tight: 1.25;
   --kiln-leading-normal: 1.5;
+  --kiln-tracking-tight: -0.011em;
+  --kiln-tracking-title: -0.02em;
 
+  /* Shape. */
   --kiln-radius-sm: 4px;
-  --kiln-radius-md: 8px;
-  --kiln-radius-lg: 16px;
+  --kiln-radius-md: 6px;
+  --kiln-radius-lg: 10px;
+  --kiln-radius-xl: 14px;
   --kiln-radius-full: 999px;
+  --kiln-border-hairline: 1px;
+  --kiln-border-focus: 2px;
+  --kiln-checker-size: 16px;
 
+  /* Elevation: shadows read on dark through a hairline highlight, not only the drop. */
   --kiln-shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
-  --kiln-shadow-2: 0 8px 24px rgb(0 0 0 / 45%);
+  --kiln-shadow-2: 0 4px 16px rgb(0 0 0 / 45%), 0 0 0 1px rgb(255 255 255 / 6%);
+  --kiln-shadow-3: 0 16px 48px rgb(0 0 0 / 55%), 0 0 0 1px rgb(255 255 255 / 8%);
 
+  /* Motion: Material 3 durations and easings; zero under reduced motion. */
   --kiln-duration-fast: 120ms;
   --kiln-duration-base: 200ms;
+  --kiln-duration-slow: 320ms;
   --kiln-duration-pulse: 900ms;
+  --kiln-delay-tooltip: 400ms;
   --kiln-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --kiln-ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --kiln-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
 
+  /* Layers. */
+  --kiln-z-raised: 1;
   --kiln-z-header: 10;
+  --kiln-z-nav: 15;
   --kiln-z-drawer: 20;
+  --kiln-z-tray: 25;
   --kiln-z-dialog: 30;
+  --kiln-z-tooltip: 35;
   --kiln-z-toast: 40;
+  --kiln-z-overlay: 50;
 
+  /* Sizes: targets, icons and the app shell. */
   --kiln-target-min: 24px;
+  --kiln-target-control: 36px;
   --kiln-target-primary: 44px;
+  --kiln-icon-sm: 16px;
+  --kiln-icon-md: 20px;
+  --kiln-icon-lg: 32px;
+  --kiln-shell-bar: 56px;
+  --kiln-shell-rail: 80px;
+  --kiln-shell-sidebar: 220px;
+  --kiln-shell-bottom-nav: 64px;
+  --kiln-shell-inspector: 400px;
+  --kiln-tray-width: 380px;
+  --kiln-card-min: 200px;
+  --kiln-card-min-compact: 148px;
+  --kiln-measure: 65ch;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
     color-scheme: light;
 
-    --kiln-color-surface: #f6f6f4;
-    --kiln-color-surface-raised: #fff;
-    --kiln-color-on-surface: #17181b;
-    --kiln-color-on-surface-muted: #5a5f6a;
-    --kiln-color-primary: #b4501a;
-    --kiln-color-on-primary: #fff;
-    --kiln-color-outline: #b9bcc4;
-    --kiln-color-focus: #1f5fd1;
-    --kiln-color-success: #1d7044;
-    --kiln-color-warning: #835500;
-    --kiln-color-danger: #b3261e;
+    --kiln-color-surface: var(--kiln-zinc-50);
+    --kiln-color-surface-sunken: var(--kiln-zinc-100);
+    --kiln-color-surface-raised: var(--kiln-zinc-0);
+    --kiln-color-surface-overlay: var(--kiln-zinc-0);
+    --kiln-color-surface-hover: var(--kiln-zinc-150);
+    --kiln-color-surface-pressed: var(--kiln-zinc-200);
+    --kiln-color-surface-selected: var(--kiln-ember-tint-light);
+    --kiln-color-on-surface: var(--kiln-zinc-900);
+    --kiln-color-on-surface-muted: var(--kiln-zinc-650);
+    --kiln-color-primary: var(--kiln-ember-700);
+    --kiln-color-primary-hover: var(--kiln-ember-800);
+    --kiln-color-on-primary: var(--kiln-zinc-0);
+    --kiln-color-on-selected: var(--kiln-ember-800);
+    --kiln-color-outline: var(--kiln-zinc-500);
+    --kiln-color-outline-variant: var(--kiln-zinc-200);
+    --kiln-color-success: var(--kiln-green-800);
+    --kiln-color-warning: var(--kiln-amber-800);
+    --kiln-color-danger: var(--kiln-red-700);
+    --kiln-color-info: var(--kiln-sky-700);
+    --kiln-color-focus: var(--kiln-blue-600);
+    --kiln-color-tooltip: var(--kiln-zinc-900);
+    --kiln-color-on-tooltip: var(--kiln-zinc-50);
+    --kiln-color-scrim: rgb(24 24 27 / 45%);
+    --kiln-color-checker-a: var(--kiln-zinc-0);
+    --kiln-color-checker-b: var(--kiln-zinc-150);
+    --kiln-shadow-1: 0 1px 2px rgb(24 24 27 / 8%);
+    --kiln-shadow-2: 0 4px 16px rgb(24 24 27 / 10%), 0 0 0 1px rgb(24 24 27 / 6%);
+    --kiln-shadow-3: 0 16px 48px rgb(24 24 27 / 18%), 0 0 0 1px rgb(24 24 27 / 8%);
   }
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --kiln-color-surface: #f6f6f4;
-  --kiln-color-surface-raised: #fff;
-  --kiln-color-on-surface: #17181b;
-  --kiln-color-on-surface-muted: #5a5f6a;
-  --kiln-color-primary: #b4501a;
-  --kiln-color-on-primary: #fff;
-  --kiln-color-outline: #b9bcc4;
-  --kiln-color-focus: #1f5fd1;
-  --kiln-color-success: #1d7044;
-  --kiln-color-warning: #835500;
-  --kiln-color-danger: #b3261e;
+  --kiln-color-surface: var(--kiln-zinc-50);
+  --kiln-color-surface-sunken: var(--kiln-zinc-100);
+  --kiln-color-surface-raised: var(--kiln-zinc-0);
+  --kiln-color-surface-overlay: var(--kiln-zinc-0);
+  --kiln-color-surface-hover: var(--kiln-zinc-150);
+  --kiln-color-surface-pressed: var(--kiln-zinc-200);
+  --kiln-color-surface-selected: var(--kiln-ember-tint-light);
+  --kiln-color-on-surface: var(--kiln-zinc-900);
+  --kiln-color-on-surface-muted: var(--kiln-zinc-650);
+  --kiln-color-primary: var(--kiln-ember-700);
+  --kiln-color-primary-hover: var(--kiln-ember-800);
+  --kiln-color-on-primary: var(--kiln-zinc-0);
+  --kiln-color-on-selected: var(--kiln-ember-800);
+  --kiln-color-outline: var(--kiln-zinc-500);
+  --kiln-color-outline-variant: var(--kiln-zinc-200);
+  --kiln-color-success: var(--kiln-green-800);
+  --kiln-color-warning: var(--kiln-amber-800);
+  --kiln-color-danger: var(--kiln-red-700);
+  --kiln-color-info: var(--kiln-sky-700);
+  --kiln-color-focus: var(--kiln-blue-600);
+  --kiln-color-tooltip: var(--kiln-zinc-900);
+  --kiln-color-on-tooltip: var(--kiln-zinc-50);
+  --kiln-color-scrim: rgb(24 24 27 / 45%);
+  --kiln-color-checker-a: var(--kiln-zinc-0);
+  --kiln-color-checker-b: var(--kiln-zinc-150);
+  --kiln-shadow-1: 0 1px 2px rgb(24 24 27 / 8%);
+  --kiln-shadow-2: 0 4px 16px rgb(24 24 27 / 10%), 0 0 0 1px rgb(24 24 27 / 6%);
+  --kiln-shadow-3: 0 16px 48px rgb(24 24 27 / 18%), 0 0 0 1px rgb(24 24 27 / 8%);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --kiln-duration-fast: 0ms;
     --kiln-duration-base: 0ms;
+    --kiln-duration-slow: 0ms;
     --kiln-duration-pulse: 0ms;
   }
 }

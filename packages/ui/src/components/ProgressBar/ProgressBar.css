@@ -2,7 +2,7 @@
   overflow: hidden;
   inline-size: 100%;
   block-size: var(--kiln-space-1);
-  background-color: var(--kiln-color-outline);
+  background-color: var(--kiln-color-surface-pressed);
   border-radius: var(--kiln-radius-full);
 }
 
@@ -11,4 +11,14 @@
   background-color: var(--kiln-color-primary);
   border-radius: inherit;
   transition: inline-size var(--kiln-duration-base) var(--kiln-ease-standard);
+}
+
+@media (forced-colors: active) {
+  .progress-bar {
+    border: var(--kiln-border-hairline) solid CanvasText;
+  }
+
+  .progress-bar__fill {
+    background-color: currentcolor;
+  }
 }

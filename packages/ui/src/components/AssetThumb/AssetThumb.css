@@ -1,11 +1,23 @@
+/* A 4:3 well; transparent pixels show over a checkerboard, as in image editors. */
 .asset-thumb {
   display: grid;
   place-items: center;
   overflow: hidden;
   inline-size: 100%;
-  aspect-ratio: 1;
-  background-color: var(--kiln-color-surface);
-  border-radius: var(--kiln-radius-md);
+  aspect-ratio: 4 / 3;
+  background-color: var(--kiln-color-checker-a);
+  background-image: conic-gradient(
+    var(--kiln-color-checker-b) 25%,
+    transparent 0 50%,
+    var(--kiln-color-checker-b) 0 75%,
+    transparent 0
+  );
+  background-size: var(--kiln-checker-size) var(--kiln-checker-size);
+}
+
+.asset-thumb--empty {
+  background-color: var(--kiln-color-surface-sunken);
+  background-image: none;
 }
 
 .asset-thumb__image {
@@ -16,6 +28,10 @@
 }
 
 .asset-thumb__placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  align-items: center;
   font-size: var(--kiln-text-sm);
   color: var(--kiln-color-on-surface-muted);
 }

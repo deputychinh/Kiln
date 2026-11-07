@@ -1,13 +1,13 @@
 .skeleton {
-  background-color: var(--kiln-color-surface-raised);
+  background-color: var(--kiln-color-surface-hover);
   border-radius: var(--kiln-radius-sm);
   animation: skeleton-pulse var(--kiln-duration-pulse) var(--kiln-ease-standard) infinite alternate;
 }
 
 .skeleton--tile {
   inline-size: 100%;
-  aspect-ratio: 1;
-  border-radius: var(--kiln-radius-md);
+  aspect-ratio: 4 / 3;
+  border-radius: var(--kiln-radius-lg);
 }
 
 .skeleton--line {
@@ -15,8 +15,38 @@
   block-size: 1em;
 }
 
+.skeleton--card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  overflow: hidden;
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+  padding-block-end: var(--kiln-space-3);
+}
+
+.skeleton__tile {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background-color: var(--kiln-color-surface-hover);
+}
+
+.skeleton__line {
+  display: block;
+  inline-size: 70%;
+  block-size: var(--kiln-space-3);
+  margin-inline: var(--kiln-space-3);
+  background-color: var(--kiln-color-surface-hover);
+  border-radius: var(--kiln-radius-sm);
+}
+
+.skeleton__line--short {
+  inline-size: 40%;
+}
+
 @keyframes skeleton-pulse {
   to {
-    opacity: 0.5;
+    opacity: 0.55;
   }
 }

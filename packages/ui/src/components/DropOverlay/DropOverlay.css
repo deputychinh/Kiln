@@ -1,0 +1,91 @@
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--kiln-z-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+  padding: var(--kiln-space-5);
+  background-color: var(--kiln-color-scrim);
+  animation: drop-overlay-in var(--kiln-duration-base) var(--kiln-ease-enter);
+  backdrop-filter: blur(4px);
+}
+
+.drop-overlay__title {
+  align-self: center;
+  margin: 0;
+  padding: var(--kiln-space-1) var(--kiln-space-4);
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-semibold);
+  color: var(--kiln-color-on-tooltip);
+  background-color: var(--kiln-color-tooltip);
+  border-radius: var(--kiln-radius-full);
+}
+
+.drop-overlay__targets {
+  display: grid;
+  flex: 1;
+  gap: var(--kiln-space-4);
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+}
+
+.drop-overlay__target {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  justify-content: center;
+  padding: var(--kiln-space-5);
+  text-align: center;
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-focus) dashed var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-xl);
+  box-shadow: var(--kiln-shadow-3);
+  transition:
+    border-color var(--kiln-duration-fast) var(--kiln-ease-standard),
+    background-color var(--kiln-duration-fast) var(--kiln-ease-standard);
+}
+
+.drop-overlay__target--active {
+  background-color: var(--kiln-color-surface-selected);
+  border-color: var(--kiln-color-primary);
+}
+
+.drop-overlay__icon {
+  display: inline-flex;
+  inline-size: var(--kiln-icon-lg);
+  block-size: var(--kiln-icon-lg);
+  color: var(--kiln-color-primary);
+  pointer-events: none;
+}
+
+.drop-overlay__label {
+  font-size: var(--kiln-text-lg);
+  font-weight: var(--kiln-weight-semibold);
+  pointer-events: none;
+}
+
+.drop-overlay__hint {
+  max-inline-size: var(--kiln-measure);
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+  pointer-events: none;
+}
+
+@media (min-width: 600px) {
+  .drop-overlay {
+    padding: var(--kiln-space-7);
+  }
+
+  .drop-overlay__targets {
+    grid-auto-flow: column;
+  }
+}
+
+@keyframes drop-overlay-in {
+  from {
+    opacity: 0;
+  }
+}

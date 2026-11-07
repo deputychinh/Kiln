@@ -1,5 +1,6 @@
 import type { Decorator, Preview } from '@storybook/react-vite';
 
+import '@fontsource-variable/inter/wght.css';
 import '#ui/tokens/tokens.css';
 import './preview.css';
 
