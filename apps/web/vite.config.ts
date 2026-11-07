@@ -2,12 +2,19 @@ import { fileURLToPath } from 'node:url';
 
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
+import type { ProxyOptions } from 'vite';
 import { defineConfig } from 'vitest/config';
+
+import { forwardRealPeer } from './src/config/api-proxy';
 
 // The browser calls `/api/v1/…` on the app's own origin; both servers forward it to the API, so
 // the session cookie is first-party (KILN-12). Deployments put the same path behind one origin.
-const apiProxy = {
-  '/api': { target: process.env.KILN_API_PROXY_TARGET ?? 'http://127.0.0.1:8000' },
+// The browser's own forwarding headers are dropped; the API sees this hop's real peer.
+const apiProxy: Record<string, ProxyOptions> = {
+  '/api': {
+    target: process.env.KILN_API_PROXY_TARGET ?? 'http://127.0.0.1:8000',
+    configure: (proxy) => proxy.on('proxyReq', forwardRealPeer),
+  },
 };
 
 export default defineConfig({
