@@ -23,7 +23,8 @@ ALLOWED_TRANSITIONS: dict[VersionStatus, frozenset[VersionStatus]] = {
     VersionStatus.PENDING_UPLOAD: frozenset({VersionStatus.PROCESSING, VersionStatus.FAILED}),
     VersionStatus.PROCESSING: frozenset({VersionStatus.READY, VersionStatus.FAILED}),
     VersionStatus.FAILED: frozenset({VersionStatus.PROCESSING}),
-    VersionStatus.READY: frozenset(),
+    # A ready file the worker's current rules refuse is failed by `make recheck-models` (KILN-36).
+    VersionStatus.READY: frozenset({VersionStatus.FAILED}),
 }
 PAGE_LIMIT_MIN = 1
 PAGE_LIMIT_MAX = 100

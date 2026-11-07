@@ -149,6 +149,10 @@ class AssetRepository(Protocol):
         """Make a ready `version` the asset's cover unless a newer version already is."""
         ...
 
+    def drop_cover(self, version: AssetVersion) -> None:
+        """If `version` is the cover, the newest other ready version becomes it (or none)."""
+        ...
+
 
 @dataclass(frozen=True, slots=True)
 class IdempotentResult:
@@ -252,4 +256,8 @@ class MaintenanceStore(Protocol):
         self, *, older_than: timedelta, limit: int, now: datetime | None = None
     ) -> list[UUID]:
         """Ids of versions still waiting for their upload after `older_than`, oldest first."""
+        ...
+
+    def ready_model_versions(self, *, after: UUID | None, limit: int) -> list[UUID]:
+        """Ids of ready versions of model assets after `after`, by id (KILN-36 re-check)."""
         ...

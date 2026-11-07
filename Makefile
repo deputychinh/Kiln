@@ -1,6 +1,6 @@
 # Kiln — one command per task. `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install lint format test e2e e2e-ui ci up down api worker web storybook build migrate openapi blender-zip
+.PHONY: help install lint format test e2e e2e-ui ci up down api worker recheck-models web storybook build migrate openapi blender-zip
 SHELL := /bin/bash
 API_PORT ?= 8000
 WEB_PORT ?= 5173
@@ -25,6 +25,9 @@ api: ## Run the API with reload on :$(API_PORT)
 
 worker: ## Run the asset worker
 	uv run --package kiln-worker python -m kiln_worker
+
+recheck-models: ## Re-check every ready model under the current rules (KILN-36; safe to repeat)
+	uv run --package kiln-worker python -m kiln_worker.recheck
 
 web: ## Run the web app in development on :$(WEB_PORT)
 	npm run dev --workspace apps/web

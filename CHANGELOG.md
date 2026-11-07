@@ -14,6 +14,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 ### Fixed
 
 - The worker's model reader checks the whole node graph, not only the default scene (KILN-36): a node with two parents (a DAG) or in a cycle anywhere in the file — a second scene, or no scene at all — a scene listing a node twice or listing a child, and chains deeper than 64 in any scene are refused as `UNREADABLE_MODEL`, so such a file is never marked ready (the 3D viewer refused it). Linear in the number of nodes.
+- `make recheck-models` (`python -m kiln_worker.recheck`, KILN-36, ADR 0011) re-checks every ready model version with the worker's current sandboxed reader: one it now refuses becomes `failed` (`UNREADABLE_MODEL` or `MODEL_TOO_LARGE`) and the asset's cover falls back to the newest other ready version. Writes are compare-and-set on `ready`, so it is safe to repeat and to run next to workers; versions whose file changed or vanished stay ready and are counted as skipped; only counts are logged. The life cycle now allows `ready → failed` for this.
 - A processing asset is polled once, not twice, when its upload and its detail are both open: the upload queue reads the detail's cached answer (KILN-34).
 - The local web app on `http://localhost:5173` (the URL `make web` prints) could not reach the API: the default CORS allow-list now has `localhost` next to `127.0.0.1` for the dev and preview ports.
 

@@ -19,7 +19,7 @@ make worker    # previews and maintenance (own terminal)
 make web       # web app on http://localhost:5173 (own terminal)
 ```
 
-`make help` lists every command.
+`make help` lists every command. After an upgrade that tightens the model rules, run `make recheck-models` once: it re-reads every ready `.glb` with the current checks and fails the ones they refuse (safe to repeat and to run next to workers; ADR 0011).
 
 ## Features by release
 

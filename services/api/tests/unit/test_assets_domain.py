@@ -244,6 +244,7 @@ _EXPECTED_ALLOWED = {
     (VersionStatus.PROCESSING, VersionStatus.READY),
     (VersionStatus.PROCESSING, VersionStatus.FAILED),
     (VersionStatus.FAILED, VersionStatus.PROCESSING),
+    (VersionStatus.READY, VersionStatus.FAILED),  # a re-check under stricter rules (KILN-36)
 }
 _FORBIDDEN = sorted(
     (start, target)

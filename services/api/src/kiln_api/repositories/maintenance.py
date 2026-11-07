@@ -1,4 +1,4 @@
-"""Postgres side of scheduled maintenance (KILN-22): the run lease and the stale-upload query."""
+"""Postgres side of maintenance: the run lease, stale uploads (KILN-22), ready models (KILN-36)."""
 
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import Engine, func, select
 from sqlalchemy.dialects.postgresql import insert
 
-from kiln_api.db.schema import asset_versions, maintenance_runs
-from kiln_api.enums import VersionStatus
+from kiln_api.db.schema import asset_versions, assets, maintenance_runs
+from kiln_api.enums import AssetKind, VersionStatus
 
 
 class SqlMaintenanceStore:
@@ -50,5 +50,26 @@ class SqlMaintenanceStore:
             .order_by(asset_versions.c.created_at)
             .limit(limit)
         )
+        with self._engine.connect() as connection:
+            return list(connection.execute(query).scalars())
+
+    def ready_model_versions(self, *, after: UUID | None, limit: int) -> list[UUID]:
+        """Ids of ready versions of model assets after `after`, in id order (keyset pages).
+
+        A one-off re-check walks them all; the primary key orders the walk, so versions failed
+        by the walk itself never shift a page.
+        """
+        query = (
+            select(asset_versions.c.id)
+            .join(assets, assets.c.id == asset_versions.c.asset_id)
+            .where(
+                asset_versions.c.status == VersionStatus.READY.value,
+                assets.c.kind == AssetKind.MODEL.value,
+            )
+            .order_by(asset_versions.c.id)
+            .limit(limit)
+        )
+        if after is not None:
+            query = query.where(asset_versions.c.id > after)
         with self._engine.connect() as connection:
             return list(connection.execute(query).scalars())

@@ -91,5 +91,7 @@ MODEL_SANDBOX_MEMORY_BYTES = 2 * 1024 * 1024 * 1024  # address space; enforced o
 # The child also limits itself (it may outlive a parent killed mid-render): CPU seconds; it
 # checks that the worker is alive every PARENT_CHECK_SECONDS.
 MODEL_SANDBOX_CPU_SECONDS = 65
+# `make recheck-models` (KILN-36) reads ready model versions this many at a time.
+RECHECK_BATCH_SIZE = 100
 # Temporary model folders older than this are leftovers of a killed worker.
 MODEL_SANDBOX_STALE_SECONDS = 15 * 60
