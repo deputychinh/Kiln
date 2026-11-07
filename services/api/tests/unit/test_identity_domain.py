@@ -14,6 +14,7 @@ from kiln_api.domain.identity import (
     new_access_token,
     new_session,
     normalize_email,
+    normalize_password,
     secret_hash,
 )
 from kiln_api.domain.ids import uuid7
@@ -172,3 +173,18 @@ def test_strings_not_shaped_like_a_token_are_recognised_without_a_lookup(value: 
 def test_throttling_counts_an_account_whatever_the_case_of_the_email() -> None:
     assert account_key(" Ada@Studio.com") == account_key("ada@studio.com")
     assert account_key("ada@studio.com") != account_key("bob@studio.com")
+
+
+def test_a_password_is_nfkc_normalised_so_composed_and_decomposed_forms_match() -> None:
+    composed, decomposed = "caf\u00e9 au lait 42", "cafe\u0301 au lait 42"
+
+    assert composed != decomposed
+    assert normalize_password(composed) == normalize_password(decomposed) == composed
+    assert normalize_password("\uff21\uff22") == "AB"  # compatibility forms fold too
+
+
+def test_the_length_rule_counts_the_normalised_password() -> None:
+    check_new_password("e\u0301" * 12)  # 24 code points, 12 after NFKC
+
+    with pytest.raises(WeakPasswordError):
+        check_new_password("e\u0301" * 11)  # 22 code points, 11 after NFKC

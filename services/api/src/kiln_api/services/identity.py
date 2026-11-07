@@ -30,6 +30,7 @@ from kiln_api.domain.identity import (
     new_access_token,
     new_session,
     normalize_email,
+    normalize_password,
     secret_hash,
     session_principal,
     token_principal,
@@ -99,7 +100,7 @@ class IdentityService:
             id=self._new_id(),
             email=normalize_email(email),
             display_name=clean_display_name(display_name),
-            password_hash=self._hasher.hash(password),
+            password_hash=self._hasher.hash(normalize_password(password)),
             created_at=now,
             updated_at=now,
         )
@@ -127,6 +128,7 @@ class IdentityService:
         # attempts can never check more passwords than the limits (review V2).
         self._reserve_attempt(key, client_ip, now)
         user = self._user_for(email)
+        password = normalize_password(password)
         password_ok = self._hasher.verify(
             self._dummy_hash if user is None else user.password_hash, password
         )

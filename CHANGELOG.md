@@ -27,6 +27,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Fixed
 
+- Passwords are NFKC-normalised when created and at sign-in, so a composed and a decomposed "é" are the same password (NIST SP 800-63B; KILN-12 review).
+
 - Migrations wait at most 5 s for a lock (and 10 min per statement), so DDL never queues writers behind it; the owner and uploader foreign keys are added `NOT VALID` and validated separately; migration 0008 indexes `sessions.last_seen_at` for the idle purge (KILN-12 review).
 
 - Parallel sign-ins could check more passwords than the throttle allows (27 for a limit of 10, KILN-12 review): each attempt is now reserved under per-account and per-IP advisory locks before its password is checked.

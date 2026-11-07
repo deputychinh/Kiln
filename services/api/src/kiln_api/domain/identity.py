@@ -3,6 +3,7 @@
 import hashlib
 import re
 import secrets
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -114,9 +115,17 @@ def clean_display_name(raw: str) -> str:
     return name
 
 
+def normalize_password(password: str) -> str:
+    """NFKC (NIST SP 800-63B 5.1.1.2), so "é" typed as one or two code points is one password."""
+    return unicodedata.normalize("NFKC", password)
+
+
 def check_new_password(password: str) -> None:
-    """Length only (ASVS V6.2): no composition rules, all characters allowed, never trimmed."""
-    if not PASSWORD_MIN_LENGTH <= len(password) <= PASSWORD_MAX_LENGTH:
+    """Length only (ASVS V6.2): no composition rules, all characters allowed, never trimmed.
+
+    Counted after NFKC normalisation, as it is stored.
+    """
+    if not PASSWORD_MIN_LENGTH <= len(normalize_password(password)) <= PASSWORD_MAX_LENGTH:
         raise WeakPasswordError
 
 
