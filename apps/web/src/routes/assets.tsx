@@ -6,6 +6,7 @@ import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
 import { AssetGallery } from '@/features/assets/components/AssetGallery';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { parseGallerySearch } from '@/utils/gallery.util';
 
 const AssetsLayout = (): ReactElement => {
   const copy = useCopy();
@@ -32,4 +33,8 @@ const AssetsLayout = (): ReactElement => {
   );
 };
 
-export const Route = createFileRoute('/assets')({ component: AssetsLayout });
+/** The gallery's kind filter, sort and card size live in the URL; the detail keeps them. */
+export const Route = createFileRoute('/assets')({
+  validateSearch: parseGallerySearch,
+  component: AssetsLayout,
+});

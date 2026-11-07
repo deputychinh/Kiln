@@ -7,11 +7,54 @@
 .asset-gallery__title {
   margin: 0;
   font-size: var(--kiln-text-xl);
+  font-weight: var(--kiln-weight-semibold);
+  letter-spacing: var(--kiln-tracking-title);
 }
 
+.asset-gallery__count {
+  padding: 0 var(--kiln-space-2);
+  font-size: var(--kiln-text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--kiln-color-on-surface-muted);
+  background-color: var(--kiln-color-surface-hover);
+  border-radius: var(--kiln-radius-full);
+}
+
+.asset-gallery__sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.asset-gallery__sort-icon {
+  position: absolute;
+  color: var(--kiln-color-on-surface-muted);
+  inset-inline-start: var(--kiln-space-3);
+  pointer-events: none;
+}
+
+.asset-gallery__select {
+  min-block-size: var(--kiln-target-control);
+  padding: 0 var(--kiln-space-3) 0 var(--kiln-space-7);
+  font-family: var(--kiln-font-sans);
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+}
+
+.asset-gallery__select:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+/* Two columns on a phone; the list pane's width (not the viewport) decides from there. */
 .asset-gallery__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(160px, 40%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min-compact), 1fr));
   gap: var(--kiln-space-3);
   margin: 0;
   padding: 0;
@@ -25,4 +68,16 @@
 .asset-gallery__more {
   display: flex;
   justify-content: center;
+}
+
+@container (min-width: 600px) {
+  .asset-gallery__grid {
+    grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min), 1fr));
+    gap: var(--kiln-space-4);
+  }
+
+  .asset-gallery__grid--small {
+    grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min-compact), 1fr));
+    gap: var(--kiln-space-3);
+  }
 }

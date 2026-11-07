@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { anAsset, countRequests, fakeApi, json, problem, urlOf } from '@/test/fake-api';
+import { fileInputOf } from '@/test/file-input';
 import { renderApp } from '@/test/render-app';
 
 const LIST = '/api/v1/assets?limit=24';
@@ -57,23 +58,27 @@ describe('AssetGallery', () => {
     expect(list.querySelectorAll('img')).toHaveLength(1);
   });
 
-  it('says what to do when there are no assets', async () => {
+  it('says what to do when there are no assets, with an Upload button', async () => {
     fakeApi({ [LIST]: [json({ items: [], next_cursor: null })] });
 
     renderApp('/assets');
 
     expect(await screen.findByRole('heading', { name: 'No assets yet' })).toBeInTheDocument();
-    expect(screen.getByText(/Drop an image or a glTF model/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Choose files' })).toBeInTheDocument();
+    expect(screen.getByText(/drop files anywhere on this page/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload files' })).toBeInTheDocument();
   });
 
-  it('offers no upload while the first page loads', async () => {
+  it('shows card placeholders while the first page loads, and Upload stays in the top bar', async () => {
     vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => undefined));
 
     renderApp('/assets');
 
-    expect(await screen.findByRole('status')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Choose files' })).not.toBeInTheDocument();
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent('Loading assets…');
+    expect(status.querySelectorAll('.skeleton--card')).toHaveLength(8);
+    expect(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Upload' }),
+    ).toBeInTheDocument();
   });
 
   it('keeps the upload list when the gallery goes from empty to a list', async () => {
@@ -81,10 +86,10 @@ describe('AssetGallery', () => {
       [LIST]: [json({ items: [], next_cursor: null }), json({ items: [rock], next_cursor: null })],
     });
     const { queryClient } = renderApp('/assets');
-    const input = (
-      await screen.findByRole('group', { name: 'Drop images or .glb files here' })
-    ).querySelector<HTMLInputElement>('input[type="file"]');
-    if (!input) throw new Error('The dropzone has no file input');
+    await screen.findByRole('heading', { name: 'No assets yet' });
+    const input = fileInputOf(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Upload' }),
+    );
 
     await userEvent.upload(input, new File(['x'], 'notes.txt', { type: 'text/plain' }), {
       applyAccept: false,
@@ -95,7 +100,9 @@ describe('AssetGallery', () => {
 
     await queryClient.invalidateQueries();
     expect(await screen.findByRole('list', { name: 'Assets' })).toBeInTheDocument();
-    expect(screen.getByText('notes.txt')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('list', { name: 'Uploads' })).getByText('notes.txt'),
+    ).toBeInTheDocument();
   });
 
   it('shows the problem title with a retry that fetches again', async () => {
@@ -279,5 +286,108 @@ describe('AssetGallery', () => {
     expect(countRequests(fetchMock, LIST)).toBe(1);
     focusManager.setFocused(undefined);
     vi.useRealTimers();
+  });
+
+  it('shows the count, filters by kind in the URL and says how many of the loaded assets show', async () => {
+    fakeApi({ [LIST]: [json({ items: [rock, tree], next_cursor: 'c1' })] });
+    const { router } = renderApp('/assets');
+    await screen.findByRole('list', { name: 'Assets' });
+    const options = screen.getByRole('group', { name: 'Gallery options' });
+    expect(within(options).getByText('2 loaded')).toBeInTheDocument();
+    expect(within(options).getByRole('radio', { name: 'All' })).toBeChecked();
+
+    await userEvent.click(within(options).getByRole('radio', { name: 'Models' }));
+
+    await waitFor(() => expect(router.state.location.search).toEqual({ kind: 'model' }));
+    const list = screen.getByRole('list', { name: 'Assets' });
+    expect(
+      within(list)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([expect.stringContaining('tree_oak')]);
+    expect(within(options).getByText('1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 2 loaded assets')).toBeInTheDocument();
+    // The open asset keeps the gallery's view: the card's link carries the filter.
+    expect(within(list).getByRole('link', { name: /tree_oak/ })).toHaveAttribute(
+      'href',
+      `/assets/${tree.id}?kind=model`,
+    );
+  });
+
+  it('says when no loaded asset is of the chosen kind, and shows every kind again', async () => {
+    fakeApi({ [LIST]: [json({ items: [rock], next_cursor: null })] });
+    const { router } = renderApp('/assets?kind=model');
+
+    expect(await screen.findByRole('heading', { name: 'No models loaded' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show all kinds' }));
+
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole('link', { name: /rock_albedo/ })).toBeInTheDocument();
+  });
+
+  it('sorts the loaded assets by name and switches to small cards, both in the URL', async () => {
+    const apple = anAsset({ id: '0190f1c2-0000-7000-8000-000000000009', name: 'apple_prop' });
+    fakeApi({ [LIST]: [json({ items: [rock, tree, apple], next_cursor: null })] });
+    const { router } = renderApp('/assets');
+    await screen.findByRole('list', { name: 'Assets' });
+    const options = screen.getByRole('group', { name: 'Gallery options' });
+
+    await userEvent.selectOptions(
+      within(options).getByRole('combobox', { name: 'Sort' }),
+      'Name (A–Z)',
+    );
+    await userEvent.click(within(options).getByRole('radio', { name: 'Small cards' }));
+
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ sort: 'name', size: 'small' }),
+    );
+    const list = screen.getByRole('list', { name: 'Assets' });
+    expect(list).toHaveClass('asset-gallery__grid--small');
+    expect(
+      within(list)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('data-asset-id')),
+    ).toEqual([apple.id, rock.id, tree.id]);
+  });
+
+  it('ignores unknown view options in the URL', async () => {
+    fakeApi({ [LIST]: [json({ items: [rock, tree], next_cursor: null })] });
+
+    renderApp('/assets?kind=video&size=huge&sort=random');
+
+    const list = await screen.findByRole('list', { name: 'Assets' });
+    expect(within(list).getAllByRole('link')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: 'All' })).toBeChecked();
+  });
+
+  it('names each card in full while a long name is cut in the middle', async () => {
+    const long = anAsset({
+      id: '0190f1c2-0000-7000-8000-000000000010',
+      name: 'sunset_matte_painting_background_v3_final',
+    });
+    fakeApi({ [LIST]: [json({ items: [long], next_cursor: null })] });
+
+    renderApp('/assets');
+
+    const card = await screen.findByRole('link', {
+      name: /sunset_matte_painting_background_v3_final/,
+    });
+    expect(card.querySelector('.asset-card__name-tail')).toHaveTextContent('v3_final');
+    expect(within(card).getByRole('tooltip', { hidden: true })).toHaveTextContent(long.name);
+  });
+
+  it('offers View in 3D on a model card with a preview, not on an image or a model without one', async () => {
+    const crate = anAsset({
+      id: '0190f1c2-0000-7000-8000-000000000011',
+      name: 'crate',
+      kind: 'model',
+    });
+    fakeApi({ [LIST]: [json({ items: [rock, tree, crate], next_cursor: null })] });
+
+    renderApp('/assets');
+
+    const view = await screen.findByRole('link', { name: 'View crate in 3D' });
+    expect(view).toHaveAttribute('href', `/assets/${crate.id}/view`);
+    expect(screen.getAllByRole('link', { name: /in 3D/ })).toHaveLength(1);
   });
 });

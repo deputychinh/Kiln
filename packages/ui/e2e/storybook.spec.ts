@@ -127,6 +127,7 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
       'isMultiple',
       'onFiles',
       'ref',
+      'id',
     ],
   },
   'components-iconbutton--docs': {

@@ -49,3 +49,8 @@ export const UPLOAD_STALL_MS = 60_000;
 export const UPLOAD_API_TIMEOUT_MS = 30_000;
 /** The `code` of an `ApiError` for a stalled transfer or a timed-out API call. */
 export const UPLOAD_STALLED_CODE = 'UPLOAD_STALLED';
+/** The top bar's Upload button: where focus returns when the upload tray empties. */
+export const UPLOAD_BUTTON_ID = 'kiln-upload-button';
+/** The drop overlay's targets: new assets, or new versions of the open asset. */
+export const NEW_ASSETS_DROP_TARGET = 'assets';
+export const VERSION_DROP_TARGET = 'version';

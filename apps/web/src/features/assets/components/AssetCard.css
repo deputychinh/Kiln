@@ -1,43 +1,131 @@
 .asset-card {
+  position: relative;
+  min-inline-size: 0;
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+  transition:
+    border-color var(--kiln-duration-fast) var(--kiln-ease-standard),
+    background-color var(--kiln-duration-fast) var(--kiln-ease-standard);
+}
+
+/* The open asset: an accent ring and tint, not colour alone (the link is `aria-current`). */
+.asset-card:has([aria-current='page']) {
+  background-color: var(--kiln-color-surface-selected);
+  border-color: var(--kiln-color-primary);
+  outline: var(--kiln-border-hairline) solid var(--kiln-color-primary);
+}
+
+.asset-card__link {
   display: flex;
   flex-direction: column;
-  gap: var(--kiln-space-2);
-  padding: var(--kiln-space-2);
   text-decoration: none;
   color: inherit;
-  background-color: var(--kiln-color-surface-raised);
-  border: 1px solid transparent;
   border-radius: var(--kiln-radius-lg);
-  transition: border-color var(--kiln-duration-fast) var(--kiln-ease-standard);
 }
 
-.asset-card:hover {
-  border-color: var(--kiln-color-outline);
+.asset-card__link:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
 }
 
-.asset-card:focus-visible {
-  outline: 2px solid var(--kiln-color-focus);
-  outline-offset: 2px;
-}
-
-.asset-card[aria-current='page'] {
-  border-color: var(--kiln-color-primary);
-}
-
-.asset-card__name {
+/* Edge to edge: the preview fills the card's top, clipped to its corners. */
+.asset-card__preview {
+  position: relative;
+  display: block;
   overflow: hidden;
-  padding-inline: var(--kiln-space-1);
+  border-radius: var(--kiln-radius-lg) var(--kiln-radius-lg) 0 0;
+}
+
+.asset-card__open,
+.asset-card__action {
+  display: inline-flex;
+  gap: var(--kiln-space-1);
+  align-items: center;
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-2);
+  font-size: var(--kiln-text-xs);
+  font-weight: var(--kiln-weight-semibold);
+  text-decoration: none;
+  color: var(--kiln-color-on-media);
+  background-color: var(--kiln-color-media-scrim);
+  border-radius: var(--kiln-radius-full);
+  transition: opacity var(--kiln-duration-fast) var(--kiln-ease-standard);
+  backdrop-filter: blur(6px);
+}
+
+.asset-card__open {
+  position: absolute;
+  inset: auto auto var(--kiln-space-2) var(--kiln-space-2);
+  opacity: 0;
+}
+
+.asset-card__action {
+  position: absolute;
+  inset: var(--kiln-space-2) var(--kiln-space-2) auto auto;
+  z-index: var(--kiln-z-raised);
+}
+
+.asset-card__action:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+  opacity: 1;
+}
+
+.asset-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-1);
+  padding: var(--kiln-space-2) var(--kiln-space-3) var(--kiln-space-3);
+}
+
+/* Middle ellipsis: the head shrinks, the tail (version, extension) always shows. */
+.asset-card__name {
+  display: flex;
+  min-inline-size: 0;
+  font-size: var(--kiln-text-ui);
   font-weight: var(--kiln-weight-medium);
+  line-height: var(--kiln-leading-normal);
   white-space: nowrap;
+}
+
+.asset-card__name-head {
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.asset-card__name-tail {
+  flex-shrink: 0;
 }
 
 .asset-card__meta {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--kiln-space-2);
   align-items: center;
-  padding-inline: var(--kiln-space-1);
+  justify-content: space-between;
+  min-inline-size: 0;
   font-size: var(--kiln-text-xs);
+  white-space: nowrap;
   color: var(--kiln-color-on-surface-muted);
+}
+
+.asset-card__kind {
+  display: inline-flex;
+  gap: var(--kiln-space-1);
+  align-items: center;
+}
+
+@media (hover: hover) {
+  .asset-card:hover {
+    border-color: var(--kiln-color-outline);
+  }
+
+  .asset-card:hover .asset-card__open,
+  .asset-card:focus-within .asset-card__open {
+    opacity: 1;
+  }
+
+  .asset-card:not(:hover, :focus-within) .asset-card__action {
+    opacity: 0;
+  }
 }

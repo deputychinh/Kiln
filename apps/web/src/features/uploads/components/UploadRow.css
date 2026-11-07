@@ -8,20 +8,32 @@
     'error error';
   gap: var(--kiln-space-1) var(--kiln-space-3);
   align-items: center;
-  padding: var(--kiln-space-2) 0;
-  border-block-end: 1px solid var(--kiln-color-outline);
+  padding: var(--kiln-space-3) 0;
+  border-block-end: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+}
+
+.upload-row:last-child {
+  border-block-end: 0;
 }
 
 .upload-row__name {
   overflow: hidden;
-  font-size: var(--kiln-text-sm);
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-medium);
   white-space: nowrap;
   grid-area: name;
   text-overflow: ellipsis;
 }
 
 .upload-row__link {
+  text-underline-offset: 3px;
   color: inherit;
+}
+
+.upload-row__link:focus-visible {
+  border-radius: var(--kiln-radius-sm);
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
 }
 
 .upload-row__state {
@@ -48,12 +60,12 @@
 
 .upload-row__actions {
   display: flex;
-  gap: var(--kiln-space-2);
+  gap: var(--kiln-space-1);
   grid-area: actions;
 }
 
-/* Wide panes: name, state and progress on one line. */
-@container upload-panel (min-width: 600px) {
+/* Wide lists: name, state and progress on one line. */
+@container upload-list (min-width: 600px) {
   .upload-row {
     grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) auto;
     grid-template-areas:

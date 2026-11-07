@@ -154,8 +154,8 @@
   --kiln-shell-bottom-nav: 64px;
   --kiln-shell-inspector: 400px;
   --kiln-tray-width: 380px;
-  --kiln-card-min: 200px;
-  --kiln-card-min-compact: 148px;
+  --kiln-card-min: 168px;
+  --kiln-card-min-compact: 132px;
   --kiln-measure: 65ch;
 }
 

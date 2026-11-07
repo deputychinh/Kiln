@@ -2,17 +2,4 @@
   display: flex;
   flex-direction: column;
   gap: var(--kiln-space-2);
-  container: upload-panel / inline-size;
-}
-
-.upload-panel__summary {
-  margin: 0;
-  font-size: var(--kiln-text-sm);
-  color: var(--kiln-color-on-surface-muted);
-}
-
-.upload-panel__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }

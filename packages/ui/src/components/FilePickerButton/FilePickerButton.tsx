@@ -22,6 +22,8 @@ interface FilePickerButtonProps {
   onFiles: (files: File[]) => void;
   /** The button, e.g. to move focus back to it. */
   ref?: Ref<HTMLButtonElement> | undefined;
+  /** The button's id, for a part of the page that hands focus back to it. */
+  id?: string;
 }
 
 /** A button that opens the system file picker: the keyboard and touch path to every file drop. */
@@ -34,12 +36,14 @@ export const FilePickerButton = ({
   isMultiple = true,
   onFiles,
   ref,
+  id,
 }: FilePickerButtonProps): ReactElement => {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <span className="file-picker-button">
       <Button
         ref={ref}
+        id={id}
         variant={variant}
         icon={icon}
         aria-label={accessibleName}

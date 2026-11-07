@@ -1,3 +1,5 @@
+import type { CardSize } from '@/enums/card-size.enum';
+import type { GallerySort } from '@/enums/gallery-sort.enum';
 import type { UploadRejection } from '@/enums/upload-rejection.enum';
 import type { UploadStatus } from '@/enums/upload-status.enum';
 import type { ViewerError } from '@/enums/viewer-error.enum';
@@ -22,6 +24,21 @@ export interface Copy {
     title: string;
     loading: string;
     shown: (count: number) => string;
+    shownFiltered: (visible: number, loaded: number) => string;
+    count: (loaded: number, hasMore: boolean) => string;
+    countFiltered: (visible: number, loaded: number) => string;
+    optionsLabel: string;
+    kindFilterLabel: string;
+    kindFilter: { all: string; image: string; model: string };
+    sortLabel: string;
+    sort: Record<GallerySort, string>;
+    sizeLabel: string;
+    size: Record<CardSize, string>;
+    filteredEmptyTitle: Record<AssetKind, string>;
+    filteredEmptyBody: string;
+    showAll: string;
+    open: string;
+    viewIn3d: (name: string) => string;
     emptyTitle: string;
     emptyBody: string;
     loadFailed: string;
@@ -109,6 +126,13 @@ export interface Copy {
   };
   uploads: {
     panelLabel: string;
+    upload: string;
+    uploadFiles: string;
+    trayCollapse: string;
+    trayExpand: string;
+    overlayTitle: string;
+    overlayAssets: string;
+    overlayVersion: (assetName: string) => string;
     dropLabel: string;
     dropHint: string;
     choose: string;

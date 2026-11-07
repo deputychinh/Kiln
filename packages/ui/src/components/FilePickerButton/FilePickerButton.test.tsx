@@ -56,6 +56,7 @@ describe('FilePickerButton', () => {
     render(
       <FilePickerButton
         ref={ref}
+        id="upload-version"
         isMultiple={false}
         accessibleName="Upload a new version of rock"
         variant={ButtonVariant.Secondary}
@@ -67,6 +68,7 @@ describe('FilePickerButton', () => {
 
     const button = screen.getByRole('button', { name: 'Upload a new version of rock' });
     expect(ref.current).toBe(button);
+    expect(button).toHaveAttribute('id', 'upload-version');
     expect(button).toHaveClass('button--secondary');
     expect(inputOf(button)).not.toHaveAttribute('multiple');
   });

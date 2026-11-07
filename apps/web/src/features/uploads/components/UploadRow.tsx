@@ -1,4 +1,4 @@
-import { Badge, BadgeTone, Button, ButtonVariant, ProgressBar } from '@kiln/ui';
+import { BadgeTone, Button, ButtonVariant, ProgressBar, StatusDot } from '@kiln/ui';
 import { Link } from '@tanstack/react-router';
 import { type ReactElement, useEffect, useRef } from 'react';
 
@@ -78,7 +78,12 @@ export const UploadRow = ({ item, onCancel, onRetry, onRemove }: UploadRowProps)
         )}
       </span>
       <span className="upload-row__state">
-        <Badge tone={TONE[item.status] ?? BadgeTone.Neutral}>{statusText}</Badge>
+        <StatusDot
+          tone={TONE[item.status] ?? BadgeTone.Neutral}
+          isActive={WITH_PROGRESS.has(item.status)}
+        >
+          {statusText}
+        </StatusDot>
       </span>
       {WITH_PROGRESS.has(item.status) ? (
         <span className="upload-row__progress">

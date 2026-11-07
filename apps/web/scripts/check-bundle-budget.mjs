@@ -5,8 +5,10 @@ import { gzipSync } from 'node:zlib';
 
 const DIST = new URL('../dist/', import.meta.url);
 const BUDGET = {
-  // Everything index.html loads (entry + its static imports): 116.2 kB at KILN-9.
-  initial: 120_000,
+  // Everything index.html loads (entry + its static imports): 116.2 kB at KILN-9. Raised from
+  // 120 kB at KILN-35: the app shell, the gallery toolbar, the upload tray and drop overlay, tabs
+  // and the lucide icons the first screen shows are first-load UI by nature (about +10 kB).
+  initial: 130_000,
   // The viewer route's own chunk (page, file download, checks): 3.9 kB at KILN-9.
   viewerRoute: 8_000,
   // The lazily loaded scene with three.js and react-three-fiber: 257.4 kB at KILN-9.

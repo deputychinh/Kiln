@@ -1,29 +1,127 @@
-import { Button, ButtonVariant, EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
-import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Button,
+  ButtonVariant,
+  EmptyState,
+  ErrorState,
+  ICON_SIZE,
+  SegmentedControl,
+  Skeleton,
+  SkeletonShape,
+  Toolbar,
+} from '@kiln/ui';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { ArrowDownUp, Box, Grid2x2, Grid3x3, Image, Images } from 'lucide-react';
+import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ASSET_LIST_QUERY_KEY,
   ASSET_PAGE_SIZE,
   THUMB_REFRESH_WINDOW_MS,
 } from '@/constants/assets.constant';
+import { CardSize } from '@/enums/card-size.enum';
+import { GallerySort } from '@/enums/gallery-sort.enum';
 import { AssetCard } from '@/features/assets/components/AssetCard';
 import { useAssetPages } from '@/features/assets/hooks/useAssetPages';
-import { UploadPanel } from '@/features/uploads/components/UploadPanel';
-import { useUploadQueue } from '@/features/uploads/context/UploadsContext';
+import { UploadButton } from '@/features/uploads/components/UploadButton';
 import { useCopy } from '@/hooks/useCopy';
 import { useKeyedThrottle } from '@/hooks/useKeyedThrottle';
+import type { AssetKind } from '@/interfaces/asset.interface';
+import type { GallerySearch } from '@/interfaces/gallery.interface';
 import { describeError } from '@/utils/error.util';
+import { parseGallerySearch, visibleAssets, withOption } from '@/utils/gallery.util';
 
 import './AssetGallery.css';
 
-const SKELETON_TILES = Array.from({ length: ASSET_PAGE_SIZE / 3 }, (_, index) => index);
+const SKELETON_CARDS = Array.from({ length: ASSET_PAGE_SIZE / 3 }, (_, index) => index);
+const ALL_KINDS = 'all';
 
-/** The asset grid with its four states and "Load more" pagination. */
+/** The kind filter, sort and card size, kept in the URL so a view can be shared and reloaded. */
+const GalleryOptions = ({
+  search,
+  onChange,
+}: {
+  search: GallerySearch;
+  onChange: (next: GallerySearch) => void;
+}): ReactElement => {
+  const copy = useCopy();
+  return (
+    <>
+      <SegmentedControl<AssetKind | typeof ALL_KINDS>
+        label={copy.assets.kindFilterLabel}
+        isLabelHidden
+        name="gallery-kind"
+        value={search.kind ?? ALL_KINDS}
+        options={[
+          { value: ALL_KINDS, label: copy.assets.kindFilter.all },
+          {
+            value: 'image',
+            label: copy.assets.kindFilter.image,
+            icon: <Image size={ICON_SIZE.sm} />,
+          },
+          {
+            value: 'model',
+            label: copy.assets.kindFilter.model,
+            icon: <Box size={ICON_SIZE.sm} />,
+          },
+        ]}
+        onChange={(kind) =>
+          onChange(withOption(search, 'kind', kind === ALL_KINDS ? undefined : kind))
+        }
+      />
+      <label className="asset-gallery__sort">
+        <ArrowDownUp className="asset-gallery__sort-icon" size={ICON_SIZE.sm} aria-hidden="true" />
+        <span className="visually-hidden">{copy.assets.sortLabel}</span>
+        <select
+          className="asset-gallery__select"
+          value={search.sort ?? GallerySort.Newest}
+          onChange={(event) => {
+            const sort = event.target.value as GallerySort;
+            onChange(withOption(search, 'sort', sort === GallerySort.Newest ? undefined : sort));
+          }}
+        >
+          {Object.values(GallerySort).map((sort) => (
+            <option key={sort} value={sort}>
+              {copy.assets.sort[sort]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <SegmentedControl<CardSize>
+        label={copy.assets.sizeLabel}
+        isLabelHidden
+        isIconOnly
+        name="gallery-size"
+        value={search.size ?? CardSize.Large}
+        options={[
+          {
+            value: CardSize.Large,
+            label: copy.assets.size.large,
+            icon: <Grid2x2 size={ICON_SIZE.sm} />,
+          },
+          {
+            value: CardSize.Small,
+            label: copy.assets.size.small,
+            icon: <Grid3x3 size={ICON_SIZE.sm} />,
+          },
+        ]}
+        onChange={(size) =>
+          onChange(withOption(search, 'size', size === CardSize.Large ? undefined : size))
+        }
+      />
+    </>
+  );
+};
+
+/**
+ * The asset grid: a toolbar (title, count, kind filter, sort, card size), its four states and
+ * "Load more" pagination. Filter and sort apply to the pages loaded so far (client-side).
+ */
 export const AssetGallery = (): ReactElement => {
   const copy = useCopy();
   const pages = useAssetPages();
-  // The page's queue (the assets layout holds it), so uploads survive any state change here.
-  const uploads = useUploadQueue();
+  // The router merges unknown raw params back into the validated ones: parse again to be sure.
+  const search = parseGallerySearch(useSearch({ from: '/assets' }));
+  const navigate = useNavigate({ from: '/assets' });
   const { refetch } = pages;
   const galleryRef = useRef<HTMLDivElement>(null);
   // After "Load more": the index of the first new card, or 'error' for the retry button.
@@ -36,7 +134,7 @@ export const AssetGallery = (): ReactElement => {
     const target =
       focusAfterLoad === 'error'
         ? galleryRef.current.querySelector<HTMLElement>('[role="alert"] button')
-        : galleryRef.current.querySelectorAll<HTMLElement>('.asset-card')[focusAfterLoad];
+        : galleryRef.current.querySelectorAll<HTMLElement>('.asset-card__link')[focusAfterLoad];
     target?.focus();
     setFocusAfterLoad(null);
   }, [focusAfterLoad]);
@@ -60,16 +158,29 @@ export const AssetGallery = (): ReactElement => {
     refreshThumbs();
   }, [isFetching, refreshThumbs]);
 
-  const title = <h1 className="asset-gallery__title">{copy.assets.title}</h1>;
+  // The view options replace the history entry: back leaves the gallery, not the last filter.
+  const setSearch = (next: GallerySearch): void =>
+    void navigate({ to: '.', search: next, replace: true });
+
+  const toolbar = (count?: ReactNode, hasOptions = false): ReactElement => (
+    <Toolbar
+      label={copy.assets.optionsLabel}
+      end={hasOptions ? <GalleryOptions search={search} onChange={setSearch} /> : undefined}
+    >
+      <h1 className="asset-gallery__title">{copy.assets.title}</h1>
+      {count === undefined ? null : <span className="asset-gallery__count">{count}</span>}
+    </Toolbar>
+  );
+  const gridClass = `asset-gallery__grid${search.size === CardSize.Small ? ' asset-gallery__grid--small' : ''}`;
 
   if (pages.isPending) {
     return (
       <div className="asset-gallery" role="status">
-        {title}
+        {toolbar()}
         <span className="visually-hidden">{copy.assets.loading}</span>
-        <div className="asset-gallery__grid">
-          {SKELETON_TILES.map((tile) => (
-            <Skeleton key={tile} shape={SkeletonShape.Tile} />
+        <div className={gridClass}>
+          {SKELETON_CARDS.map((card) => (
+            <Skeleton key={card} shape={SkeletonShape.Card} />
           ))}
         </div>
       </div>
@@ -78,7 +189,7 @@ export const AssetGallery = (): ReactElement => {
   if (pages.isLoadingError) {
     return (
       <div className="asset-gallery">
-        {title}
+        {toolbar()}
         <ErrorState
           title={copy.assets.loadFailed}
           message={describeError(pages.error, copy)}
@@ -90,35 +201,64 @@ export const AssetGallery = (): ReactElement => {
     );
   }
 
-  const assets = pages.data.pages.flatMap((page) => page.items);
-  if (assets.length === 0) {
+  const loaded = pages.data.pages.flatMap((page) => page.items);
+  if (loaded.length === 0) {
     return (
       <div className="asset-gallery">
-        {title}
-        <UploadPanel uploads={uploads} />
-        <EmptyState title={copy.assets.emptyTitle}>{copy.assets.emptyBody}</EmptyState>
+        {toolbar()}
+        <EmptyState
+          title={copy.assets.emptyTitle}
+          icon={<Images size={ICON_SIZE.lg} />}
+          action={<UploadButton label={copy.uploads.uploadFiles} />}
+        >
+          {copy.assets.emptyBody}
+        </EmptyState>
       </div>
     );
   }
+  const assets = visibleAssets(loaded, search);
   const loadMore = async (): Promise<void> => {
     const shownBefore = assets.length;
     const result = await pages.fetchNextPage();
     setFocusAfterLoad(result.isError ? 'error' : shownBefore);
   };
+  const count = search.kind
+    ? copy.assets.countFiltered(assets.length, loaded.length)
+    : copy.assets.count(loaded.length, pages.hasNextPage);
 
   return (
     <div className="asset-gallery" ref={galleryRef}>
-      {title}
-      <UploadPanel uploads={uploads} />
-      <ul className="asset-gallery__grid" aria-label={copy.assets.title}>
-        {assets.map((asset) => (
-          <li key={asset.id} className="asset-gallery__item">
-            <AssetCard asset={asset} onThumbError={refreshThumbs} />
-          </li>
-        ))}
-      </ul>
+      {toolbar(count, true)}
+      {assets.length > 0 ? (
+        <ul className={gridClass} aria-label={copy.assets.title}>
+          {assets.map((asset) => (
+            <li key={asset.id} className="asset-gallery__item">
+              <AssetCard asset={asset} onThumbError={refreshThumbs} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState
+          title={copy.assets.filteredEmptyTitle[search.kind ?? 'image']}
+          icon={
+            search.kind === 'model' ? <Box size={ICON_SIZE.lg} /> : <Image size={ICON_SIZE.lg} />
+          }
+          action={
+            <Button
+              variant={ButtonVariant.Secondary}
+              onClick={() => setSearch(withOption(search, 'kind', undefined))}
+            >
+              {copy.assets.showAll}
+            </Button>
+          }
+        >
+          {copy.assets.filteredEmptyBody}
+        </EmptyState>
+      )}
       <p className="visually-hidden" aria-live="polite">
-        {copy.assets.shown(assets.length)}
+        {search.kind
+          ? copy.assets.shownFiltered(assets.length, loaded.length)
+          : copy.assets.shown(assets.length)}
       </p>
       {pages.isFetchNextPageError ? (
         <ErrorState

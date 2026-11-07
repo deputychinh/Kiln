@@ -94,7 +94,7 @@ describe('AssetDetail', () => {
     });
     renderApp(`/assets/${asset.id}`);
     await screen.findByRole('article', { name: 'rock_albedo' });
-    await screen.findByRole('group', { name: 'Drop images or .glb files here' });
+    await screen.findByRole('list', { name: 'Assets' });
 
     // The upload region is portalled onto <body>; the gallery's own "N shown" status is not.
     expect(document.body.querySelectorAll(':scope > [aria-live="polite"]')).toHaveLength(1);

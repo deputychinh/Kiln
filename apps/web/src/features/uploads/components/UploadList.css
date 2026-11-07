@@ -1,0 +1,18 @@
+.upload-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  container: upload-list / inline-size;
+}
+
+.upload-list__summary {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.upload-list__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
