@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from kiln_api.constants import (
@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # Session cookie over HTTPS only (`Secure` and the `__Host-` prefix). Unset: on in production,
     # off for local http, where browsers would drop a Secure cookie (KILN-12).
     secure_cookies: bool | None = None
+
+    @field_validator("secure_cookies", mode="before")
+    @classmethod
+    def _empty_is_unset(cls, value: object) -> object:
+        """`KILN_SECURE_COOKIES=` (as in `.env.example`) means "decide from the environment"."""
+        return None if value == "" else value
 
     @property
     def cookie_secure(self) -> bool:
