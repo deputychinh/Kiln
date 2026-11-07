@@ -7,6 +7,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // The lazily loaded 3D scene (three.js) is about 1 MB; scripts/check-bundle-budget.mjs holds
+  // the real budgets in gzip bytes after every build (KILN-9).
+  build: { chunkSizeWarningLimit: 1100 },
   test: {
     environment: 'jsdom',
     globals: true,
@@ -21,6 +24,8 @@ export default defineConfig({
         'src/main.tsx',
         'src/routes/**',
         'src/routeTree.gen.ts',
+        // Needs WebGL, which jsdom lacks: its logic is in scene/gltf services, its drawing in e2e.
+        'src/features/viewer/components/ModelScene.tsx',
         'src/test/**',
         'src/api/**',
         'src/**/index.ts',

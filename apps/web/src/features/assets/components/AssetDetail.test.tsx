@@ -147,6 +147,42 @@ describe('AssetDetail', () => {
     expect(screen.queryByRole('link', { name: 'Compare versions' })).not.toBeInTheDocument();
   });
 
+  it('offers View in 3D only on the ready versions of a model', async () => {
+    const glb = { content_type: 'model/gltf-binary', file_name: 'crate.glb' };
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [
+        json(
+          aDetail({
+            kind: 'model',
+            versions: [
+              aVersion({ ...glb, download_url: 'http://s3.test/kiln/m1.glb?sig=1' }),
+              aVersion({ ...glb, id: 'v2', number: 2, status: 'failed', download_url: null }),
+              aVersion({ ...glb, id: 'v3', number: 3, status: 'processing', download_url: null }),
+            ],
+          }),
+        ),
+      ],
+    });
+    renderApp(`/assets/${asset.id}`);
+
+    const link = await screen.findByRole('link', { name: 'View version 1 in 3D' });
+    expect(link).toHaveAttribute('href', `/assets/${asset.id}/view?version=1`);
+    expect(link).toHaveTextContent('View in 3D');
+    expect(screen.getAllByRole('link', { name: /in 3D/ })).toHaveLength(1);
+  });
+
+  it('offers no 3D view for an image', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(aDetail({ versions: [aVersion({ download_url: 'http://s3.test/a.png' })] }))],
+    });
+    renderApp(`/assets/${asset.id}`);
+
+    await screen.findByRole('article', { name: 'rock_albedo' });
+    expect(screen.queryByRole('link', { name: /in 3D/ })).not.toBeInTheDocument();
+  });
+
   it('makes the asset name the page heading when the detail replaces the list (compact)', async () => {
     fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],

@@ -1,3 +1,4 @@
+import { ViewerError } from '@/enums/viewer-error.enum';
 import type { Copy } from '@/interfaces/copy.interface';
 
 export const en: Copy = {
@@ -81,6 +82,53 @@ export const en: Copy = {
     fewerTitle: 'Nothing to compare yet',
     fewerBody: 'Add a second version to this asset to compare the two.',
     loading: 'Loading the versions',
+  },
+  viewer: {
+    link: 'View in 3D',
+    linkLabel: (number) => `View version ${String(number)} in 3D`,
+    title: (assetName, number) => `Version ${String(number)} of ${assetName} in 3D`,
+    back: 'Back to the asset',
+    stageLabel: (number) => `3D view of version ${String(number)}`,
+    downloading: (number) => `Downloading version ${String(number)}`,
+    progress: (loaded, total) => `${loaded} of ${total}`,
+    preparing: 'Preparing the model…',
+    loading: 'Loading the asset…',
+    previewAlt: (number) => `Still preview of version ${String(number)}`,
+    noPreview: 'No still preview',
+    fallback: 'Showing the still preview instead.',
+    errors: {
+      [ViewerError.Download]:
+        'Could not download the model. Check your connection, then try again.',
+      [ViewerError.TooLarge]: 'This model is larger than the 256 MB the viewer opens.',
+      [ViewerError.Unreadable]: 'This file is not a glTF binary (.glb) the viewer can read.',
+      [ViewerError.ExternalReference]:
+        'This model points to files outside it, which Kiln never downloads.',
+      [ViewerError.Unsupported]:
+        'This model uses compression the viewer does not support yet (Draco, meshopt or Basis).',
+      [ViewerError.WebGl]: 'This browser could not start 3D graphics (WebGL).',
+    },
+    retry: 'Try again',
+    controlsLabel: 'View controls',
+    rotate: 'Rotate',
+    move: 'Move',
+    zoom: 'Zoom',
+    rotateLeft: 'Rotate left',
+    rotateRight: 'Rotate right',
+    rotateUp: 'Rotate up',
+    rotateDown: 'Rotate down',
+    moveLeft: 'Move left',
+    moveRight: 'Move right',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    reset: 'Reset view',
+    keysTitle: 'Keyboard and pointer',
+    keys: 'On the view: arrow keys rotate, Shift + arrow keys move, + and − zoom, 0 resets.',
+    pointer: 'Drag to rotate, right-drag or two fingers to move, scroll or pinch to zoom.',
+    noneTitle: 'Nothing to view in 3D',
+    noneImage: 'Only models open in the 3D viewer, and this asset is an image.',
+    noneModel: 'No version of this model is ready yet. A version opens here once it is processed.',
   },
   uploads: {
     panelLabel: 'Upload files',

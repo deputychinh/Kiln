@@ -110,7 +110,17 @@
   color: var(--kiln-color-primary);
 }
 
-.asset-detail__compare:focus-visible {
+.asset-detail__view {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-block-size: var(--kiln-target-min);
+  text-underline-offset: 3px;
+  color: var(--kiln-color-primary);
+}
+
+.asset-detail__compare:focus-visible,
+.asset-detail__view:focus-visible {
   outline: 2px solid var(--kiln-color-focus);
   outline-offset: 2px;
 }

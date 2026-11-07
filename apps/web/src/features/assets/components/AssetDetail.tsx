@@ -14,6 +14,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
 import { describeError, isNotFound } from '@/utils/error.util';
 import { formatBytes, formatDateTime } from '@/utils/format.util';
+import { isViewable } from '@/utils/viewer.util';
 
 import './AssetDetail.css';
 
@@ -130,6 +131,17 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
                 formatBytes(version.size_bytes, copy.locale),
               )}
             </span>
+            {isViewable(asset.kind, version) ? (
+              <Link
+                to="/assets/$assetId/view"
+                params={{ assetId: asset.id }}
+                search={{ version: version.number }}
+                className="asset-detail__view"
+                aria-label={copy.viewer.linkLabel(version.number)}
+              >
+                {copy.viewer.link}
+              </Link>
+            ) : null}
             {version.failure_reason ? (
               <span className="asset-detail__failure">
                 {copy.assets.failure[version.failure_reason]}

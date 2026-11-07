@@ -1,0 +1,123 @@
+.model-viewer {
+  display: grid;
+  gap: var(--kiln-space-4);
+}
+
+/* The canvas, the still preview and the status share one cell. */
+.model-viewer__stage {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  background-color: var(--kiln-color-surface-raised);
+  border: 1px solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-lg);
+}
+
+.model-viewer__stage--ready {
+  cursor: grab;
+}
+
+.model-viewer__stage:focus-visible {
+  outline: 2px solid var(--kiln-color-focus);
+  outline-offset: 2px;
+}
+
+.model-viewer__canvas,
+.model-viewer__poster,
+.model-viewer__status {
+  min-inline-size: 0;
+  min-block-size: 0;
+  grid-area: 1 / 1;
+}
+
+.model-viewer__poster {
+  display: grid;
+  place-items: center;
+  padding: var(--kiln-space-6);
+}
+
+/* The square preview fits the stage's height as well as its width. */
+.model-viewer__still {
+  max-inline-size: 100%;
+  block-size: 100%;
+  aspect-ratio: 1;
+}
+
+.model-viewer__poster--dimmed {
+  opacity: 0.45;
+}
+
+.model-viewer__status {
+  align-self: end;
+  margin: var(--kiln-space-4);
+  padding: var(--kiln-space-3);
+  background-color: var(--kiln-color-surface);
+  border-radius: var(--kiln-radius-md);
+  box-shadow: var(--kiln-shadow-1);
+}
+
+.model-viewer__preparing {
+  margin: 0;
+}
+
+.model-viewer__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  align-items: flex-start;
+  padding: var(--kiln-space-4);
+  background-color: var(--kiln-color-surface-raised);
+  border-radius: var(--kiln-radius-md);
+  border-inline-start: 4px solid var(--kiln-color-danger);
+}
+
+.model-viewer__message {
+  margin: 0;
+  font-weight: var(--kiln-weight-bold);
+}
+
+.model-viewer__fallback,
+.model-viewer__hint {
+  margin: 0;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.model-viewer__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-5);
+}
+
+.model-viewer__keys {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-1);
+  font-size: var(--kiln-text-sm);
+}
+
+/* Expanded: the stage takes the room, controls and facts in a side panel. */
+@media (min-width: 840px) {
+  .model-viewer {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-areas:
+      'error panel'
+      'stage panel';
+    align-items: start;
+  }
+
+  .model-viewer__stage {
+    max-block-size: 70dvh;
+    aspect-ratio: 4 / 3;
+    grid-area: stage;
+  }
+
+  .model-viewer__error {
+    grid-area: error;
+  }
+
+  .model-viewer__panel {
+    grid-area: panel;
+  }
+}

@@ -14,6 +14,7 @@ import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as AssetsIndexRouteImport } from './routes/assets.index'
 import { Route as AssetsAssetIdRouteImport } from './routes/assets.$assetId'
 import { Route as AssetsAssetIdCompareRouteImport } from './routes/assets_.$assetId.compare'
+import { Route as AssetsAssetIdViewRouteImport } from './routes/assets_.$assetId.view'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,11 @@ const AssetsAssetIdCompareRoute = AssetsAssetIdCompareRouteImport.update({
   path: '/assets/$assetId/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssetsAssetIdViewRoute = AssetsAssetIdViewRouteImport.update({
+  id: '/assets_/$assetId/view',
+  path: '/assets/$assetId/view',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,12 +53,14 @@ export interface FileRoutesByFullPath {
   '/assets/$assetId': typeof AssetsAssetIdRoute
   '/assets/': typeof AssetsIndexRoute
   '/assets/$assetId/compare': typeof AssetsAssetIdCompareRoute
+  '/assets/$assetId/view': typeof AssetsAssetIdViewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assets/$assetId': typeof AssetsAssetIdRoute
   '/assets': typeof AssetsIndexRoute
   '/assets/$assetId/compare': typeof AssetsAssetIdCompareRoute
+  '/assets/$assetId/view': typeof AssetsAssetIdViewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,6 +69,7 @@ export interface FileRoutesById {
   '/assets/$assetId': typeof AssetsAssetIdRoute
   '/assets/': typeof AssetsIndexRoute
   '/assets_/$assetId/compare': typeof AssetsAssetIdCompareRoute
+  '/assets_/$assetId/view': typeof AssetsAssetIdViewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -70,8 +79,14 @@ export interface FileRouteTypes {
     | '/assets/$assetId'
     | '/assets/'
     | '/assets/$assetId/compare'
+    | '/assets/$assetId/view'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/assets/$assetId' | '/assets' | '/assets/$assetId/compare'
+  to:
+    | '/'
+    | '/assets/$assetId'
+    | '/assets'
+    | '/assets/$assetId/compare'
+    | '/assets/$assetId/view'
   id:
     | '__root__'
     | '/'
@@ -79,12 +94,14 @@ export interface FileRouteTypes {
     | '/assets/$assetId'
     | '/assets/'
     | '/assets_/$assetId/compare'
+    | '/assets_/$assetId/view'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssetsRoute: typeof AssetsRouteWithChildren
   AssetsAssetIdCompareRoute: typeof AssetsAssetIdCompareRoute
+  AssetsAssetIdViewRoute: typeof AssetsAssetIdViewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,6 +141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsAssetIdCompareRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assets_/$assetId/view': {
+      id: '/assets_/$assetId/view'
+      path: '/assets/$assetId/view'
+      fullPath: '/assets/$assetId/view'
+      preLoaderRoute: typeof AssetsAssetIdViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -144,6 +168,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssetsRoute: AssetsRouteWithChildren,
   AssetsAssetIdCompareRoute: AssetsAssetIdCompareRoute,
+  AssetsAssetIdViewRoute: AssetsAssetIdViewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

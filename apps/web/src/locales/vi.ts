@@ -1,3 +1,4 @@
+import { ViewerError } from '@/enums/viewer-error.enum';
 import type { Copy } from '@/interfaces/copy.interface';
 
 export const vi: Copy = {
@@ -81,6 +82,53 @@ export const vi: Copy = {
     fewerTitle: 'Chưa có gì để so sánh',
     fewerBody: 'Thêm phiên bản thứ hai cho asset này để so sánh.',
     loading: 'Đang tải các phiên bản',
+  },
+  viewer: {
+    link: 'Xem 3D',
+    linkLabel: (number) => `Xem phiên bản ${String(number)} dạng 3D`,
+    title: (assetName, number) => `Phiên bản ${String(number)} của ${assetName} dạng 3D`,
+    back: 'Quay lại asset',
+    stageLabel: (number) => `Khung xem 3D của phiên bản ${String(number)}`,
+    downloading: (number) => `Đang tải phiên bản ${String(number)}`,
+    progress: (loaded, total) => `${loaded} trên ${total}`,
+    preparing: 'Đang chuẩn bị mô hình…',
+    loading: 'Đang tải asset…',
+    previewAlt: (number) => `Ảnh xem trước của phiên bản ${String(number)}`,
+    noPreview: 'Không có ảnh xem trước',
+    fallback: 'Đang hiển thị ảnh xem trước thay thế.',
+    errors: {
+      [ViewerError.Download]: 'Không tải được mô hình. Kiểm tra kết nối rồi thử lại.',
+      [ViewerError.TooLarge]: 'Mô hình này lớn hơn mức 256 MB mà trình xem mở được.',
+      [ViewerError.Unreadable]: 'File này không phải glTF binary (.glb) mà trình xem đọc được.',
+      [ViewerError.ExternalReference]:
+        'Mô hình này trỏ tới file bên ngoài, Kiln không bao giờ tải các file đó.',
+      [ViewerError.Unsupported]:
+        'Mô hình này dùng kiểu nén trình xem chưa hỗ trợ (Draco, meshopt hoặc Basis).',
+      [ViewerError.WebGl]: 'Trình duyệt này không khởi động được đồ hoạ 3D (WebGL).',
+    },
+    retry: 'Thử lại',
+    controlsLabel: 'Điều khiển khung xem',
+    rotate: 'Xoay',
+    move: 'Di chuyển',
+    zoom: 'Thu phóng',
+    rotateLeft: 'Xoay trái',
+    rotateRight: 'Xoay phải',
+    rotateUp: 'Xoay lên',
+    rotateDown: 'Xoay xuống',
+    moveLeft: 'Di chuyển sang trái',
+    moveRight: 'Di chuyển sang phải',
+    moveUp: 'Di chuyển lên',
+    moveDown: 'Di chuyển xuống',
+    zoomIn: 'Phóng to',
+    zoomOut: 'Thu nhỏ',
+    reset: 'Đặt lại góc nhìn',
+    keysTitle: 'Bàn phím và chuột',
+    keys: 'Trên khung xem: phím mũi tên để xoay, Shift + mũi tên để di chuyển, + và − để thu phóng, 0 để đặt lại.',
+    pointer: 'Kéo để xoay, kéo chuột phải hoặc hai ngón để di chuyển, cuộn hoặc chụm để thu phóng.',
+    noneTitle: 'Không có gì để xem 3D',
+    noneImage: 'Chỉ mô hình mới mở được trong trình xem 3D, còn asset này là ảnh.',
+    noneModel:
+      'Chưa có phiên bản nào của mô hình này sẵn sàng. Phiên bản sẽ mở được ở đây khi xử lý xong.',
   },
   uploads: {
     panelLabel: 'Tải file lên',

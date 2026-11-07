@@ -46,4 +46,4 @@ Every component has a story for each state, role-based tests, and no hard-coded 
 ## Budgets
 
 - Accessibility: WCAG 2.2 AA; targets ≥ 24 px (2.5.8); focus not obscured (2.4.11); an alternative to every drag (2.5.7: a file button beside the dropzone, buttons for the compare slider).
-- Performance: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1; thumbnails have fixed dimensions to avoid layout shift; the 3D viewer loads lazily.
+- Performance: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1; thumbnails have fixed dimensions to avoid layout shift; the 3D viewer loads lazily: three.js is only in its own chunk, and `apps/web/scripts/check-bundle-budget.mjs` fails the build when the first load passes 120 kB gzip (116.2 kB at KILN-9), the viewer route 8 kB (3.9) or the scene 280 kB (257.4), or when three.js reaches the first load. The viewer's buttons and keys are the 2.5.7 alternative to orbit, pan and zoom gestures.

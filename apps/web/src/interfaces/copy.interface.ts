@@ -1,5 +1,6 @@
 import type { UploadRejection } from '@/enums/upload-rejection.enum';
 import type { UploadStatus } from '@/enums/upload-status.enum';
+import type { ViewerError } from '@/enums/viewer-error.enum';
 import type { AssetKind, FailureReason, VersionStatus } from '@/interfaces/asset.interface';
 
 export interface Copy {
@@ -58,6 +59,43 @@ export interface Copy {
     fewerTitle: string;
     fewerBody: string;
     loading: string;
+  };
+  viewer: {
+    link: string;
+    linkLabel: (number: number) => string;
+    title: (assetName: string, number: number) => string;
+    back: string;
+    stageLabel: (number: number) => string;
+    downloading: (number: number) => string;
+    progress: (loaded: string, total: string) => string;
+    preparing: string;
+    loading: string;
+    previewAlt: (number: number) => string;
+    noPreview: string;
+    fallback: string;
+    errors: Record<ViewerError, string>;
+    retry: string;
+    controlsLabel: string;
+    rotate: string;
+    move: string;
+    zoom: string;
+    rotateLeft: string;
+    rotateRight: string;
+    rotateUp: string;
+    rotateDown: string;
+    moveLeft: string;
+    moveRight: string;
+    moveUp: string;
+    moveDown: string;
+    zoomIn: string;
+    zoomOut: string;
+    reset: string;
+    keysTitle: string;
+    keys: string;
+    pointer: string;
+    noneTitle: string;
+    noneImage: string;
+    noneModel: string;
   };
   uploads: {
     panelLabel: string;

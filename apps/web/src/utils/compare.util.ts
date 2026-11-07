@@ -5,7 +5,7 @@ import type { ComparePair, CompareSearch } from '@/interfaces/compare.interface'
 const MODES = new Set<string>(Object.values(CompareMode));
 
 /** A version number from the URL: a positive whole number written as one, else nothing. */
-const versionNumberOf = (raw: unknown): number | undefined => {
+export const versionNumberOf = (raw: unknown): number | undefined => {
   const text = typeof raw === 'number' ? String(raw) : raw;
   if (typeof text !== 'string' || !/^[1-9]\d{0,8}$/.test(text)) return undefined;
   return Number(text);
