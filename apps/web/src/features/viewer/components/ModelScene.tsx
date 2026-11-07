@@ -18,8 +18,8 @@ const ENVIRONMENT_SIGMA = 0.04;
  * The environment alone lights every face of a plain model alike; a dimmer environment and a key
  * light from above left and in front give its faces different shades, like the still preview.
  */
-const ENVIRONMENT_INTENSITY = 0.6;
-const KEY_LIGHT_INTENSITY = 2;
+const ENVIRONMENT_INTENSITY = 0.35;
+const KEY_LIGHT_INTENSITY = 1.2;
 const KEY_LIGHT_DIRECTION: [number, number, number] = [-2, 4, 3];
 const MAX_PIXEL_RATIO = 2;
 

@@ -13,6 +13,7 @@ export const en: Copy = {
     searchNote: 'Search arrives in a later release. For now, filter the gallery by kind.',
     themeToLight: 'Switch to light theme',
     themeToDark: 'Switch to dark theme',
+    justNow: 'just now',
   },
   errors: {
     unreachable: 'Kiln cannot reach its server. Check your connection, then try again.',

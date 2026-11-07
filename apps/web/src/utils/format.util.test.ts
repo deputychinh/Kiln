@@ -1,4 +1,4 @@
-import { formatBytes, formatDateTime, formatRelativeTime } from '@/utils/format.util';
+import { formatBytes, formatDateTime, formatRelativeTime, isJustNow } from '@/utils/format.util';
 
 const NOW = Date.parse('2026-11-06T12:00:00Z');
 
@@ -18,6 +18,18 @@ describe('formatRelativeTime', () => {
 
   it('uses the locale', () => {
     expect(formatRelativeTime('2026-11-06T09:00:00Z', 'vi', NOW)).toBe('3 giờ trước');
+  });
+});
+
+describe('isJustNow', () => {
+  const now = Date.parse('2026-11-07T12:00:00Z');
+
+  it.each([
+    ['ten seconds ago', '2026-11-07T11:59:50Z', true],
+    ['in the future (a server clock ahead)', '2026-11-07T12:05:00Z', true],
+    ['a minute ago', '2026-11-07T11:59:00Z', false],
+  ])('tells whether a time %s reads as just now', (_case, iso, expected) => {
+    expect(isJustNow(iso, now)).toBe(expected);
   });
 });
 

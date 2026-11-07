@@ -10,7 +10,7 @@
   overflow: hidden;
   inline-size: 100%;
   aspect-ratio: 1;
-  background-color: var(--kiln-color-surface-sunken);
+  background-color: var(--kiln-color-stage);
   border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
   border-radius: var(--kiln-radius-xl);
 }

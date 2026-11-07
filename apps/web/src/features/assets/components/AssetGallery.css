@@ -51,14 +51,23 @@
   outline-offset: var(--kiln-border-hairline);
 }
 
-/* Two columns on a phone; the list pane's width (not the viewport) decides from there. */
+/*
+ * Columns come from the card size's minimum width and the list pane's width (not the viewport):
+ * large cards at least 160 px, small at least 104 px, so the two sizes give different column
+ * counts at every width (2 / 3 on a phone, 3 / 5 at 768 px, 5 / 7 on a wide list).
+ */
 .asset-gallery__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min-compact), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min), 1fr));
   gap: var(--kiln-space-3);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.asset-gallery__grid--small {
+  grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min-compact), 1fr));
+  gap: var(--kiln-space-2);
 }
 
 .asset-gallery__item {
@@ -68,16 +77,4 @@
 .asset-gallery__more {
   display: flex;
   justify-content: center;
-}
-
-@container (min-width: 600px) {
-  .asset-gallery__grid {
-    grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min), 1fr));
-    gap: var(--kiln-space-4);
-  }
-
-  .asset-gallery__grid--small {
-    grid-template-columns: repeat(auto-fill, minmax(var(--kiln-card-min-compact), 1fr));
-    gap: var(--kiln-space-3);
-  }
 }

@@ -45,10 +45,14 @@
   overflow-wrap: anywhere;
 }
 
-.viewer-page__back:focus-visible,
-.viewer-page__title:focus-visible {
+.viewer-page__back:focus-visible {
   outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
   outline-offset: var(--kiln-border-focus);
+}
+
+/* Focused by the app (tabindex -1) so reading starts here: not a control, so no ring. */
+.viewer-page__title:focus {
+  outline: none;
 }
 
 @media (hover: hover) {

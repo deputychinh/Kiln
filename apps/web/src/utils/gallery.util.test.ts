@@ -1,12 +1,7 @@
 import { CardSize } from '@/enums/card-size.enum';
 import { GallerySort } from '@/enums/gallery-sort.enum';
 import { anAsset } from '@/test/fake-api';
-import {
-  parseGallerySearch,
-  splitForMiddleEllipsis,
-  visibleAssets,
-  withOption,
-} from '@/utils/gallery.util';
+import { parseGallerySearch, visibleAssets, withOption } from '@/utils/gallery.util';
 
 const rock = anAsset({ id: 'a1', name: 'rock_albedo', kind: 'image' });
 const crate = anAsset({ id: 'a2', name: 'Crate_wooden', kind: 'model' });
@@ -72,23 +67,5 @@ describe('visible assets', () => {
       tree10,
     ]);
     expect(visibleAssets([rock], { kind: 'model' })).toEqual([]);
-  });
-});
-
-describe('middle ellipsis', () => {
-  it('keeps short names whole', () => {
-    expect(splitForMiddleEllipsis('rock_albedo')).toEqual({ head: 'rock_albedo', tail: '' });
-    expect(splitForMiddleEllipsis('exactly_sixteen_')).toEqual({
-      head: 'exactly_sixteen_',
-      tail: '',
-    });
-  });
-
-  it('keeps the end of a long name and loses nothing', () => {
-    const name = 'sunset_matte_painting_background_v3_final';
-    const { head, tail } = splitForMiddleEllipsis(name);
-
-    expect(tail).toBe('v3_final');
-    expect(head + tail).toBe(name);
   });
 });

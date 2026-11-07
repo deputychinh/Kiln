@@ -18,7 +18,10 @@ const tree = anAsset({
 });
 
 describe('AssetGallery', () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it('redirects / to /assets', async () => {
     fakeApi({ [LIST]: [json({ items: [], next_cursor: null })] });
@@ -366,13 +369,29 @@ describe('AssetGallery', () => {
       name: 'sunset_matte_painting_background_v3_final',
     });
     fakeApi({ [LIST]: [json({ items: [long], next_cursor: null })] });
+    // A 150 px name at 10 px a character, measured the way the browser would.
+    vi.stubGlobal(
+      'ResizeObserver',
+      // eslint-disable-next-line prefer-arrow-callback -- arrow functions cannot be constructed
+      vi.fn(function ResizeObserverStub(fit: () => void) {
+        return { observe: () => fit(), disconnect: vi.fn() };
+      }),
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      font: '',
+      measureText: (value: string) => ({ width: value.length * 10 }),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150);
 
     renderApp('/assets');
 
     const card = await screen.findByRole('link', {
       name: /sunset_matte_painting_background_v3_final/,
     });
-    expect(card.querySelector('.asset-card__name-tail')).toHaveTextContent('v3_final');
+    const name = card.querySelector('.asset-card__name');
+    await waitFor(() =>
+      expect(name?.querySelector('[aria-hidden="true"]')).toHaveTextContent('sunset_m…_final'),
+    );
     expect(within(card).getByRole('tooltip', { hidden: true })).toHaveTextContent(long.name);
   });
 

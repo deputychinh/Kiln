@@ -1,6 +1,6 @@
-.asset-detail__pane:focus-visible {
-  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
-  outline-offset: var(--kiln-border-focus);
+/* Focused by the app (tabindex -1) so reading starts here: not a control, so no ring. */
+.asset-detail__pane:focus {
+  outline: none;
 }
 
 /* Compact and medium: the detail is the page. Expanded: the inspector pane frames it. */
@@ -35,17 +35,22 @@
 }
 
 .asset-detail__title {
+  /* stylelint-disable-next-line value-no-vendor-prefix -- line clamping needs the legacy box */
+  display: -webkit-box;
+  overflow: hidden;
   margin: 0;
   font-size: var(--kiln-text-xl);
   font-weight: var(--kiln-weight-semibold);
   line-height: var(--kiln-leading-tight);
   letter-spacing: var(--kiln-tracking-title);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.asset-detail__title:focus-visible {
-  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
-  outline-offset: var(--kiln-border-focus);
+/* Focused by the app (tabindex -1) so reading starts here: not a control, so no ring. */
+.asset-detail__title:focus {
+  outline: none;
 }
 
 .asset-detail__kind {
@@ -62,8 +67,10 @@
   gap: var(--kiln-space-2);
 }
 
+/* Square, at most 30rem: on one-pane layouts the versions stay in view below it. */
 .asset-detail__preview {
   overflow: hidden;
+  max-inline-size: 30rem;
   border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
   border-radius: var(--kiln-radius-lg);
 }

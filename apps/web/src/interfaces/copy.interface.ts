@@ -18,6 +18,7 @@ export interface Copy {
     searchNote: string;
     themeToLight: string;
     themeToDark: string;
+    justNow: string;
   };
   errors: { unreachable: string; unexpected: string };
   assets: {

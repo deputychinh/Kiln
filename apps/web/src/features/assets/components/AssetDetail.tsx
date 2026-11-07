@@ -9,24 +9,26 @@ import {
   Skeleton,
   SkeletonShape,
   Tabs,
+  Tooltip,
 } from '@kiln/ui';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, Box, Columns2, Image, Rotate3d, Upload } from 'lucide-react';
 import { type ReactElement, useCallback, useEffect, useRef } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
-import { VERSION_STATUS_TONE } from '@/constants/assets.constant';
 import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
 import { VERSION_ACCEPT } from '@/constants/upload.constant';
+import { VersionTimeline } from '@/features/assets/components/VersionTimeline';
 import { useAsset } from '@/features/assets/hooks/useAsset';
 import { UploadList } from '@/features/uploads/components/UploadList';
 import { useUploadQueue } from '@/features/uploads/context/UploadsContext';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
+import { withBreaks } from '@/utils/ellipsis.util';
 import { describeError, isNotFound } from '@/utils/error.util';
 import { formatBytes, formatDateTime } from '@/utils/format.util';
-import { isViewable, pickViewable } from '@/utils/viewer.util';
+import { pickViewable } from '@/utils/viewer.util';
 
 import './AssetDetail.css';
 
@@ -46,54 +48,6 @@ const BackLink = ({ isCompactOnly = false }: { isCompactOnly?: boolean }): React
       <ArrowLeft size={ICON_SIZE.sm} aria-hidden="true" />
       {copy.assets.back}
     </Link>
-  );
-};
-
-/** The versions, newest first, as a timeline: a status dot on the line, the facts beside it. */
-const VersionTimeline = ({ asset }: { asset: AssetDetailData }): ReactElement => {
-  const copy = useCopy();
-  return (
-    <ol className="asset-detail__versions">
-      {[...asset.versions].reverse().map((version) => {
-        const tone = VERSION_STATUS_TONE[version.status];
-        return (
-          <li key={version.id} className={`asset-detail__version asset-detail__version--${tone}`}>
-            <span className="asset-detail__version-head">
-              <span className="asset-detail__version-number">
-                {copy.assets.versionLabel(version.number)}
-              </span>
-              <span className="asset-detail__status">{copy.assets.status[version.status]}</span>
-              {isViewable(asset.kind, version) ? (
-                <Link
-                  to="/assets/$assetId/view"
-                  params={{ assetId: asset.id }}
-                  search={{ version: version.number }}
-                  className="asset-detail__view"
-                  aria-label={copy.viewer.linkLabel(version.number)}
-                >
-                  <Rotate3d size={ICON_SIZE.sm} aria-hidden="true" />
-                  {copy.viewer.link}
-                </Link>
-              ) : null}
-            </span>
-            <span className="asset-detail__file">
-              {copy.assets.fileSummary(
-                version.file_name,
-                formatBytes(version.size_bytes, copy.locale),
-              )}
-            </span>
-            <span className="asset-detail__when">
-              <RelativeTime iso={version.created_at} />
-            </span>
-            {version.failure_reason ? (
-              <span className="asset-detail__failure">
-                {copy.assets.failure[version.failure_reason]}
-              </span>
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
   );
 };
 
@@ -129,14 +83,17 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
       <BackLink isCompactOnly />
       <header className="asset-detail__header">
         {/* The page's main heading when the detail replaces the list; below the list's h1 otherwise. */}
-        <Heading
-          id="asset-detail-title"
-          className="asset-detail__title"
-          ref={headingRef}
-          tabIndex={-1}
-        >
-          {asset.name}
-        </Heading>
+        {/* Two lines at most, wrapping between the parts of the name; the full name on hover. */}
+        <Tooltip content={asset.name} isBlock as="div">
+          <Heading
+            id="asset-detail-title"
+            className="asset-detail__title"
+            ref={headingRef}
+            tabIndex={-1}
+          >
+            {withBreaks(asset.name)}
+          </Heading>
+        </Tooltip>
         <span className="asset-detail__kind">
           <Badge icon={<KindIcon size={ICON_SIZE.sm} />}>{kind}</Badge>
           <RelativeTime iso={asset.updated_at} />

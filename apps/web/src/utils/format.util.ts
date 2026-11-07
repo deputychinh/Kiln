@@ -1,4 +1,13 @@
-import { BYTE_UNITS, BYTES_PER_UNIT, RELATIVE_TIME_UNITS } from '@/constants/time.constant';
+import {
+  BYTE_UNITS,
+  BYTES_PER_UNIT,
+  JUST_NOW_MS,
+  RELATIVE_TIME_UNITS,
+} from '@/constants/time.constant';
+
+/** True for a moment in the last few seconds or in the future: a server clock a little ahead. */
+export const isJustNow = (iso: string, now = Date.now()): boolean =>
+  Date.parse(iso) > now - JUST_NOW_MS;
 
 /** "3 hours ago", "yesterday", "in 2 minutes" in the given locale. */
 export const formatRelativeTime = (iso: string, locale: string, now = Date.now()): string => {

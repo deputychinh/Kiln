@@ -14,7 +14,7 @@ import {
 } from '@/test/fake-api';
 import { fileInputOf } from '@/test/file-input';
 import { renderApp } from '@/test/render-app';
-import { setViewportExpanded } from '@/test/viewport';
+import { setViewportExpanded, setViewportLarge } from '@/test/viewport';
 
 const LIST = '/api/v1/assets?limit=24';
 const asset = anAsset();
@@ -507,6 +507,35 @@ describe('AssetDetail', () => {
     expect(await screen.findByRole('link', { name: 'All assets' })).toHaveAttribute(
       'href',
       '/assets?kind=image&size=small',
+    );
+  });
+
+  it.each([
+    {
+      name: 'an expanded window with nothing selected',
+      isLarge: false,
+      items: [asset],
+      isHidden: true,
+    },
+    {
+      name: 'a large window with nothing selected',
+      isLarge: true,
+      items: [asset],
+      isHidden: false,
+    },
+    { name: 'a large window and no assets at all', isLarge: true, items: [], isHidden: true },
+  ])('gives the grid the full width on $name: $isHidden', async ({ isLarge, items, isHidden }) => {
+    if (isLarge) setViewportLarge(true);
+    else setViewportExpanded(true);
+    fakeApi({ [LIST]: [json({ items, next_cursor: null })] });
+
+    renderApp('/assets');
+
+    await screen.findByRole('heading', { level: 1, name: 'Assets' });
+    await waitFor(() =>
+      expect(
+        document.querySelector('.list-detail')?.classList.contains('list-detail--single'),
+      ).toBe(isHidden),
     );
   });
 });

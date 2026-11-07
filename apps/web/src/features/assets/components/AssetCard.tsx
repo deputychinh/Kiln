@@ -5,8 +5,8 @@ import { memo, type ReactElement } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
 import { useCopy } from '@/hooks/useCopy';
+import { useMiddleEllipsis } from '@/hooks/useMiddleEllipsis';
 import type { Asset } from '@/interfaces/asset.interface';
-import { splitForMiddleEllipsis } from '@/utils/gallery.util';
 
 import './AssetCard.css';
 
@@ -16,7 +16,7 @@ interface AssetCardProps {
 }
 
 /**
- * A gallery card: an edge-to-edge 4:3 preview, the name (middle ellipsis, full name on hover),
+ * A gallery card: an edge-to-edge square preview, the name (middle ellipsis, full name on hover),
  * kind and age. The whole card links to the asset (the router marks the open one with
  * `aria-current`); a model with a preview also offers View in 3D on hover and focus.
  */
@@ -25,7 +25,7 @@ export const AssetCard = memo(({ asset, onThumbError }: AssetCardProps): ReactEl
   const copy = useCopy();
   const kind = copy.assets.kind[asset.kind];
   const KindIcon = asset.kind === 'model' ? Box : Image;
-  const { head, tail } = splitForMiddleEllipsis(asset.name);
+  const { ref: nameRef, display } = useMiddleEllipsis(asset.name);
   // A model's preview exists once a version is ready, so the viewer has something to open.
   const canView3d = asset.kind === 'model' && Boolean(asset.thumbnail_url);
   return (
@@ -55,17 +55,25 @@ export const AssetCard = memo(({ asset, onThumbError }: AssetCardProps): ReactEl
         </span>
         <span className="asset-card__body">
           <Tooltip content={asset.name} isBlock>
-            <span className="asset-card__name">
-              <span className="asset-card__name-head">{head}</span>
-              {tail ? <span className="asset-card__name-tail">{tail}</span> : null}
+            <span className="asset-card__name" ref={nameRef}>
+              {display === asset.name ? (
+                asset.name
+              ) : (
+                <>
+                  <span aria-hidden="true">{display}</span>
+                  <span className="visually-hidden">{asset.name}</span>
+                </>
+              )}
             </span>
           </Tooltip>
           <span className="asset-card__meta">
             <span className="asset-card__kind">
               <KindIcon size={ICON_SIZE.sm} aria-hidden="true" />
-              {kind}
+              <span className="asset-card__kind-label">{kind}</span>
             </span>
-            <RelativeTime iso={asset.updated_at} />
+            <span className="asset-card__time">
+              <RelativeTime iso={asset.updated_at} />
+            </span>
           </span>
         </span>
       </Link>

@@ -30,18 +30,6 @@ export const visibleAssets = (assets: readonly Asset[], search: GallerySearch): 
     : kept;
 };
 
-/** Characters kept whole at the end of a long name, so versions and extensions stay readable. */
-const TAIL_LENGTH = 8;
-
-/**
- * A name split for a middle ellipsis: the head shrinks with an ellipsis, the tail always shows
- * ("sunset_matte_pai…v3_final"). Short names are not split.
- */
-export const splitForMiddleEllipsis = (name: string): { head: string; tail: string } =>
-  name.length <= TAIL_LENGTH * 2
-    ? { head: name, tail: '' }
-    : { head: name.slice(0, -TAIL_LENGTH), tail: name.slice(-TAIL_LENGTH) };
-
 /** The search with one option set, or removed (back to its default) when `value` is undefined. */
 export const withOption = <Key extends keyof GallerySearch>(
   search: GallerySearch,
