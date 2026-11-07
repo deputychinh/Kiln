@@ -92,6 +92,9 @@ change on the 10-point rubric (`~/.claude/skills/deliver-loop/rubric.md`) → im
 - Display strings live in locale files, never hard-coded in components.
 - For UI work, take a screenshot or run e2e; do not describe it from memory.
 - React must exist once in the tree: pin the same `react`/`react-dom` version in every workspace (`npm ls react` shows one version).
+- Start the API with `make api` (`python -m kiln_api.serve`), never bare `uvicorn`: uvicorn believes `X-Forwarded-For` from loopback by default; proxies are trusted only through `KILN_TRUSTED_PROXIES` (ADR 0014).
+- Another local project may hold :8000: run `make api API_PORT=8010`, `KILN_API_PROXY_TARGET=http://127.0.0.1:8010 make web` and `KILN_API_PORT=8010 make e2e`; e2e reuses whatever answers on its API port.
+- Accepted ADRs are never edited, not even in the cycle that wrote them once it is reviewed: a changed decision is a new ADR that supersedes the old one.
 
 ## Language
 
