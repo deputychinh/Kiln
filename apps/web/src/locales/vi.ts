@@ -68,8 +68,10 @@ export const vi: Copy = {
     modeLabel: 'Kiểu xem',
     side: 'Cạnh nhau',
     swipe: 'Trượt',
-    swipeStage: (right, left) => `Phiên bản ${String(right)} đè lên phiên bản ${String(left)}`,
-    swipeLabel: (right, left) => `Hiện phiên bản ${String(right)} đè lên phiên bản ${String(left)}`,
+    swipeStage: (left, right) =>
+      `Phiên bản ${String(left)} bên trái vạch chia, phiên bản ${String(right)} bên phải`,
+    swipeLabel: (left, right) =>
+      `Vạch chia giữa phiên bản ${String(left)} và phiên bản ${String(right)}`,
     swipeUnavailable: 'Chế độ trượt cần có ảnh xem trước của cả hai phiên bản.',
     larger: (right, size, left) =>
       `Phiên bản ${String(right)} lớn hơn phiên bản ${String(left)} ${size}.`,

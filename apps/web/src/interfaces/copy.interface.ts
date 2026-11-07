@@ -49,8 +49,8 @@ export interface Copy {
     modeLabel: string;
     side: string;
     swipe: string;
-    swipeStage: (right: number, left: number) => string;
-    swipeLabel: (right: number, left: number) => string;
+    swipeStage: (left: number, right: number) => string;
+    swipeLabel: (left: number, right: number) => string;
     swipeUnavailable: string;
     larger: (right: number, size: string, left: number) => string;
     smaller: (right: number, size: string, left: number) => string;

@@ -65,29 +65,69 @@ describe('ComparePage', () => {
 
   it('swaps the sides when a picker chooses the version the other side shows', async () => {
     fakeApi({ [DETAIL]: [json(threeVersions)] });
-    const { router } = renderApp(`${COMPARE}?left=2&right=3`);
+    // Not adjacent: a fallback to the newest other version would give 3 and 2, not 3 and 1.
+    const { router } = renderApp(`${COMPARE}?left=1&right=3`);
 
     await userEvent.selectOptions(
       await screen.findByRole('combobox', { name: 'Left version' }),
       '3',
     );
 
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ left: 3, right: 2 }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ left: 3, right: 1 }));
   });
 
-  it('lays the right version over the left in Swipe and reveals it with a labelled slider', async () => {
+  it('brings back the previous pair with the browser Back', async () => {
+    fakeApi({ [DETAIL]: [json(threeVersions)] });
+    const { router } = renderApp(COMPARE);
+    await userEvent.selectOptions(
+      await screen.findByRole('combobox', { name: 'Left version' }),
+      '1',
+    );
+    await waitFor(() => expect(pane('Version 1')).toBeVisible());
+
+    router.history.back();
+
+    await waitFor(() => expect(pane('Version 2')).toBeVisible());
+    expect(screen.queryByRole('figure', { name: 'Version 1' })).not.toBeInTheDocument();
+  });
+
+  it('drops an unknown mode from the URL in place', async () => {
+    fakeApi({ [DETAIL]: [json(threeVersions)] });
+    const { router } = renderApp(`${COMPARE}?left=2&right=3&mode=diff`);
+
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('mode='));
+    expect(router.history.length).toBe(1);
+  });
+
+  it('keeps the upload queue on this page: uploads belong to the app, not the assets page', async () => {
+    fakeApi({ [DETAIL]: [json(threeVersions)] });
+    renderApp(COMPARE);
+    await screen.findByRole('heading', { level: 1 });
+
+    expect(document.body.querySelectorAll(':scope > [aria-live="polite"]')).toHaveLength(1);
+  });
+
+  it('splits Swipe with a divider the labelled slider moves, keeping both versions’ facts', async () => {
     fakeApi({ [DETAIL]: [json(threeVersions)] });
     const { router } = renderApp(`${COMPARE}?mode=swipe`);
 
     const slider = await screen.findByRole('slider', {
-      name: 'Reveal version 3 over version 2',
+      name: 'Divider between version 2 and version 3',
     });
     expect(slider).toHaveValue('50');
     fireEvent.change(slider, { target: { value: '80' } });
 
-    const stage = screen.getByRole('group', { name: 'Version 3 over version 2' });
-    expect(stage.style.getPropertyValue('--compare-reveal')).toBe('80%');
-    expect(within(stage).getAllByRole('img')).toHaveLength(2);
+    const stage = screen.getByRole('group', {
+      name: 'Version 2 left of the divider, version 3 right of it',
+    });
+    expect(stage.style.getPropertyValue('--compare-divider')).toBe('80%');
+    const [leftImage, rightImage] = within(stage).getAllByRole('img');
+    expect(leftImage).toHaveAccessibleName('Preview of version 2');
+    expect(rightImage).toHaveAccessibleName('Preview of version 3');
+    // The facts side-by-side shows are still there, without a second copy of each preview.
+    expect(pane('Version 2')).toHaveTextContent('rock_albedo_v2.png');
+    expect(pane('Version 3')).toHaveTextContent('1.5 MB');
+    expect(within(pane('Version 2')).queryByRole('img')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: 'Side by side' }));
     await waitFor(() => expect(router.state.location.search).toMatchObject({ mode: 'side' }));
   });

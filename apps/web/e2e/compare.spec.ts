@@ -60,11 +60,16 @@ test('two versions compared side by side and by swipe, with the pair kept in the
   // Keyboard only: choose Swipe, then move the slider with the arrow keys.
   await page.getByRole('radio', { name: 'Swipe' }).check();
   await expect(page).toHaveURL(/mode=swipe/);
-  const slider = page.getByRole('slider', { name: 'Reveal version 2 over version 1' });
+  const slider = page.getByRole('slider', { name: 'Divider between version 1 and version 2' });
   await slider.focus();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect(slider).toHaveValue('52');
+  // Left of the divider is the left picker's version: the right one is clipped from the left edge.
+  await expect(page.getByRole('img', { name: 'Preview of version 2' })).toHaveCSS(
+    'clip-path',
+    'inset(0px 0px 0px 52%)',
+  );
   results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
   expect(
     results.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
@@ -75,5 +80,7 @@ test('two versions compared side by side and by swipe, with the pair kept in the
 
   // The URL is the state: a reload shows the same comparison.
   await page.reload();
-  await expect(page.getByRole('slider', { name: 'Reveal version 2 over version 1' })).toBeVisible();
+  await expect(
+    page.getByRole('slider', { name: 'Divider between version 1 and version 2' }),
+  ).toBeVisible();
 });

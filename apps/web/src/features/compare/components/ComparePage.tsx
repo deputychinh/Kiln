@@ -1,16 +1,16 @@
-import { AssetThumb, Badge, EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
+import { EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { type CSSProperties, type ReactElement, useEffect, useId, useRef, useState } from 'react';
+import { type ReactElement, useEffect, useRef } from 'react';
 
-import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
-import { VERSION_STATUS_TONE } from '@/constants/assets.constant';
-import { COMPARE_ROUTE_ID, SWIPE_START_PERCENT } from '@/constants/compare.constant';
+import { COMPARE_ROUTE_ID } from '@/constants/compare.constant';
 import { CompareMode } from '@/enums/compare-mode.enum';
 import { useAsset } from '@/features/assets/hooks/useAsset';
+import { SwipeStage } from '@/features/compare/components/SwipeStage';
+import { VersionPane } from '@/features/compare/components/VersionPane';
 import { useCopy } from '@/hooks/useCopy';
-import type { AssetDetail, AssetVersion } from '@/interfaces/asset.interface';
+import type { AssetDetail } from '@/interfaces/asset.interface';
 import type { ComparePair } from '@/interfaces/compare.interface';
-import { canSwipe, pickPair } from '@/utils/compare.util';
+import { canSwipe, isCompareMode, pickPair } from '@/utils/compare.util';
 import { describeError, isNotFound } from '@/utils/error.util';
 import { formatBytes } from '@/utils/format.util';
 
@@ -26,92 +26,6 @@ const BackLink = ({ assetId }: { assetId: string }): ReactElement => {
     <Link to="/assets/$assetId" params={{ assetId }} className="compare-page__back">
       {copy.compare.back}
     </Link>
-  );
-};
-
-/** One version: its preview (or why there is none) and its facts. */
-const VersionPane = ({
-  asset,
-  version,
-  onThumbError,
-}: {
-  asset: AssetDetail;
-  version: AssetVersion;
-  onThumbError: (src: string) => void;
-}): ReactElement => {
-  const copy = useCopy();
-  const captionId = useId();
-  return (
-    <figure className="compare-page__pane" aria-labelledby={captionId}>
-      {version.thumbnail_url ? (
-        <AssetThumb
-          src={version.thumbnail_url}
-          alt={copy.compare.previewAlt(version.number)}
-          placeholder={copy.assets.kind[asset.kind]}
-          onError={onThumbError}
-          isEager
-        />
-      ) : (
-        <div className="compare-page__no-preview">{copy.assets.kind[asset.kind]}</div>
-      )}
-      <figcaption className="compare-page__caption">
-        <span className="compare-page__version-head">
-          <span id={captionId} className="compare-page__version-number">
-            {copy.compare.pane(version.number)}
-          </span>
-          <Badge tone={VERSION_STATUS_TONE[version.status]}>
-            {copy.assets.status[version.status]}
-          </Badge>
-        </span>
-        <span className="compare-page__file">
-          {copy.assets.fileSummary(version.file_name, formatBytes(version.size_bytes, copy.locale))}
-        </span>
-        <RelativeTime iso={version.created_at} />
-        {version.failure_reason ? (
-          <span className="compare-page__failure">
-            {copy.assets.failure[version.failure_reason]}
-          </span>
-        ) : null}
-      </figcaption>
-    </figure>
-  );
-};
-
-/** The right preview over the left one, revealed from the left edge by a slider (or arrow keys). */
-const SwipeStage = ({ pair }: { pair: ComparePair }): ReactElement => {
-  const copy = useCopy();
-  const [reveal, setReveal] = useState(SWIPE_START_PERCENT);
-  const { left, right } = pair;
-  const style = { '--compare-reveal': `${String(reveal)}%` } as CSSProperties;
-  return (
-    <div className="compare-page__swipe">
-      <div
-        className="compare-page__stage"
-        role="group"
-        aria-label={copy.compare.swipeStage(right.number, left.number)}
-        style={style}
-      >
-        <img
-          className="compare-page__layer"
-          src={left.thumbnail_url ?? ''}
-          alt={copy.compare.previewAlt(left.number)}
-        />
-        <img
-          className="compare-page__layer compare-page__layer--top"
-          src={right.thumbnail_url ?? ''}
-          alt={copy.compare.previewAlt(right.number)}
-        />
-      </div>
-      <input
-        className="compare-page__slider"
-        type="range"
-        min={0}
-        max={100}
-        value={reveal}
-        aria-label={copy.compare.swipeLabel(right.number, left.number)}
-        onChange={(event) => setReveal(Number(event.target.value))}
-      />
-    </div>
   );
 };
 
@@ -212,7 +126,23 @@ const CompareBody = ({
       </div>
       {swipeAllowed ? null : <p className="compare-page__note">{copy.compare.swipeUnavailable}</p>}
       {mode === CompareMode.Swipe ? (
-        <SwipeStage pair={pair} />
+        <>
+          <SwipeStage pair={pair} onThumbError={onThumbError} />
+          <div className="compare-page__panes">
+            <VersionPane
+              asset={asset}
+              version={pair.left}
+              onThumbError={onThumbError}
+              hasPreview={false}
+            />
+            <VersionPane
+              asset={asset}
+              version={pair.right}
+              onThumbError={onThumbError}
+              hasPreview={false}
+            />
+          </div>
+        </>
       ) : (
         <div className="compare-page__panes">
           <VersionPane asset={asset} version={pair.left} onThumbError={onThumbError} />
@@ -236,16 +166,21 @@ export const ComparePage = ({ assetId }: ComparePageProps): ReactElement => {
   const pair = asset.data ? pickPair(asset.data.versions, search) : null;
 
   // A URL naming versions that do not exist is rewritten in place, never added to history.
-  const isCorrected = pair?.isCorrected ?? false;
+  // TanStack Router merges the raw params back into the validated ones, so `?mode=diff` arrives
+  // here as a string the type calls a mode: check the value, keep only a known mode.
+  const mode = isCompareMode(search.mode) ? search.mode : undefined;
+  const hasUnknownMode = search.mode !== undefined && mode === undefined;
+  const isCorrected = (pair?.isCorrected ?? false) || (pair !== null && hasUnknownMode);
   const leftNumber = pair?.left.number;
   const rightNumber = pair?.right.number;
   useEffect(() => {
     if (!isCorrected || leftNumber === undefined || rightNumber === undefined) return;
     void navigate({
-      search: (previous) => ({ ...previous, left: leftNumber, right: rightNumber }),
+      // From the validated search only: the router's `previous` still carries what was dropped.
+      search: { left: leftNumber, right: rightNumber, ...(mode === undefined ? {} : { mode }) },
       replace: true,
     });
-  }, [isCorrected, leftNumber, rightNumber, navigate]);
+  }, [isCorrected, leftNumber, rightNumber, mode, navigate]);
 
   if (asset.isPending) {
     return (

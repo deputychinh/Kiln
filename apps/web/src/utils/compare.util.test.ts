@@ -63,6 +63,7 @@ describe('parseCompareSearch', () => {
     [{ left: '1.5' }],
     [{ left: 'x' }],
     [{ left: '1e3' }],
+    [{ left: '1234567890' }],
     [{ mode: 'diff' }],
   ])('drops what is not a version number or a mode: %j', (raw) => {
     expect(parseCompareSearch(raw)).toEqual({});

@@ -68,8 +68,10 @@ export const en: Copy = {
     modeLabel: 'View',
     side: 'Side by side',
     swipe: 'Swipe',
-    swipeStage: (right, left) => `Version ${String(right)} over version ${String(left)}`,
-    swipeLabel: (right, left) => `Reveal version ${String(right)} over version ${String(left)}`,
+    swipeStage: (left, right) =>
+      `Version ${String(left)} left of the divider, version ${String(right)} right of it`,
+    swipeLabel: (left, right) =>
+      `Divider between version ${String(left)} and version ${String(right)}`,
     swipeUnavailable: 'Swipe needs a preview of both versions.',
     larger: (right, size, left) =>
       `Version ${String(right)} is ${size} larger than version ${String(left)}.`,

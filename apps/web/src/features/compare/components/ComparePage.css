@@ -143,8 +143,24 @@
   object-fit: contain;
 }
 
-.compare-page__layer--top {
-  clip-path: inset(0 calc(100% - var(--compare-reveal)) 0 0);
+.compare-page__layer--right {
+  clip-path: inset(0 0 0 var(--compare-divider));
+}
+
+.compare-page__divider {
+  position: absolute;
+  inline-size: 2px;
+  background-color: var(--kiln-color-on-surface);
+  inset-block: 0;
+  inset-inline-start: var(--compare-divider);
+  transform: translateX(-50%);
+}
+
+.compare-page__sides {
+  display: flex;
+  justify-content: space-between;
+  max-inline-size: 640px;
+  font-weight: var(--kiln-weight-bold);
 }
 
 .compare-page__slider {

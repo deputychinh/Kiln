@@ -11,15 +11,19 @@ const versionNumberOf = (raw: unknown): number | undefined => {
   return Number(text);
 };
 
+/** A mode this page knows; the router merges raw params back in, so the type alone is no proof. */
+export const isCompareMode = (value: unknown): value is CompareMode =>
+  typeof value === 'string' && MODES.has(value);
+
 /** The compare page's search params, keeping only what can be trusted. */
 export const parseCompareSearch = (raw: Record<string, unknown>): CompareSearch => {
   const left = versionNumberOf(raw.left);
   const right = versionNumberOf(raw.right);
-  const mode = typeof raw.mode === 'string' && MODES.has(raw.mode) ? raw.mode : undefined;
+  const mode = isCompareMode(raw.mode) ? raw.mode : undefined;
   return {
     ...(left === undefined ? {} : { left }),
     ...(right === undefined ? {} : { right }),
-    ...(mode === undefined ? {} : { mode: mode as CompareMode }),
+    ...(mode === undefined ? {} : { mode }),
   };
 };
 
