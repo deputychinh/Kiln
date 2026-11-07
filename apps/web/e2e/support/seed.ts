@@ -60,3 +60,11 @@ export const seedModelAsset = (
   request: APIRequestContext,
   name: string,
 ): Promise<{ id: string; name: string }> => seedAsset(request, name, CRATE);
+
+/** Any .glb bytes, for files the tests shape themselves. */
+export const seedModelBytes = (
+  request: APIRequestContext,
+  name: string,
+  buffer: Buffer,
+): Promise<{ id: string; name: string }> =>
+  seedAsset(request, name, { fileName: 'model.glb', mimeType: 'model/gltf-binary', buffer });
