@@ -13,6 +13,10 @@ from kiln_api.clock import SystemClock
 from kiln_api.config import Settings
 from kiln_api.constants import (
     DB_CONNECT_TIMEOUT_SECONDS,
+    DB_KEEPALIVES_COUNT,
+    DB_KEEPALIVES_IDLE_SECONDS,
+    DB_KEEPALIVES_INTERVAL_SECONDS,
+    DB_TCP_USER_TIMEOUT_MS,
     STORAGE_CONNECT_TIMEOUT_SECONDS,
     STORAGE_PROBE_TIMEOUT_SECONDS,
     STORAGE_READ_TIMEOUT_SECONDS,
@@ -49,7 +53,7 @@ class Container:
 
 
 def build_engine(settings: Settings) -> Engine:
-    """An engine whose sessions cannot wait forever to connect, on a lock or on a query."""
+    """An engine whose sessions never wait forever to connect, on a lock, a query or a dead link."""
     options = (
         f"-c lock_timeout={settings.db_lock_timeout_ms}"
         f" -c statement_timeout={settings.db_statement_timeout_ms}"
@@ -57,7 +61,15 @@ def build_engine(settings: Settings) -> Engine:
     return create_engine(
         settings.database_url,
         pool_pre_ping=True,
-        connect_args={"options": options, "connect_timeout": DB_CONNECT_TIMEOUT_SECONDS},
+        connect_args={
+            "options": options,
+            "connect_timeout": DB_CONNECT_TIMEOUT_SECONDS,
+            "keepalives": 1,
+            "keepalives_idle": DB_KEEPALIVES_IDLE_SECONDS,
+            "keepalives_interval": DB_KEEPALIVES_INTERVAL_SECONDS,
+            "keepalives_count": DB_KEEPALIVES_COUNT,
+            "tcp_user_timeout": DB_TCP_USER_TIMEOUT_MS,
+        },
     )
 
 

@@ -67,6 +67,12 @@ STORAGE_BULKHEAD_WAIT_SECONDS = 0.5
 DB_CONNECT_TIMEOUT_SECONDS = 5
 DB_LOCK_TIMEOUT_MS = 5_000
 DB_STATEMENT_TIMEOUT_MS = 15_000
+# A dead TCP link (no FIN, no RST) must not block a session forever: unacknowledged data fails the
+# socket after 30 s and an idle one is probed every 5 s after 10 s, three times (KILN-28 review).
+DB_TCP_USER_TIMEOUT_MS = 30_000
+DB_KEEPALIVES_IDLE_SECONDS = 10
+DB_KEEPALIVES_INTERVAL_SECONDS = 5
+DB_KEEPALIVES_COUNT = 3
 # How long a finished job waits for an in-flight extension before moving on: longer than any
 # statement may run, so the outcome write never queues behind an extension's row lock.
 JOB_HEARTBEAT_JOIN_SECONDS = DB_STATEMENT_TIMEOUT_MS / 1000 + 5

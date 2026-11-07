@@ -22,6 +22,23 @@ def test_database_sessions_carry_lock_and_statement_timeouts(database_url: str) 
     assert (lock, statement) == ("5s", "15s")
 
 
+def test_database_sockets_give_up_on_a_dead_link(database_url: str) -> None:
+    """A link that dies without FIN or RST fails the session instead of blocking it (KILN-28)."""
+    engine = build_engine(Settings(env=Environment.TEST, database_url=database_url))
+    with engine.connect() as connection:
+        dsn = connection.connection.dbapi_connection.info.dsn  # type: ignore[union-attr]
+    engine.dispose()
+
+    for setting in (
+        "keepalives=1",
+        "keepalives_idle=10",
+        "keepalives_interval=5",
+        "keepalives_count=3",
+        "tcp_user_timeout=30000",
+    ):
+        assert setting in dsn
+
+
 def test_the_storage_client_has_bounded_timeouts_and_attempts() -> None:
     storage = build_storage(Settings(env=Environment.TEST))
     config: Any = storage._client.meta.config  # asserting the wiring itself
