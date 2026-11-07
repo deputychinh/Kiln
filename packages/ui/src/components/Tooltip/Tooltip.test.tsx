@@ -55,4 +55,14 @@ describe('Tooltip', () => {
 
     expect(container.firstElementChild).toHaveClass('tooltip--block', 'tooltip--top');
   });
+
+  it('wraps block content such as a heading in a div', () => {
+    const { container } = render(
+      <Tooltip content="rock_cliff_albedo" isBlock as="div">
+        <h2>rock_cliff_albedo</h2>
+      </Tooltip>,
+    );
+
+    expect(container.firstElementChild?.tagName).toBe('DIV');
+  });
 });

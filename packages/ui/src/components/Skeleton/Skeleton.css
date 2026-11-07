@@ -6,7 +6,7 @@
 
 .skeleton--tile {
   inline-size: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1;
   border-radius: var(--kiln-radius-lg);
 }
 
@@ -28,7 +28,7 @@
 
 .skeleton__tile {
   display: block;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1;
   background-color: var(--kiln-color-surface-hover);
 }
 

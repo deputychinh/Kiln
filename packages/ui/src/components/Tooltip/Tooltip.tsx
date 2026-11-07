@@ -11,6 +11,8 @@ interface TooltipProps {
   placement?: TooltipPlacement;
   /** Stretch the wrapper to its container (e.g. a truncated name in a card). */
   isBlock?: boolean;
+  /** The wrapper element: a `div` around block content such as a heading (default `span`). */
+  as?: 'span' | 'div';
   /** The trigger: a focusable control, or text inside one. */
   children: ReactNode;
 }
@@ -23,6 +25,7 @@ export const Tooltip = ({
   content,
   placement = TooltipPlacement.Top,
   isBlock = false,
+  as: Wrapper = 'span',
   children,
 }: TooltipProps): ReactElement => {
   const [isDismissed, setIsDismissed] = useState(false);
@@ -34,8 +37,7 @@ export const Tooltip = ({
   ];
   return (
     // The wrapper only listens: Escape on the trigger inside hides the bubble (1.4.13 dismissible).
-    // eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- not a control itself; the trigger inside is
-    <span
+    <Wrapper
       className={classes.filter(Boolean).join(' ')}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !isDismissed) setIsDismissed(true);
@@ -47,6 +49,6 @@ export const Tooltip = ({
       <span className="tooltip__bubble" role="tooltip" aria-hidden="true">
         {content}
       </span>
-    </span>
+    </Wrapper>
   );
 };

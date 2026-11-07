@@ -57,4 +57,19 @@ describe('AssetThumb', () => {
       'https://s3.test/new.webp',
     );
   });
+
+  it('sizes the image to its own ratio once loaded, square until then', () => {
+    const { container } = render(
+      <AssetThumb src="https://s3.test/wide.webp" alt="Wide" placeholder="Image" />,
+    );
+    const well = container.firstElementChild as HTMLElement;
+    expect(well.style.getPropertyValue('--thumb-ratio')).toBe('1');
+
+    const image = screen.getByRole('img', { name: 'Wide' });
+    Object.defineProperty(image, 'naturalWidth', { value: 512 });
+    Object.defineProperty(image, 'naturalHeight', { value: 256 });
+    fireEvent.load(image);
+
+    expect(well.style.getPropertyValue('--thumb-ratio')).toBe('2');
+  });
 });

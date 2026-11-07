@@ -143,7 +143,7 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
     own: ['label', 'tabs', 'defaultSelectedId', 'selectedId', 'onSelect'],
   },
   'components-toolbar--docs': { own: ['label', 'children', 'end'] },
-  'components-tooltip--docs': { own: ['content', 'placement', 'isBlock', 'children'] },
+  'components-tooltip--docs': { own: ['content', 'placement', 'isBlock', 'as', 'children'] },
 };
 
 test('every docs page lists and describes every prop of its component', async ({

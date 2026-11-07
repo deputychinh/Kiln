@@ -1,27 +1,24 @@
-/* A 4:3 well on a neutral ground; the preview is contained in it, never cropped. */
+/*
+ * A square well (previews are rendered square, longest side 512 px), so they fill it edge to
+ * edge. The well is a size container: the image scales to the largest box of its own ratio that
+ * fits, so the checkerboard sits behind its pixels only and never in the margins.
+ */
 .asset-thumb {
   position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
   inline-size: 100%;
-  aspect-ratio: 4 / 3;
-  background-color: var(--kiln-color-surface-sunken);
+  aspect-ratio: 1;
+  background-color: var(--kiln-color-preview-well);
+  container-type: size;
 }
 
-/*
- * Out of flow and centred with auto margins, so the image box is exactly the drawn image: the
- * checkerboard sits behind its transparent pixels only, as in image editors, not in the margins.
- */
 .asset-thumb__image {
-  position: absolute;
-  inset: 0;
   display: block;
-  inline-size: auto;
-  max-inline-size: 100%;
+  inline-size: min(100cqi, 100cqb * var(--thumb-ratio));
   block-size: auto;
-  max-block-size: 100%;
-  margin: auto;
+  aspect-ratio: var(--thumb-ratio);
   background-color: var(--kiln-color-checker-a);
   background-image: conic-gradient(
     var(--kiln-color-checker-b) 25%,
@@ -30,6 +27,7 @@
     transparent 0
   );
   background-size: var(--kiln-checker-size) var(--kiln-checker-size);
+  object-fit: contain;
 }
 
 .asset-thumb__placeholder {

@@ -39,8 +39,6 @@
   --kiln-amber-800: #854d0e;
   --kiln-red-400: #f87171;
   --kiln-red-700: #b91c1c;
-  --kiln-blue-400: #7aa7ff;
-  --kiln-blue-600: #2563eb;
   --kiln-sky-400: #60a5fa;
   --kiln-sky-700: #1d4ed8;
 
@@ -57,7 +55,7 @@
   --kiln-color-on-surface: var(--kiln-zinc-100);
   --kiln-color-on-surface-muted: var(--kiln-zinc-400);
   --kiln-color-primary: var(--kiln-ember-400);
-  --kiln-color-primary-hover: var(--kiln-ember-300);
+  --kiln-color-primary-hover: var(--kiln-ember-500);
   --kiln-color-on-primary: var(--kiln-ember-950);
   --kiln-color-on-selected: var(--kiln-ember-300);
   --kiln-color-outline: var(--kiln-zinc-600);
@@ -66,12 +64,14 @@
   --kiln-color-warning: var(--kiln-amber-400);
   --kiln-color-danger: var(--kiln-red-400);
   --kiln-color-info: var(--kiln-sky-400);
-  --kiln-color-focus: var(--kiln-blue-400);
+  --kiln-color-focus: var(--kiln-ember-400);
   --kiln-color-tooltip: var(--kiln-zinc-100);
   --kiln-color-on-tooltip: var(--kiln-zinc-900);
   --kiln-color-scrim: rgb(0 0 0 / 62%);
-  --kiln-color-checker-a: var(--kiln-zinc-850);
-  --kiln-color-checker-b: var(--kiln-zinc-800);
+  --kiln-color-checker-a: var(--kiln-zinc-800);
+  --kiln-color-checker-b: var(--kiln-zinc-750);
+  --kiln-color-preview-well: var(--kiln-zinc-850);
+  --kiln-color-stage: var(--kiln-zinc-800);
 
   /* Spacing: a 4 px scale. */
   --kiln-space-1: 4px;
@@ -148,12 +148,10 @@
   --kiln-icon-lg: 32px;
   --kiln-shell-bar: 56px;
   --kiln-shell-rail: 80px;
-  --kiln-shell-sidebar: 220px;
-  --kiln-shell-bottom-nav: 64px;
   --kiln-shell-inspector: 400px;
   --kiln-tray-width: 380px;
-  --kiln-card-min: 168px;
-  --kiln-card-min-compact: 132px;
+  --kiln-card-min: 160px;
+  --kiln-card-min-compact: 104px;
   --kiln-measure: 65ch;
 }
 
@@ -180,12 +178,14 @@
     --kiln-color-warning: var(--kiln-amber-800);
     --kiln-color-danger: var(--kiln-red-700);
     --kiln-color-info: var(--kiln-sky-700);
-    --kiln-color-focus: var(--kiln-blue-600);
+    --kiln-color-focus: var(--kiln-ember-700);
     --kiln-color-tooltip: var(--kiln-zinc-900);
     --kiln-color-on-tooltip: var(--kiln-zinc-50);
     --kiln-color-scrim: rgb(24 24 27 / 45%);
     --kiln-color-checker-a: var(--kiln-zinc-0);
     --kiln-color-checker-b: var(--kiln-zinc-150);
+    --kiln-color-preview-well: var(--kiln-zinc-150);
+    --kiln-color-stage: var(--kiln-zinc-650);
     --kiln-shadow-1: 0 1px 2px rgb(24 24 27 / 8%);
     --kiln-shadow-2: 0 4px 16px rgb(24 24 27 / 10%), 0 0 0 1px rgb(24 24 27 / 6%);
     --kiln-shadow-3: 0 16px 48px rgb(24 24 27 / 18%), 0 0 0 1px rgb(24 24 27 / 8%);
@@ -214,12 +214,14 @@
   --kiln-color-warning: var(--kiln-amber-800);
   --kiln-color-danger: var(--kiln-red-700);
   --kiln-color-info: var(--kiln-sky-700);
-  --kiln-color-focus: var(--kiln-blue-600);
+  --kiln-color-focus: var(--kiln-ember-700);
   --kiln-color-tooltip: var(--kiln-zinc-900);
   --kiln-color-on-tooltip: var(--kiln-zinc-50);
   --kiln-color-scrim: rgb(24 24 27 / 45%);
   --kiln-color-checker-a: var(--kiln-zinc-0);
   --kiln-color-checker-b: var(--kiln-zinc-150);
+  --kiln-color-preview-well: var(--kiln-zinc-150);
+  --kiln-color-stage: var(--kiln-zinc-650);
   --kiln-shadow-1: 0 1px 2px rgb(24 24 27 / 8%);
   --kiln-shadow-2: 0 4px 16px rgb(24 24 27 / 10%), 0 0 0 1px rgb(24 24 27 / 6%);
   --kiln-shadow-3: 0 16px 48px rgb(24 24 27 / 18%), 0 0 0 1px rgb(24 24 27 / 8%);

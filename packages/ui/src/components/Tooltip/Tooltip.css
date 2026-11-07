@@ -71,6 +71,11 @@
   visibility: hidden;
 }
 
+/* A heading the app focuses (tabindex -1) is not a control: its tooltip waits for the pointer. */
+.tooltip:has([tabindex='-1']:focus-visible):not(:hover) .tooltip__bubble {
+  visibility: hidden;
+}
+
 @media (hover: none) {
   .tooltip:hover .tooltip__bubble {
     visibility: hidden;
