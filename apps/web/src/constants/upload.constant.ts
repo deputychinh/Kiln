@@ -1,3 +1,5 @@
+import type { AssetKind } from '@/interfaces/asset.interface';
+
 /** The API's limit per file (`MAX_UPLOAD_BYTES`, 500 MiB). */
 export const UPLOAD_MAX_BYTES = 500 * 1024 * 1024;
 /** The API's limit for asset names (`ASSET_NAME_MAX_LENGTH`). */
@@ -19,6 +21,22 @@ export const UPLOAD_ACCEPT = [
   ...new Set(Object.values(UPLOAD_CONTENT_TYPES)),
   ...Object.keys(UPLOAD_CONTENT_TYPES).map((extension) => `.${extension}`),
 ].join(',');
+/** What each file type is, as the API classifies it (a version must match its asset). */
+export const KIND_BY_CONTENT_TYPE: Readonly<Record<string, AssetKind>> = {
+  'image/png': 'image',
+  'image/jpeg': 'image',
+  'image/webp': 'image',
+  'model/gltf-binary': 'model',
+};
+/** The file picker's `accept` for a version of an asset of each kind. */
+export const VERSION_ACCEPT: Readonly<Record<AssetKind, string>> = {
+  image: 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp',
+  model: 'model/gltf-binary,.glb',
+};
+export const versionsPath = (assetId: string): string =>
+  `/api/v1/assets/${encodeURIComponent(assetId)}/versions`;
+/** The API's `code` when a new version is not the same kind of file as its asset. */
+export const ASSET_KIND_MISMATCH_CODE = 'ASSET_KIND_MISMATCH';
 export const completionsPath = (versionId: string): string =>
   `/api/v1/asset-versions/${encodeURIComponent(versionId)}/completions`;
 /** The `code` of an `ApiError` raised when storage itself refuses the file (e.g. an expired form). */

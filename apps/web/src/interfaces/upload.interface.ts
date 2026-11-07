@@ -1,6 +1,7 @@
 import type { components } from '@/api/kiln.schema';
 import type { UploadRejection } from '@/enums/upload-rejection.enum';
 import type { UploadStatus } from '@/enums/upload-status.enum';
+import type { AssetKind } from '@/interfaces/asset.interface';
 
 type Schemas = components['schemas'];
 
@@ -29,6 +30,14 @@ export interface UploadItem {
   idempotencyKey: string;
   assetId: string | null;
   versionId: string | null;
+  /** The asset this file becomes a new version of; null for a new asset. */
+  targetAssetId: string | null;
+}
+
+/** Where files go when they are a new version of an existing asset. */
+export interface UploadTarget {
+  assetId: string;
+  kind: AssetKind;
 }
 
 /** The part of `XMLHttpRequest` a storage upload uses (fetch has no upload progress). */
@@ -55,7 +64,8 @@ export interface UploadsApi {
   outcomeCount: number;
   /** Files finished (ready, or uploaded and still processing) and failed, out of all rows. */
   summary: { finished: number; failed: number; total: number };
-  add: (files: File[]) => void;
+  /** Queue files as new assets, or as new versions of `target`. */
+  add: (files: File[], target?: UploadTarget) => void;
   cancel: (id: string) => void;
   retry: (id: string) => void;
   remove: (id: string) => void;
@@ -67,4 +77,14 @@ export interface UploadQueueState {
   /** The most recent rows to reach an end state, oldest first. */
   outcomes: UploadItem[];
   outcomeCount: number;
+}
+
+/** The words of a panel that adds versions to one asset instead of creating assets. */
+export interface UploadPanelZone {
+  panelLabel: string;
+  dropLabel: string;
+  hint: string;
+  buttonLabel: string;
+  accept: string;
+  listLabel: string;
 }

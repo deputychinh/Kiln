@@ -91,3 +91,25 @@ describe('declareUpload', () => {
     });
   });
 });
+
+describe('declareUpload for a version of an existing asset', () => {
+  it.each([
+    ['rock_v2.png', 'image'],
+    ['crate_v2.glb', 'model'],
+  ] as const)('accepts %s for a %s asset', (name, kind) => {
+    expect(declareUpload(fileOf(name, '', 10), kind).rejection).toBeUndefined();
+  });
+
+  it.each([
+    ['crate.glb', 'image', UploadRejection.NotAnImage],
+    ['rock.webp', 'model', UploadRejection.NotAModel],
+  ] as const)('refuses %s for a %s asset before anything is sent', (name, kind, rejection) => {
+    expect(declareUpload(fileOf(name, '', 10), kind)).toEqual({ rejection });
+  });
+
+  it('still refuses an unsupported file as unsupported, whatever the kind', () => {
+    expect(declareUpload(fileOf('notes.txt', 'text/plain', 10), 'image').rejection).toBe(
+      UploadRejection.Unsupported,
+    );
+  });
+});

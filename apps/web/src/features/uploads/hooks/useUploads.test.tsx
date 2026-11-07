@@ -6,6 +6,7 @@ import { apiError } from '@/api/client';
 import { createQueryClient } from '@/config/query-client';
 import {
   ASSET_LIST_QUERY_KEY,
+  assetDetailQueryKey,
   PROCESSING_POLL_MAX_MS,
   PROCESSING_POLL_MS,
 } from '@/constants/assets.constant';
@@ -14,6 +15,7 @@ import { UploadStatus } from '@/enums/upload-status.enum';
 import { getAsset } from '@/features/assets/services/assets.service';
 import { useUploads } from '@/features/uploads/hooks/useUploads';
 import {
+  addVersion,
   completeUpload,
   createAsset,
   sendToStorage,
@@ -155,6 +157,71 @@ describe('useUploads', () => {
       [UploadStatus.Failed, 'This file is empty.', false],
     ]);
     expect(createAsset).not.toHaveBeenCalled();
+  });
+
+  it('adds a version to the target asset instead of creating one, refreshing its detail', async () => {
+    vi.mocked(addVersion).mockResolvedValue(pending(9));
+    vi.mocked(getAsset).mockResolvedValue(detailWith('ready', 9));
+    const { result, invalidate } = setup();
+
+    act(() => result.current.add([png('rock_v2.png')], { assetId: 'asset-9', kind: 'image' }));
+
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+    expect(createAsset).not.toHaveBeenCalled();
+    expect(vi.mocked(addVersion).mock.calls[0]?.[0]).toMatchObject({
+      assetId: 'asset-9',
+      declaration: { file_name: 'rock_v2.png', content_type: 'image/png' },
+    });
+    expect(result.current.items[0]?.targetAssetId).toBe('asset-9');
+    // The new version shows in the detail at once, and again when its preview is ready.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: assetDetailQueryKey('asset-9') });
+
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
+    expect(
+      invalidate.mock.calls.filter(([filters]) => filters?.queryKey?.[1] === 'detail'),
+    ).toHaveLength(2);
+  });
+
+  it('refuses a file of the other kind for a version without sending anything', () => {
+    const { result } = setup();
+
+    act(() =>
+      result.current.add([new File(['glb'], 'crate.glb')], { assetId: 'asset-9', kind: 'image' }),
+    );
+
+    expect(result.current.items[0]).toMatchObject({
+      status: UploadStatus.Failed,
+      error: 'This asset holds images: choose a PNG, JPEG or WebP file.',
+      canRetry: false,
+    });
+    expect(addVersion).not.toHaveBeenCalled();
+  });
+
+  it('uploads versions of one asset one at a time, in the order dropped', async () => {
+    const first = deferred<undefined>();
+    vi.mocked(sendToStorage)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValue(new Promise(() => undefined));
+    vi.mocked(addVersion).mockResolvedValue(pending(9));
+    vi.mocked(createAsset).mockResolvedValue(pending(2));
+    const { result } = setup();
+    const target = { assetId: 'asset-9', kind: 'image' } as const;
+
+    act(() => result.current.add([png('v2.png'), png('v3.png')], target));
+    act(() => result.current.add([png('other.png')]));
+
+    // The second version waits for the first; a new asset takes the free slot meanwhile.
+    await waitFor(() => expect(createAsset).toHaveBeenCalledTimes(1));
+    expect(addVersion).toHaveBeenCalledTimes(1);
+    expect(statusOf(result, 1)).toBe(UploadStatus.Queued);
+
+    first.resolve(undefined);
+    await waitFor(() => expect(addVersion).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(addVersion).mock.calls.map(([call]) => call.declaration.file_name)).toEqual([
+      'v2.png',
+      'v3.png',
+    ]);
   });
 
   it('sends at most two files at a time; the rest wait in the queue', async () => {

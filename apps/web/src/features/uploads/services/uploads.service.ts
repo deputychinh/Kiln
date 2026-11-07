@@ -6,6 +6,7 @@ import {
   UPLOAD_API_TIMEOUT_MS,
   UPLOAD_STALL_MS,
   UPLOAD_STALLED_CODE,
+  versionsPath,
 } from '@/constants/upload.constant';
 import type {
   CreateAssetRequest,
@@ -48,6 +49,28 @@ export const createAsset = (
 ): Promise<PendingUpload> =>
   withTimeout(
     (timed) => apiPost<PendingUpload>(ASSETS_PATH, declaration, { idempotencyKey, signal: timed }),
+    signal,
+  );
+
+/** POST /api/v1/assets/{id}/versions: the asset's next version and the signed form for its file. */
+export const addVersion = ({
+  assetId,
+  declaration: { file_name, content_type, size_bytes },
+  idempotencyKey,
+  signal,
+}: {
+  assetId: string;
+  declaration: CreateAssetRequest;
+  idempotencyKey: string;
+  signal?: AbortSignal;
+}): Promise<PendingUpload> =>
+  withTimeout(
+    (timed) =>
+      apiPost<PendingUpload>(
+        versionsPath(assetId),
+        { file_name, content_type, size_bytes },
+        { idempotencyKey, signal: timed },
+      ),
     signal,
   );
 

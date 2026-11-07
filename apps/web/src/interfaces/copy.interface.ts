@@ -59,6 +59,14 @@ export interface Copy {
     storageRejected: string;
     busy: string;
     stalled: string;
-    refused: { name: string; size: string; other: string };
+    refused: { name: string; size: string; kind: string; other: string };
+    /** The version zone in an asset's detail. */
+    version: {
+      title: string;
+      dropLabel: (assetName: string) => string;
+      hint: Record<AssetKind, string>;
+      choose: string;
+      listLabel: (assetName: string) => string;
+    };
   };
 }

@@ -91,6 +91,8 @@ export const en: Copy = {
       empty: 'This file is empty.',
       too_large: 'This file is larger than 500 MB.',
       name_too_long: 'The file name is longer than 255 characters. Rename it, then add it again.',
+      not_an_image: 'This asset holds images: choose a PNG, JPEG or WebP file.',
+      not_a_model: 'This asset holds 3D models: choose a .glb file.',
     },
     storageRejected: 'Storage refused the file. Try again.',
     busy: 'Kiln is busy right now. Try again in a moment.',
@@ -98,7 +100,18 @@ export const en: Copy = {
     refused: {
       name: 'Kiln cannot use this file name. Rename the file, then add it again.',
       size: 'Kiln cannot accept a file of this size.',
+      kind: 'A new version must be the same kind of file as the asset.',
       other: 'Kiln could not accept this file.',
+    },
+    version: {
+      title: 'Add a version',
+      dropLabel: (assetName) => `Drop a new version of ${assetName} here`,
+      hint: {
+        image: 'PNG, JPEG or WebP, up to 500 MB. Each file becomes the next version.',
+        model: 'glTF binary (.glb), up to 500 MB. Each file becomes the next version.',
+      },
+      choose: 'Choose a file',
+      listLabel: (assetName) => `New versions of ${assetName}`,
     },
   },
 };

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { isApiError } from '@/api/client';
 import {
   ASSET_LIST_QUERY_KEY,
+  assetDetailQueryKey,
   PROCESSING_POLL_MAX_MS,
   PROCESSING_POLL_MS,
 } from '@/constants/assets.constant';
@@ -11,12 +12,18 @@ import { ALREADY_COMPLETE_CODE, UPLOAD_CONCURRENCY } from '@/constants/upload.co
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { getAsset } from '@/features/assets/services/assets.service';
 import {
+  addVersion,
   completeUpload,
   createAsset,
   sendToStorage,
 } from '@/features/uploads/services/uploads.service';
 import { useCopy } from '@/hooks/useCopy';
-import type { UploadItem, UploadQueueState, UploadsApi } from '@/interfaces/upload.interface';
+import type {
+  UploadItem,
+  UploadQueueState,
+  UploadsApi,
+  UploadTarget,
+} from '@/interfaces/upload.interface';
 import { uploadFailureOf } from '@/utils/upload-error.util';
 import { declareUpload } from '@/utils/upload-file.util';
 
@@ -84,9 +91,30 @@ const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
   });
 
 /**
- * The browser upload queue: each file is created through the API (with its own idempotency key,
- * so a retry never makes a second asset), sent to the signed storage form with progress,
- * completed, then watched until its preview is ready — at most `UPLOAD_CONCURRENCY` at a time.
+ * Queued rows to start now, in order: at most `UPLOAD_CONCURRENCY` running in all, and never two
+ * for the same asset, so new versions of one asset are numbered in the order they were added.
+ */
+const nextToStart = (items: UploadItem[]): UploadItem[] => {
+  const running = items.filter((item) => RUNNING.has(item.status));
+  const busyAssets = new Set(running.map((item) => item.targetAssetId).filter(Boolean));
+  const picked: UploadItem[] = [];
+  for (const item of items) {
+    if (running.length + picked.length >= UPLOAD_CONCURRENCY) break;
+    if (item.status !== UploadStatus.Queued) continue;
+    if (item.targetAssetId !== null) {
+      if (busyAssets.has(item.targetAssetId)) continue;
+      busyAssets.add(item.targetAssetId);
+    }
+    picked.push(item);
+  }
+  return picked;
+};
+
+/**
+ * The browser upload queue for the whole assets page: each file becomes a new asset, or a new
+ * version of a target asset, through the API (with its own idempotency key, so a retry never
+ * makes a second one), is sent to the signed storage form with progress, completed, then watched
+ * until its preview is ready.
  */
 export const useUploads = (): UploadsApi => {
   const copy = useCopy();
@@ -104,6 +132,14 @@ export const useUploads = (): UploadsApi => {
   );
   const refreshGallery = useCallback(
     () => void queryClient.invalidateQueries({ queryKey: ASSET_LIST_QUERY_KEY }),
+    [queryClient],
+  );
+  /** The detail of the asset a version was added to; new assets have no open detail to refresh. */
+  const refreshTarget = useCallback(
+    (item: UploadItem) => {
+      if (item.targetAssetId === null) return;
+      void queryClient.invalidateQueries({ queryKey: assetDetailQueryKey(item.targetAssetId) });
+    },
     [queryClient],
   );
 
@@ -130,6 +166,7 @@ export const useUploads = (): UploadsApi => {
         if (version?.status === 'ready') {
           patch(item.id, { status: UploadStatus.Ready });
           refreshGallery();
+          refreshTarget(item);
           return;
         }
         if (version?.status === 'failed') {
@@ -140,12 +177,13 @@ export const useUploads = (): UploadsApi => {
             canRetry: false,
           });
           refreshGallery();
+          refreshTarget(item);
           return;
         }
       }
       patch(item.id, { status: UploadStatus.Uploaded });
     },
-    [copy, patch, refreshGallery],
+    [copy, patch, refreshGallery, refreshTarget],
   );
 
   const run = useCallback(
@@ -157,9 +195,18 @@ export const useUploads = (): UploadsApi => {
         const { declaration } = declareUpload(item.file);
         if (!declaration) return; // refused files never reach the queue
         patch(item.id, { status: UploadStatus.Creating, progress: 0, error: null });
-        const created = await createAsset(declaration, item.idempotencyKey, signal);
+        const created =
+          item.targetAssetId === null
+            ? await createAsset(declaration, item.idempotencyKey, signal)
+            : await addVersion({
+                assetId: item.targetAssetId,
+                declaration,
+                idempotencyKey: item.idempotencyKey,
+                signal,
+              });
         const versionId = created.version.id;
         patch(item.id, { assetId: created.asset.id, versionId });
+        refreshTarget(item); // the new version shows in the open detail at once
         if (created.version.status === 'pending_upload' && created.upload) {
           patch(item.id, { status: UploadStatus.Uploading });
           // One update per whole percent: progress events come many times a second.
@@ -191,16 +238,12 @@ export const useUploads = (): UploadsApi => {
           controllersRef.current.delete(item.id);
       }
     },
-    [copy, patch, refreshGallery, waitForPreview],
+    [copy, patch, refreshGallery, refreshTarget, waitForPreview],
   );
 
   // Start queued files while fewer than the limit are being created, sent or completed.
   useEffect(() => {
-    const running = items.filter((item) => RUNNING.has(item.status)).length;
-    const next = items
-      .filter((item) => item.status === UploadStatus.Queued)
-      .slice(0, Math.max(0, UPLOAD_CONCURRENCY - running));
-    for (const item of next) {
+    for (const item of nextToStart(items)) {
       patch(item.id, { status: UploadStatus.Creating });
       void run(item);
     }
@@ -215,11 +258,11 @@ export const useUploads = (): UploadsApi => {
   }, []);
 
   const add = useCallback(
-    (files: File[]) => {
+    (files: File[], target?: UploadTarget) => {
       dispatch({
         type: 'add',
         items: files.map((file) => {
-          const { rejection } = declareUpload(file);
+          const { rejection } = declareUpload(file, target?.kind);
           return {
             id: crypto.randomUUID(),
             file,
@@ -228,8 +271,9 @@ export const useUploads = (): UploadsApi => {
             error: rejection ? copy.uploads.rejected[rejection] : null,
             canRetry: !rejection,
             idempotencyKey: crypto.randomUUID(),
-            assetId: null,
+            assetId: target?.assetId ?? null,
             versionId: null,
+            targetAssetId: target?.assetId ?? null,
           };
         }),
       });

@@ -63,6 +63,29 @@ describe('AssetDetail', () => {
     expect(versions[1]).toHaveTextContent('1.5 MB');
   });
 
+  it('offers a version zone for the asset and refuses a file of the other kind before sending', async () => {
+    const fetchMock = fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+    renderApp(`/assets/${asset.id}`);
+
+    const detail = await screen.findByRole('article', { name: 'rock_albedo' });
+    const zone = within(detail).getByRole('group', {
+      name: 'Drop a new version of rock_albedo here',
+    });
+    const input = zone.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.accept).toBe('image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp');
+    expect(within(zone).getByRole('button', { name: 'Choose a file' })).toBeVisible();
+
+    await userEvent.upload(input, new File(['glb'], 'crate.glb'), { applyAccept: false });
+
+    const rows = within(detail).getByRole('list', { name: 'New versions of rock_albedo' });
+    expect(rows).toHaveTextContent('This asset holds images: choose a PNG, JPEG or WebP file.');
+    expect(within(rows).queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
+    expect(countRequests(fetchMock, `${DETAIL}/versions`)).toBe(0);
+  });
+
   it('makes the asset name the page heading when the detail replaces the list (compact)', async () => {
     fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],

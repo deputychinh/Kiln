@@ -6,10 +6,16 @@ import { UPLOAD_ACCEPT } from '@/constants/upload.constant';
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { UploadRow } from '@/features/uploads/components/UploadRow';
 import { useCopy } from '@/hooks/useCopy';
-import type { UploadsApi } from '@/interfaces/upload.interface';
+import type {
+  UploadItem,
+  UploadPanelZone,
+  UploadsApi,
+  UploadTarget,
+} from '@/interfaces/upload.interface';
 
 import './UploadPanel.css';
 
+const FINISHED = new Set([UploadStatus.Ready, UploadStatus.Uploaded]);
 const IN_FLIGHT = new Set([
   UploadStatus.Queued,
   UploadStatus.Creating,
@@ -19,12 +25,26 @@ const IN_FLIGHT = new Set([
 
 interface UploadPanelProps {
   uploads: UploadsApi;
+  /** Files become new versions of this asset; without it they become new assets. */
+  target?: UploadTarget;
+  /** Required with `target`: what this panel's zone and list are called. */
+  zone?: UploadPanelZone;
 }
 
-/** The dropzone and the list of files being uploaded, with one polite announcement per outcome. */
-export const UploadPanel = ({ uploads }: UploadPanelProps): ReactElement => {
+/**
+ * The dropzone and the list of files being uploaded, with one polite announcement per outcome.
+ * Shows only its own rows: new assets in the gallery, new versions of one asset in its detail.
+ */
+export const UploadPanel = ({ uploads, target, zone }: UploadPanelProps): ReactElement => {
   const copy = useCopy();
-  const { items, summary } = uploads;
+  const targetAssetId = target?.assetId ?? null;
+  const isMine = (item: UploadItem): boolean => item.targetAssetId === targetAssetId;
+  const items = uploads.items.filter(isMine);
+  const summary = {
+    finished: items.filter((item) => FINISHED.has(item.status)).length,
+    failed: items.filter((item) => item.status === UploadStatus.Failed).length,
+    total: items.length,
+  };
   const panelRef = useRef<HTMLElement>(null);
   // After Remove the pressed button is gone: focus the row that took its place (or the one
   // before it), or Choose files when the list is empty (WCAG 2.4.3).
@@ -84,6 +104,7 @@ export const UploadPanel = ({ uploads }: UploadPanelProps): ReactElement => {
       pendingRef.current.push(
         ...outcomes
           .slice(-fresh)
+          .filter((item) => item.targetAssetId === targetAssetId)
           .map((item) =>
             copy.uploads.announce(item.file.name, item.error ?? copy.uploads.status[item.status]),
           ),
@@ -96,23 +117,27 @@ export const UploadPanel = ({ uploads }: UploadPanelProps): ReactElement => {
       pendingRef.current = [];
     });
     return () => cancelAnimationFrame(frame);
-  }, [copy, outcomes, outcomeCount]);
+  }, [copy, outcomes, outcomeCount, targetAssetId]);
 
   return (
-    <section className="upload-panel" aria-label={copy.uploads.panelLabel} ref={panelRef}>
+    <section
+      className="upload-panel"
+      aria-label={zone?.panelLabel ?? copy.uploads.panelLabel}
+      ref={panelRef}
+    >
       <Dropzone
-        label={copy.uploads.dropLabel}
-        hint={copy.uploads.dropHint}
-        buttonLabel={copy.uploads.choose}
-        accept={UPLOAD_ACCEPT}
-        onFiles={uploads.add}
+        label={zone?.dropLabel ?? copy.uploads.dropLabel}
+        hint={zone?.hint ?? copy.uploads.dropHint}
+        buttonLabel={zone?.buttonLabel ?? copy.uploads.choose}
+        accept={zone?.accept ?? UPLOAD_ACCEPT}
+        onFiles={(files) => uploads.add(files, target)}
       />
       {items.length > 0 ? (
         <>
           <p className="upload-panel__summary">
             {copy.uploads.summary(summary.finished, summary.total, summary.failed)}
           </p>
-          <ul className="upload-panel__list" aria-label={copy.uploads.listLabel}>
+          <ul className="upload-panel__list" aria-label={zone?.listLabel ?? copy.uploads.listLabel}>
             {items.map((item) => (
               <UploadRow
                 key={item.id}

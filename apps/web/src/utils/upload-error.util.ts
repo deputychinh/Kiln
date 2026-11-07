@@ -1,5 +1,9 @@
 import { isApiError } from '@/api/client';
-import { STORAGE_REJECTED_CODE, UPLOAD_STALLED_CODE } from '@/constants/upload.constant';
+import {
+  ASSET_KIND_MISMATCH_CODE,
+  STORAGE_REJECTED_CODE,
+  UPLOAD_STALLED_CODE,
+} from '@/constants/upload.constant';
 import type { Copy } from '@/interfaces/copy.interface';
 
 const RETRYABLE_CLIENT_STATUSES = new Set([408, 409, 429]);
@@ -11,6 +15,7 @@ const refusalOf = (code: string | null, copy: Copy): string => {
   if (code && NAME_CODES.has(code)) return copy.uploads.refused.name;
   if (code && SIZE_CODES.has(code)) return copy.uploads.refused.size;
   if (code === 'UNSUPPORTED_MEDIA_TYPE') return copy.uploads.rejected.unsupported;
+  if (code === ASSET_KIND_MISMATCH_CODE) return copy.uploads.refused.kind;
   return copy.uploads.refused.other;
 };
 

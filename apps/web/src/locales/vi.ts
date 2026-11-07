@@ -91,6 +91,8 @@ export const vi: Copy = {
       empty: 'File này rỗng.',
       too_large: 'File này lớn hơn 500 MB.',
       name_too_long: 'Tên file dài hơn 255 ký tự. Hãy đổi tên rồi thêm lại.',
+      not_an_image: 'Asset này chứa ảnh: hãy chọn file PNG, JPEG hoặc WebP.',
+      not_a_model: 'Asset này chứa model 3D: hãy chọn file .glb.',
     },
     storageRejected: 'Kho lưu trữ từ chối file. Hãy thử lại.',
     busy: 'Kiln đang bận. Hãy thử lại sau giây lát.',
@@ -98,7 +100,18 @@ export const vi: Copy = {
     refused: {
       name: 'Kiln không dùng được tên file này. Hãy đổi tên file rồi thêm lại.',
       size: 'Kiln không nhận được file có dung lượng này.',
+      kind: 'Phiên bản mới phải cùng loại file với asset.',
       other: 'Kiln không nhận được file này.',
+    },
+    version: {
+      title: 'Thêm phiên bản',
+      dropLabel: (assetName) => `Thả phiên bản mới của ${assetName} vào đây`,
+      hint: {
+        image: 'PNG, JPEG hoặc WebP, tối đa 500 MB. Mỗi file thành phiên bản tiếp theo.',
+        model: 'glTF binary (.glb), tối đa 500 MB. Mỗi file thành phiên bản tiếp theo.',
+      },
+      choose: 'Chọn file',
+      listLabel: (assetName) => `Phiên bản mới của ${assetName}`,
     },
   },
 };

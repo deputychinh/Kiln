@@ -4,6 +4,7 @@ import { type ReactElement, useEffect, useRef } from 'react';
 import { ListDetail } from '@/components/ListDetail/ListDetail';
 import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
 import { AssetGallery } from '@/features/assets/components/AssetGallery';
+import { UploadsProvider } from '@/features/uploads/context/UploadsContext';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
@@ -23,12 +24,14 @@ const AssetsLayout = (): ReactElement => {
   }, [assetId, isExpanded]);
 
   return (
-    <ListDetail
-      list={<AssetGallery />}
-      detail={<Outlet />}
-      hasSelection={Boolean(assetId)}
-      detailLabel={copy.assets.detailLabel}
-    />
+    <UploadsProvider>
+      <ListDetail
+        list={<AssetGallery />}
+        detail={<Outlet />}
+        hasSelection={Boolean(assetId)}
+        detailLabel={copy.assets.detailLabel}
+      />
+    </UploadsProvider>
   );
 };
 

@@ -1,6 +1,7 @@
 import { isApiError } from '@/api/client';
 import { UPLOAD_API_TIMEOUT_MS, UPLOAD_STALLED_CODE } from '@/constants/upload.constant';
 import {
+  addVersion,
   completeUpload,
   createAsset,
   sendToStorage,
@@ -44,6 +45,34 @@ const fakeRequest = () => {
 };
 
 const file = new File(['png'], 'rock.png', { type: 'image/png' });
+
+describe('addVersion', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('posts the file to the versions of the asset with the idempotency key, without a name', async () => {
+    const fetchMock = fakeApi({ '/api/v1/assets/asset%2F1/versions': [json({ ok: 1 }, 201)] });
+
+    await addVersion({
+      assetId: 'asset/1',
+      declaration: {
+        file_name: 'rock.png',
+        content_type: 'image/png',
+        size_bytes: 3,
+        name: 'rock',
+      },
+      idempotencyKey: 'key-2',
+    });
+
+    const [input, init] = fetchMock.mock.calls[0] ?? [];
+    expect(urlOf(input)).toBe('http://api.test/api/v1/assets/asset%2F1/versions');
+    expect(init?.headers).toMatchObject({ 'Idempotency-Key': 'key-2' });
+    expect(JSON.parse(init?.body as string)).toEqual({
+      file_name: 'rock.png',
+      content_type: 'image/png',
+      size_bytes: 3,
+    });
+  });
+});
 
 describe('createAsset', () => {
   afterEach(() => vi.restoreAllMocks());

@@ -22,6 +22,7 @@ const anItem = (overrides: Partial<UploadItem> = {}): UploadItem => ({
   idempotencyKey: 'key-1',
   assetId: null,
   versionId: null,
+  targetAssetId: null,
   ...overrides,
 });
 
@@ -45,9 +46,9 @@ const uploadsWith = (
 });
 
 /** The panel inside a router, since a ready row links to its asset. */
-const renderPanel = (uploads: UploadsApi) => {
+const renderPanel = (uploads: UploadsApi, panel = <UploadPanel uploads={uploads} />) => {
   const router = createRouter({
-    routeTree: createRootRoute({ component: () => <UploadPanel uploads={uploads} /> }),
+    routeTree: createRootRoute({ component: () => panel }),
     history: createMemoryHistory({ initialEntries: ['/assets'] }),
   });
   render(<RouterProvider router={router} />);
@@ -98,8 +99,52 @@ describe('UploadPanel', () => {
       'image/png,image/jpeg,image/webp,model/gltf-binary,.png,.jpg,.jpeg,.webp,.glb',
     );
     await userEvent.upload(input, new File(['x'], 'crate.glb'));
-    expect(uploads.add).toHaveBeenCalledWith([expect.objectContaining({ name: 'crate.glb' })]);
+    expect(uploads.add).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: 'crate.glb' })],
+      undefined,
+    );
     expect(screen.queryByRole('list', { name: 'Uploads' })).not.toBeInTheDocument();
+  });
+
+  it('adds versions to its asset and shows only its own rows', async () => {
+    const target = { assetId: 'asset-9', kind: 'model' } as const;
+    const uploads = uploadsWith([
+      anItem({ id: 'mine', file: new File(['x'], 'crate_v2.glb'), targetAssetId: 'asset-9' }),
+      anItem({ id: 'gallery', file: new File(['x'], 'rock.png') }),
+      anItem({ id: 'other', file: new File(['x'], 'tree_v4.glb'), targetAssetId: 'asset-3' }),
+    ]);
+    renderPanel(
+      uploads,
+      <UploadPanel
+        uploads={uploads}
+        target={target}
+        zone={{
+          panelLabel: 'Add a version',
+          dropLabel: 'Drop a new version of crate here',
+          hint: 'glTF binary (.glb)',
+          buttonLabel: 'Choose a file',
+          accept: '.glb',
+          listLabel: 'New versions of crate',
+        }}
+      />,
+    );
+
+    const zone = await screen.findByRole('group', { name: 'Drop a new version of crate here' });
+    const list = screen.getByRole('list', { name: 'New versions of crate' });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((row) => row.textContent),
+    ).toEqual([expect.stringContaining('crate_v2.glb')]);
+    expect(screen.getByText('0 of 1 uploaded')).toBeVisible();
+
+    const input = zone.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.accept).toBe('.glb');
+    await userEvent.upload(input, new File(['x'], 'crate_v3.glb'));
+    expect(uploads.add).toHaveBeenCalledWith(
+      [expect.objectContaining({ name: 'crate_v3.glb' })],
+      target,
+    );
   });
 
   it('shows a running upload with its percent, a named progress bar and a named Cancel', async () => {

@@ -5,7 +5,10 @@ import { type ReactElement, useEffect, useRef } from 'react';
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
 import { VERSION_STATUS_TONE } from '@/constants/assets.constant';
 import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
+import { VERSION_ACCEPT } from '@/constants/upload.constant';
 import { useAsset } from '@/features/assets/hooks/useAsset';
+import { UploadPanel } from '@/features/uploads/components/UploadPanel';
+import { useUploadQueue } from '@/features/uploads/context/UploadsContext';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
@@ -40,6 +43,7 @@ interface AssetBodyProps {
 
 const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactElement => {
   const copy = useCopy();
+  const uploads = useUploadQueue();
   const isExpanded = useMediaQuery(EXPANDED_MEDIA_QUERY);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -86,6 +90,19 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
           <RelativeTime iso={asset.updated_at} />
         </dd>
       </dl>
+      <Subheading className="asset-detail__subtitle">{copy.uploads.version.title}</Subheading>
+      <UploadPanel
+        uploads={uploads}
+        target={{ assetId: asset.id, kind: asset.kind }}
+        zone={{
+          panelLabel: copy.uploads.version.title,
+          dropLabel: copy.uploads.version.dropLabel(asset.name),
+          hint: copy.uploads.version.hint[asset.kind],
+          buttonLabel: copy.uploads.version.choose,
+          accept: VERSION_ACCEPT[asset.kind],
+          listLabel: copy.uploads.version.listLabel(asset.name),
+        }}
+      />
       <Subheading className="asset-detail__subtitle">{copy.assets.versionsTitle}</Subheading>
       <ol className="asset-detail__versions">
         {[...asset.versions].reverse().map((version) => (

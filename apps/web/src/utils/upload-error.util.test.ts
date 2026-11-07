@@ -27,6 +27,7 @@ describe('uploadFailureOf', () => {
     [apiError(422, 'Invalid size', 'INVALID_FILE_SIZE'), en.uploads.refused.size],
     [apiError(413, 'Too large', 'PAYLOAD_TOO_LARGE'), en.uploads.refused.size],
     [apiError(400, 'Bad Request'), en.uploads.refused.other],
+    [apiError(422, 'Kind mismatch', 'ASSET_KIND_MISMATCH'), en.uploads.refused.kind],
   ])('does not offer a retry that cannot help for %s, saying %j', (error, message) => {
     expect(uploadFailureOf(error, en)).toEqual({ error: message, canRetry: false });
   });
