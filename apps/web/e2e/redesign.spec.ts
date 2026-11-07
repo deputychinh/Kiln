@@ -166,3 +166,33 @@ test('files dropped on the open asset become its next version, outside the uploa
   // Versions belong to their asset's list, not to the tray of new assets.
   await expect(page.getByRole('region', { name: 'Uploads' })).toBeHidden();
 });
+
+test.describe('card size', () => {
+  // Desktop only: the widths are set here, and the mobile project emulates a touch phone.
+  test.skip(({ isMobile }) => isMobile, 'viewport widths are set explicitly');
+
+  for (const width of [390, 768, 1024, 1440]) {
+    test(`small cards are narrower than large ones at ${String(width)} px`, async ({
+      page,
+      request,
+    }, testInfo) => {
+      await seedImageAsset(request, uniqueName(`size${String(width)}`, testInfo));
+      await page.setViewportSize({ width, height: 900 });
+      const cardWidth = async (path: string): Promise<number> => {
+        await page.goto(path);
+        const card = page.getByRole('list', { name: 'Assets' }).locator('.asset-card').first();
+        await expect(card).toBeVisible();
+        return (await card.boundingBox())?.width ?? 0;
+      };
+
+      const large = await cardWidth('/assets');
+      const small = await cardWidth('/assets?size=small');
+
+      // A different column count, not a few pixels: the control always changes the layout.
+      expect(small).toBeLessThan(large * 0.85);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+    });
+  }
+});
