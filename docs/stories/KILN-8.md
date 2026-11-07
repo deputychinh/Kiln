@@ -1,6 +1,6 @@
 # KILN-8: Compare two versions of an asset
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -61,3 +61,22 @@ Found on the way: the KILN-27 cache e2e waited up to 61 s for a signing-window b
 | Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | 8.5   | Swipe was reversed (the right picker's version on the left half) and hid each version's facts, breaking the story's own rule; the swap test could not fail (adjacent pair); no test for Back, the digit limit or the app-wide upload queue (two mutants survived); swipe images did not refresh expired URLs; `?mode=diff` stayed in the URL → the right version is clipped at a divider with side labels, both captions stay under the stage, `onError` refreshes previews, an unknown mode is detected by value (TanStack Router merges raw params into the validated search) and removed in place; `VersionPane` and `SwipeStage` split out under the 300-line limit; tests for each gap kill the mutants. |
+| 2     | 9.5   | Same reviewer with two different images: the divider at 20 % shows v2 on the left fifth and v3 on the rest; captions stay; `?mode=diff` variants corrected; keyboard-only swipe; axe clean at 1280, 390 and dark. Mutants M3, M5, M6, M8 and the reverted clip killed; the only survivor (swipe `onError` dropped) is now killed by "fetches fresh preview URLs when a swiped preview fails to load". Left open (minor): `mode=swipe` kept in the URL while a failed version forces Side; unknown extra params kept.                                                                                                                                                                                          |
+
+## Score
+
+Round 2 (the round-1 reviewer, resumed):
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 1       |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 1       |
+| 6   | UX                    | 1       |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 0.5     |
+| 10  | Delivery              | 1       |
+|     | **Total**             | **9.5** |

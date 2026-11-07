@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { aDetail, aVersion, fakeApi, json, problem } from '@/test/fake-api';
+import { aDetail, aVersion, countRequests, fakeApi, json, problem } from '@/test/fake-api';
 import { renderApp } from '@/test/render-app';
 
 const asset = aDetail().id;
@@ -130,6 +130,19 @@ describe('ComparePage', () => {
     expect(within(pane('Version 2')).queryByRole('img')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: 'Side by side' }));
     await waitFor(() => expect(router.state.location.search).toMatchObject({ mode: 'side' }));
+  });
+
+  it('fetches fresh preview URLs when a swiped preview fails to load', async () => {
+    const fetchMock = fakeApi({ [DETAIL]: [json(threeVersions)] });
+    renderApp(`${COMPARE}?mode=swipe`);
+    const stage = await screen.findByRole('group', {
+      name: 'Version 2 left of the divider, version 3 right of it',
+    });
+    const before = countRequests(fetchMock, DETAIL);
+
+    fireEvent.error(within(stage).getByRole('img', { name: 'Preview of version 3' }));
+
+    await waitFor(() => expect(countRequests(fetchMock, DETAIL)).toBe(before + 1));
   });
 
   it('explains a missing preview and offers no Swipe without both previews', async () => {
