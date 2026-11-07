@@ -1,6 +1,6 @@
 # KILN-34: One poll per processing asset
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -30,6 +30,27 @@ Gates after round 1: `make lint` 0; `make test` green (231 web tests); `make e2e
 
 ## Review rounds
 
-| Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                       |
-| ----- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | 8.0   | The queue's fetch stored answers without the detail's `keepSignedUrls` (two definitions of one query); cancelling waited for the shared request and could end Ready; no tests for AC3, URL retention, cancel mid-fetch or errors; deprecated `fetchQuery` → one `assetDetailQueryOptions` for both hooks, `untilAborted` race, `queryClient.query`, four tests each killing its mutant |
+| Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | 8.0   | The queue's fetch stored answers without the detail's `keepSignedUrls` (two definitions of one query); cancelling waited for the shared request and could end Ready; no tests for AC3, URL retention, cancel mid-fetch or errors; deprecated `fetchQuery` → one `assetDetailQueryOptions` for both hooks, `untilAborted` race, `queryClient.query`, four tests each killing its mutant                                                                                                    |
+| 2     | 9.5   | Same reviewer: mutants A (staleTime 0), B (no shared structuralSharing), C (no abort race) and E (failed registry ignored) killed; D (rethrow instead of polling again) survived because the client's two retries absorbed the test's single failure → the test now fails every attempt of the first poll and kills D. Left (minor): a hand-typed `AssetDetailQuery` instead of `queryOptions()`, and the failed-preview registry is never cleared on sign-out (no sign-in yet, KILN-12). |
+
+## Score
+
+Round 2 (the round-1 reviewer, resumed):
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 0.5     |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 1       |
+| 6   | UX                    | 1       |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 1       |
+| 10  | Delivery              | 1       |
+|     | **Total**             | **9.5** |
+
+Test depth was 0.5 for the surviving mutant D, fixed in the ship commit.

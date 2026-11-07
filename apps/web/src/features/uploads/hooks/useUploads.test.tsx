@@ -377,8 +377,13 @@ describe('useUploads', () => {
   });
 
   it('retries after a failed shared fetch and keeps the cached detail meanwhile', async () => {
+    // Every attempt of the first poll fails (the client retries twice), so the queue's own
+    // "return null and poll again on the next tick" path runs.
+    const unavailable = apiError(503, 'Unavailable', 'DATABASE_UNAVAILABLE');
     vi.mocked(getAsset)
-      .mockRejectedValueOnce(apiError(503, 'Unavailable', 'DATABASE_UNAVAILABLE'))
+      .mockRejectedValueOnce(unavailable)
+      .mockRejectedValueOnce(unavailable)
+      .mockRejectedValueOnce(unavailable)
       .mockResolvedValue(detailWith('ready'));
     const { result, queryClient } = setupWithClient();
     act(() => {
