@@ -11,39 +11,7 @@ import { useState } from 'react';
 import { UploadStatus } from '@/enums/upload-status.enum';
 import { UploadPanel } from '@/features/uploads/components/UploadPanel';
 import type { UploadItem, UploadsApi } from '@/interfaces/upload.interface';
-
-const anItem = (overrides: Partial<UploadItem> = {}): UploadItem => ({
-  id: 'row-1',
-  file: new File(['x'], 'rock.png', { type: 'image/png' }),
-  status: UploadStatus.Queued,
-  progress: 0,
-  error: null,
-  canRetry: true,
-  idempotencyKey: 'key-1',
-  assetId: null,
-  versionId: null,
-  targetAssetId: null,
-  ...overrides,
-});
-
-const uploadsWith = (
-  items: UploadItem[],
-  outcomes: UploadItem[] = [],
-  outcomeCount = outcomes.length,
-): UploadsApi => ({
-  items,
-  outcomes,
-  outcomeCount,
-  summary: {
-    finished: items.filter((item) => item.status === UploadStatus.Ready).length,
-    failed: items.filter((item) => item.status === UploadStatus.Failed).length,
-    total: items.length,
-  },
-  add: vi.fn(),
-  cancel: vi.fn(),
-  retry: vi.fn(),
-  remove: vi.fn(),
-});
+import { anItem, uploadsWith } from '@/test/upload-items';
 
 /** The panel inside a router, since a ready row links to its asset. */
 const renderPanel = (uploads: UploadsApi, panel = <UploadPanel uploads={uploads} />) => {
@@ -78,15 +46,6 @@ const renderStateful = (initial: UploadItem[]) => {
   });
   render(<RouterProvider router={router} />);
 };
-
-/** The bare panel (no links rendered) for tests that rerender it with new rows. */
-const StatefulOnly = ({
-  items,
-  outcomes = [],
-}: {
-  items: UploadItem[];
-  outcomes?: UploadItem[];
-}) => <UploadPanel uploads={uploadsWith(items, outcomes)} />;
 
 describe('UploadPanel', () => {
   it('passes dropped or picked files on and accepts only the supported types', async () => {
@@ -262,101 +221,5 @@ describe('UploadPanel', () => {
       '/assets/asset-1',
     );
     expect(screen.getByText('1 of 1 uploaded')).toBeInTheDocument();
-  });
-
-  it('refuses a file dropped outside the zone instead of letting the browser open it', async () => {
-    renderPanel(uploadsWith([]));
-    await screen.findByRole('button', { name: 'Choose files' });
-
-    const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'dataTransfer', {
-      value: { types: ['Files'], dropEffect: 'copy' },
-    });
-    document.body.dispatchEvent(drop);
-    const text = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(text, 'dataTransfer', { value: { types: ['text/plain'] } });
-    document.body.dispatchEvent(text);
-
-    expect(drop.defaultPrevented).toBe(true);
-    expect(text.defaultPrevented).toBe(false);
-  });
-
-  it('asks before the page is left while files are uploading, and not after', async () => {
-    const { rerender } = render(
-      <StatefulOnly items={[anItem({ status: UploadStatus.Uploading })]} />,
-    );
-    await screen.findByRole('button', { name: 'Choose files' });
-    const busy = new Event('beforeunload', { cancelable: true });
-    window.dispatchEvent(busy);
-    expect(busy.defaultPrevented).toBe(true);
-
-    rerender(<StatefulOnly items={[anItem({ status: UploadStatus.Ready })]} />);
-    const idle = new Event('beforeunload', { cancelable: true });
-    window.dispatchEvent(idle);
-    expect(idle.defaultPrevented).toBe(false);
-  });
-
-  it('announces a repeated outcome again, outside the list pane', async () => {
-    const ready = anItem({ status: UploadStatus.Ready });
-    // Outcomes from before the panel mounted are not news; only later ones are announced.
-    const { rerender } = render(<StatefulOnly items={[ready]} />);
-    rerender(<StatefulOnly items={[ready]} outcomes={[ready]} />);
-    const live = (await screen.findByText('rock.png: Ready.')).closest('[aria-live]');
-    expect(live?.parentElement).toBe(document.body);
-
-    rerender(<StatefulOnly items={[ready]} outcomes={[ready, { ...ready }]} />);
-    expect(live).toHaveTextContent('');
-    await waitFor(() => expect(live).toHaveTextContent('rock.png: Ready.'));
-  });
-
-  it('announces every outcome when files end in separate changes within one frame', async () => {
-    const a = anItem({
-      status: UploadStatus.Failed,
-      error: 'Kiln is busy right now. Try again in a moment.',
-    });
-    const b = anItem({
-      id: 'row-2',
-      status: UploadStatus.Failed,
-      error: 'This file is empty.',
-      file: new File([], 'b.png'),
-    });
-    const c = anItem({
-      id: 'row-3',
-      status: UploadStatus.Processing,
-      file: new File(['x'], 'c.png'),
-    });
-    const { rerender } = render(<StatefulOnly items={[a, b, c]} />);
-    rerender(<StatefulOnly items={[a, b, c]} outcomes={[a]} />);
-    rerender(<StatefulOnly items={[a, b, c]} outcomes={[a, b]} />);
-    rerender(
-      <StatefulOnly
-        items={[a, b, { ...c, status: UploadStatus.Ready }]}
-        outcomes={[a, b, { ...c, status: UploadStatus.Ready }]}
-      />,
-    );
-
-    const live = document.body.querySelector('[aria-live="polite"]');
-    await waitFor(() =>
-      expect(live).toHaveTextContent(
-        'rock.png: Kiln is busy right now. Try again in a moment. b.png: This file is empty. c.png: Ready.',
-      ),
-    );
-  });
-
-  it('announces the files that just ended, once, politely', async () => {
-    const ready = anItem({ status: UploadStatus.Ready });
-    const failed = anItem({
-      id: 'row-2',
-      status: UploadStatus.Failed,
-      error: 'This file is empty.',
-      file: new File([], 'empty.png'),
-    });
-    const { rerender } = render(<StatefulOnly items={[ready, failed]} />);
-    rerender(<StatefulOnly items={[ready, failed]} outcomes={[ready, failed]} />);
-
-    const live = (await screen.findByText(/rock.png: Ready/)).closest('[aria-live]');
-    expect(live).toHaveAttribute('aria-live', 'polite');
-    expect(live).toHaveTextContent('rock.png: Ready. empty.png: This file is empty.');
-    expect(live?.textContent).not.toContain('..');
   });
 });

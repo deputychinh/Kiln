@@ -4,6 +4,8 @@ import {
   STORAGE_REJECTED_CODE,
   UPLOAD_STALLED_CODE,
 } from '@/constants/upload.constant';
+import { UploadRejection } from '@/enums/upload-rejection.enum';
+import type { AssetKind } from '@/interfaces/asset.interface';
 import type { Copy } from '@/interfaces/copy.interface';
 
 const RETRYABLE_CLIENT_STATUSES = new Set([408, 409, 429]);
@@ -11,11 +13,15 @@ const BUSY_CODES = new Set(['STORAGE_UNAVAILABLE', 'DATABASE_UNAVAILABLE', 'DATA
 const NAME_CODES = new Set(['INVALID_ASSET_NAME', 'INVALID_FILE_NAME']);
 const SIZE_CODES = new Set(['INVALID_FILE_SIZE', 'PAYLOAD_TOO_LARGE']);
 
-const refusalOf = (code: string | null, copy: Copy): string => {
+const refusalOf = (code: string | null, copy: Copy, kind: AssetKind | null): string => {
   if (code && NAME_CODES.has(code)) return copy.uploads.refused.name;
   if (code && SIZE_CODES.has(code)) return copy.uploads.refused.size;
   if (code === 'UNSUPPORTED_MEDIA_TYPE') return copy.uploads.rejected.unsupported;
-  if (code === ASSET_KIND_MISMATCH_CODE) return copy.uploads.refused.kind;
+  // The same words as the browser's own check, which the API repeats for a version.
+  if (code === ASSET_KIND_MISMATCH_CODE && kind)
+    return copy.uploads.rejected[
+      kind === 'image' ? UploadRejection.NotAnImage : UploadRejection.NotAModel
+    ];
   return copy.uploads.refused.other;
 };
 
@@ -27,6 +33,7 @@ const refusalOf = (code: string | null, copy: Copy): string => {
 export const uploadFailureOf = (
   error: unknown,
   copy: Copy,
+  kind: AssetKind | null = null,
 ): { error: string; canRetry: boolean } => {
   if (!isApiError(error)) return { error: copy.errors.unexpected, canRetry: true };
   if (error.code === STORAGE_REJECTED_CODE)
@@ -35,7 +42,7 @@ export const uploadFailureOf = (
   if (error.status === 0) return { error: copy.errors.unreachable, canRetry: true };
   const isClientError = error.status >= 400 && error.status < 500;
   if (isClientError && !RETRYABLE_CLIENT_STATUSES.has(error.status))
-    return { error: refusalOf(error.code, copy), canRetry: false };
+    return { error: refusalOf(error.code, copy, kind), canRetry: false };
   if ((error.code && BUSY_CODES.has(error.code)) || isClientError)
     return { error: copy.uploads.busy, canRetry: true };
   return { error: copy.errors.unexpected, canRetry: true };

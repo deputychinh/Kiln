@@ -100,7 +100,6 @@ export const vi: Copy = {
     refused: {
       name: 'Kiln không dùng được tên file này. Hãy đổi tên file rồi thêm lại.',
       size: 'Kiln không nhận được file có dung lượng này.',
-      kind: 'Phiên bản mới phải cùng loại file với asset.',
       other: 'Kiln không nhận được file này.',
     },
     version: {

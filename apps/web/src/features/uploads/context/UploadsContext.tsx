@@ -1,5 +1,6 @@
 import { createContext, type ReactElement, type ReactNode, use } from 'react';
 
+import { UploadPageEffects } from '@/features/uploads/components/UploadPageEffects';
 import { useUploads } from '@/features/uploads/hooks/useUploads';
 import type { UploadsApi } from '@/interfaces/upload.interface';
 
@@ -9,9 +10,15 @@ const UploadsContext = createContext<UploadsApi | null>(null);
  * One upload queue for the whole assets page: uploads keep running while the person opens
  * another asset or goes back to the list, and the concurrency limit covers every panel.
  */
-export const UploadsProvider = ({ children }: { children: ReactNode }): ReactElement => (
-  <UploadsContext value={useUploads()}>{children}</UploadsContext>
-);
+export const UploadsProvider = ({ children }: { children: ReactNode }): ReactElement => {
+  const uploads = useUploads();
+  return (
+    <UploadsContext value={uploads}>
+      <UploadPageEffects uploads={uploads} />
+      {children}
+    </UploadsContext>
+  );
+};
 
 /** The page's upload queue; only inside `UploadsProvider`. */
 export const useUploadQueue = (): UploadsApi => {

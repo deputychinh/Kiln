@@ -22,6 +22,7 @@ import {
 } from '@/features/uploads/services/uploads.service';
 import type { PendingUpload } from '@/interfaces/upload.interface';
 import { aDetail, anAsset, aVersion } from '@/test/fake-api';
+import { uploadSummaryOf } from '@/utils/upload-summary.util';
 
 vi.mock('@/features/uploads/services/uploads.service');
 vi.mock('@/features/assets/services/assets.service');
@@ -108,7 +109,7 @@ describe('useUploads', () => {
     await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
     expect(getAsset).toHaveBeenCalledWith('asset-1', expect.any(AbortSignal));
     expect(invalidate).toHaveBeenCalledTimes(2);
-    expect(result.current.summary).toEqual({ finished: 1, failed: 0, total: 1 });
+    expect(uploadSummaryOf(result.current.items)).toEqual({ finished: 1, failed: 0, total: 1 });
   });
 
   it('reports progress while the file is sent', async () => {
@@ -222,6 +223,50 @@ describe('useUploads', () => {
       'v2.png',
       'v3.png',
     ]);
+  });
+
+  it('cancels a version upload and retries it with the same key, so it stays one version', async () => {
+    vi.mocked(addVersion).mockResolvedValue(pending(9));
+    vi.mocked(sendToStorage).mockImplementationOnce(
+      ({ signal }) =>
+        new Promise((_resolve, reject) =>
+          signal?.addEventListener('abort', () => reject(new DOMException('x', 'AbortError'))),
+        ),
+    );
+    const { result } = setup();
+    act(() => result.current.add([png('rock_v2.png')], { assetId: 'asset-9', kind: 'image' }));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Uploading));
+
+    act(() => result.current.cancel(result.current.items[0]!.id));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Cancelled));
+    act(() => result.current.retry(result.current.items[0]!.id));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+
+    const calls = vi.mocked(addVersion).mock.calls.map(([call]) => call);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.idempotencyKey).toBe(calls[1]?.idempotencyKey);
+    expect(calls.every((call) => call.assetId === 'asset-9')).toBe(true);
+    expect(createAsset).not.toHaveBeenCalled();
+  });
+
+  it('shows the same kind message when the API refuses a version of the other kind', async () => {
+    vi.mocked(addVersion).mockRejectedValue(
+      apiError(422, 'A new version must be the same kind of file', 'ASSET_KIND_MISMATCH'),
+    );
+    const { result } = setup();
+
+    // The browser takes a .glb as a model by its extension; the API (or the worker's magic-byte
+    // check behind it) can still disagree, and its refusal must read the same.
+    act(() =>
+      result.current.add([new File(['x'], 'crate_v2.glb')], { assetId: 'asset-9', kind: 'model' }),
+    );
+
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Failed));
+    expect(addVersion).toHaveBeenCalledTimes(1);
+    expect(result.current.items[0]).toMatchObject({
+      error: 'This asset holds 3D models: choose a .glb file.',
+      canRetry: false,
+    });
   });
 
   it('sends at most two files at a time; the rest wait in the queue', async () => {

@@ -32,6 +32,8 @@ export interface UploadItem {
   versionId: string | null;
   /** The asset this file becomes a new version of; null for a new asset. */
   targetAssetId: string | null;
+  /** That asset's kind (a version must match it); null for a new asset. */
+  targetKind: AssetKind | null;
 }
 
 /** Where files go when they are a new version of an existing asset. */
@@ -62,8 +64,6 @@ export interface UploadsApi {
   outcomes: UploadItem[];
   /** How many outcomes there have been in all; the panel announces the ones it has not yet. */
   outcomeCount: number;
-  /** Files finished (ready, or uploaded and still processing) and failed, out of all rows. */
-  summary: { finished: number; failed: number; total: number };
   /** Queue files as new assets, or as new versions of `target`. */
   add: (files: File[], target?: UploadTarget) => void;
   cancel: (id: string) => void;

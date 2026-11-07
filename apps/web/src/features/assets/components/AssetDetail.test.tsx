@@ -86,6 +86,45 @@ describe('AssetDetail', () => {
     expect(countRequests(fetchMock, `${DETAIL}/versions`)).toBe(0);
   });
 
+  it('has one upload live region and one stray-drop guard for the page, with gallery and detail open', async () => {
+    setViewportExpanded(true);
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+    renderApp(`/assets/${asset.id}`);
+    await screen.findByRole('article', { name: 'rock_albedo' });
+    await screen.findByRole('group', { name: 'Drop images or .glb files here' });
+
+    // The upload region is portalled onto <body>; the gallery's own "N shown" status is not.
+    expect(document.body.querySelectorAll(':scope > [aria-live="polite"]')).toHaveLength(1);
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', {
+      value: { types: ['Files'], dropEffect: 'copy' },
+    });
+    document.body.dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(true);
+  });
+
+  it('refuses an empty file in the version zone with the gallery wording', async () => {
+    const fetchMock = fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+    renderApp(`/assets/${asset.id}`);
+    const detail = await screen.findByRole('article', { name: 'rock_albedo' });
+    const input = within(detail)
+      .getByRole('group', { name: 'Drop a new version of rock_albedo here' })
+      .querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    await userEvent.upload(input, new File([], 'rock_v2.png', { type: 'image/png' }));
+
+    expect(
+      within(detail).getByRole('list', { name: 'New versions of rock_albedo' }),
+    ).toHaveTextContent('This file is empty.');
+    expect(countRequests(fetchMock, `${DETAIL}/versions`)).toBe(0);
+  });
+
   it('makes the asset name the page heading when the detail replaces the list (compact)', async () => {
     fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],

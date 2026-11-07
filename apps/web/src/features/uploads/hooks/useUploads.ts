@@ -30,7 +30,6 @@ import { declareUpload } from '@/utils/upload-file.util';
 /** Recent outcomes kept for announcements; older ones have long been read out. */
 const OUTCOMES_KEPT = 50;
 const RUNNING = new Set([UploadStatus.Creating, UploadStatus.Uploading, UploadStatus.Completing]);
-const FINISHED = new Set([UploadStatus.Ready, UploadStatus.Uploaded]);
 
 const END_STATES = new Set([
   UploadStatus.Ready,
@@ -232,7 +231,11 @@ export const useUploads = (): UploadsApi => {
         await waitForPreview({ item, assetId: created.asset.id, versionId, signal });
       } catch (error) {
         if (signal.aborted || isAbort(error)) patch(item.id, { status: UploadStatus.Cancelled });
-        else patch(item.id, { status: UploadStatus.Failed, ...uploadFailureOf(error, copy) });
+        else
+          patch(item.id, {
+            status: UploadStatus.Failed,
+            ...uploadFailureOf(error, copy, item.targetKind),
+          });
       } finally {
         if (controllersRef.current.get(item.id) === controller)
           controllersRef.current.delete(item.id);
@@ -274,6 +277,7 @@ export const useUploads = (): UploadsApi => {
             assetId: target?.assetId ?? null,
             versionId: null,
             targetAssetId: target?.assetId ?? null,
+            targetKind: target?.kind ?? null,
           };
         }),
       });
@@ -305,11 +309,6 @@ export const useUploads = (): UploadsApi => {
     items,
     outcomes,
     outcomeCount,
-    summary: {
-      finished: items.filter((item) => FINISHED.has(item.status)).length,
-      failed: items.filter((item) => item.status === UploadStatus.Failed).length,
-      total: items.length,
-    },
     add,
     cancel,
     retry,

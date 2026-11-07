@@ -100,7 +100,6 @@ export const en: Copy = {
     refused: {
       name: 'Kiln cannot use this file name. Rename the file, then add it again.',
       size: 'Kiln cannot accept a file of this size.',
-      kind: 'A new version must be the same kind of file as the asset.',
       other: 'Kiln could not accept this file.',
     },
     version: {
