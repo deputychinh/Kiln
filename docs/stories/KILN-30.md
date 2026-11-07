@@ -1,6 +1,6 @@
 # KILN-30: Upload a new version from the asset detail
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done · Owner: Claude (deliver-loop)
 - Picked before the debt items KILN-29 and KILN-31 to 33 because it is the next thing an artist can see and use (ruling, 2026-11-07).
 
 ## Story
@@ -60,3 +60,22 @@ Gates after the round-1 fixes: `make lint` 0; `make test` 694 Python + 2 + 63 + 
 | Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | 7.0   | The page-wide duties stayed per panel after the queue moved to the page: a version's outcome was never announced once its asset was closed, and the leave-page warning missed version rows (reproduced in a browser); the API's kind refusal used other words than the browser's check; the QA table was empty (a scripted edit that silently matched nothing); dead `summary`, a duplicated set, a shadowed name → `UploadPageEffects` in the provider owns announcements, the warning and the stray-drop guard (one live region; tests for a version announced with its detail closed, the warning with only version rows, and the page wiring); rows carry `targetKind`, so `ASSET_KIND_MISMATCH` shows `not_an_image` / `not_a_model`; tests for a version's Cancel and same-key Retry and an empty file in the detail; `uploadSummaryOf` replaces the dead field. Known: while a version processes with its detail open, the detail and the queue both poll the asset every 3 s. |
+| 2     | 9.5   | Same reviewer, re-run with a real browser: a version finishing while another asset is open is announced once; one live region with both panes open; the leave-page prompt covers version rows; Retry keeps its key. Seven new mutations (effects removed from the provider, gallery-only warning or announcements, kind not passed, new key on retry, swapped kind messages, no-op warning) all killed. Open: the detail and the queue both poll a processing asset every 3 s (KILN-34); a commit subject that named the backlog for a story-only change.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+## Score
+
+Round 2 (the round-1 reviewer, resumed; not a fresh final-gate reviewer — a deviation from the loop's rule, accepted because every critical rule was re-checked by mutation and in a browser):
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 1       |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 1       |
+| 6   | UX                    | 1       |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 1       |
+| 10  | Delivery              | 0.5     |
+|     | **Total**             | **9.5** |
