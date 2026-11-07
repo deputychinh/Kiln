@@ -1,6 +1,6 @@
 # ADR 0009: Hung jobs end their worker process: an in-process watchdog and a supervisor backstop
 
-- Status: accepted · 2026-11-06
+- Status: accepted · 2026-11-06 · amended by [ADR 0010](0010-frozen-lease-bound-and-database-sockets.md) (the lease bound is 165 s, not 200 s)
 
 ## Context
 

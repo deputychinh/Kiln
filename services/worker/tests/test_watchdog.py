@@ -13,11 +13,16 @@ from pathlib import Path
 import pytest
 from job_builder import job
 
-from kiln_api.constants import JOB_HEARTBEAT_SECONDS, JOB_LEASE_SECONDS, JOB_MAX_RUNTIME_SECONDS
+from kiln_api.constants import (
+    DB_CONNECT_TIMEOUT_SECONDS,
+    DB_STATEMENT_TIMEOUT_MS,
+    DB_TCP_USER_TIMEOUT_MS,
+    JOB_HEARTBEAT_SECONDS,
+    JOB_LEASE_SECONDS,
+    JOB_MAX_RUNTIME_SECONDS,
+)
 from kiln_worker.constants import (
-    JOB_STOP_GRACE_MAX_SECONDS,
     SUPERVISOR_DEADLINE_MARGIN_SECONDS,
-    SUPERVISOR_KILL_MARGIN_SECONDS,
     SUPERVISOR_LIVENESS_SECONDS,
     SUPERVISOR_POLL_SECONDS,
     WATCHDOG_POLL_SECONDS,
@@ -222,10 +227,15 @@ def test_every_backstop_ends_a_stuck_job_before_its_lease_can_lapse() -> None:
 
     Alive but too long: the heartbeat runs until the maximum runtime, so the lease lasts at
     least max runtime - heartbeat + lease. Frozen (GIL held, SIGSTOP) at any moment: the
-    heartbeat stops too, leaving at least lease - heartbeat; the supervisor must act on lost
-    liveness before that, whatever the job's runtime.
+    heartbeat stops too; the next extension was due a heartbeat after the last one *returned*,
+    and an extension can take a connect plus the longest a statement or a dead socket may block,
+    so the lease has at least lease - heartbeat - that left (165 s); the supervisor must act on
+    lost liveness before that, whatever the job's runtime.
     """
-    lease_after_last_beat = JOB_LEASE_SECONDS - JOB_HEARTBEAT_SECONDS
+    slowest_extension = (
+        DB_CONNECT_TIMEOUT_SECONDS + max(DB_STATEMENT_TIMEOUT_MS, DB_TCP_USER_TIMEOUT_MS) / 1000
+    )
+    lease_after_last_beat = JOB_LEASE_SECONDS - JOB_HEARTBEAT_SECONDS - slowest_extension
     in_process = JobWatchdog(stop=threading.Event()).max_runtime_seconds + WATCHDOG_POLL_SECONDS
     supervisor_deadline = JOB_MAX_RUNTIME_SECONDS + SUPERVISOR_DEADLINE_MARGIN_SECONDS
     supervisor_liveness = (
@@ -236,12 +246,9 @@ def test_every_backstop_ends_a_stuck_job_before_its_lease_can_lapse() -> None:
     assert in_process < JOB_MAX_RUNTIME_SECONDS + lease_after_last_beat
     assert supervisor_deadline < JOB_MAX_RUNTIME_SECONDS + lease_after_last_beat
     assert supervisor_liveness < lease_after_last_beat
-    # Frozen just before a stop: the supervisor keeps its liveness check while it waits, and the
-    # largest grace it can be configured with still ends the child inside the lease.
-    assert (
-        lease_after_last_beat
-        > SUPERVISOR_LIVENESS_SECONDS + JOB_STOP_GRACE_MAX_SECONDS + SUPERVISOR_KILL_MARGIN_SECONDS
-    )
+    assert lease_after_last_beat == 165
+    # Frozen while stopping: the supervisor keeps its liveness check during the wait, so the bound
+    # above holds whatever the grace; the grace cap only bounds how long a shutdown can take.
 
 
 def test_a_claim_stays_visible_until_its_job_is_watched_or_nothing_came_back() -> None:

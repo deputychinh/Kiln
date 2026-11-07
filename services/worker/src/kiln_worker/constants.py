@@ -34,14 +34,15 @@ WORKER_RECYCLE_EXIT_CODE = 75
 WORKER_OVERRAN_EXIT_CODE = 76
 # After a stop is asked, a running job gets this long to finish before the process exits.
 JOB_STOP_GRACE_SECONDS = 60.0
-# At most this long, so liveness (60) + grace + kill margin (10) stays inside the 200 s a frozen
-# lease has left: a child frozen just before a stop is still killed before its job can be retaken.
+# At most this long, so a shutdown is bounded (grace + kill margin); a child frozen while it stops
+# is killed on lost liveness anyway, whatever the grace (ADR 0010).
 JOB_STOP_GRACE_MAX_SECONDS = 120.0
 # How often the watchdog looks at the running job.
 WATCHDOG_POLL_SECONDS = 0.5
 # The supervisor's backstops for a child its own watchdog cannot end (native code holding the
-# GIL, a frozen process — the heartbeat stops too, so the lease lapses at most
-# lease - heartbeat = 200 s after the freeze): no sign of life for this long while in a job …
+# GIL, a frozen process — the heartbeat stops too, so the lease lapses at least
+# lease - heartbeat - slowest extension = 165 s after the freeze, ADR 0010): no sign of life for
+# this long while in a job …
 SUPERVISOR_LIVENESS_SECONDS = 60.0
 # … or still in one job this long past its maximum runtime.
 SUPERVISOR_DEADLINE_MARGIN_SECONDS = 5.0

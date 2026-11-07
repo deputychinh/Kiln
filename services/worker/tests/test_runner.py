@@ -903,3 +903,23 @@ def test_a_claim_is_shown_to_the_supervisor_until_its_job_is_watched(
 
     assert seen == ["(claiming a job)"]
     assert beacon.read().started == 0.0
+
+
+def test_a_claim_that_fails_clears_the_claim_marker(
+    container: Container, storage: FakeStorage, clock: FixedClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KILN-28: a database error during the claim must not leave the supervisor watching a job."""
+    beacon = JobBeacon(multiprocessing.get_context("spawn"))
+    watchdog = JobWatchdog(stop=threading.Event(), beacon=beacon)
+    worker = build_worker(container.engine, storage=storage, clock=clock, watchdog=watchdog)
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        message = "database gone"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(SqlJobQueue, "claim", fail)
+
+    with pytest.raises(RuntimeError, match="database gone"):
+        worker.run_once()
+
+    assert beacon.read().started == 0.0

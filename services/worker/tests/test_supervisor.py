@@ -365,6 +365,15 @@ def test_an_idle_child_or_a_live_job_in_time_is_never_killed(
     assert not child.killed
 
 
+def test_a_job_just_past_its_runtime_is_left_to_its_own_watchdog() -> None:
+    """Inside the deadline margin the watchdog's clean exit 76 (and its log line) wins."""
+    child = _Child(None)
+
+    _run_with(_beacon(started_ago=57), child, max_runtime_seconds=55)
+
+    assert not child.killed
+
+
 def test_the_beacon_is_cleared_before_each_child_starts() -> None:
     beacon = _beacon(started_ago=5_000, alive_ago=5_000)  # left by a killed child
     stop = threading.Event()
