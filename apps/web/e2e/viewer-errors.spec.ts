@@ -12,7 +12,8 @@ const uniqueName = (prefix: string, testInfo: TestInfo): string =>
 
 const openViewer = async (page: Page, id: string): Promise<void> => {
   await page.goto(`/assets/${id}`);
-  await page.getByRole('link', { name: 'View version 1 in 3D' }).click({ timeout: 30_000 });
+  // The header's action (newest ready version) comes first; the version's own link second.
+  await page.getByRole('link', { name: 'View version 1 in 3D' }).first().click({ timeout: 30_000 });
 };
 
 /** The crate with one more name in `extensionsUsed`: the checks pass it, three.js cannot parse it. */
