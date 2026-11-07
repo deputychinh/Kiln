@@ -27,6 +27,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Fixed
 
+- Migrations wait at most 5 s for a lock (and 10 min per statement), so DDL never queues writers behind it; the owner and uploader foreign keys are added `NOT VALID` and validated separately; migration 0008 indexes `sessions.last_seen_at` for the idle purge (KILN-12 review).
+
 - Parallel sign-ins could check more passwords than the throttle allows (27 for a limit of 10, KILN-12 review): each attempt is now reserved under per-account and per-IP advisory locks before its password is checked.
 
 - Sign-in throttling counted whatever `X-Forwarded-For` a caller sent through loopback (KILN-12 review): the API now starts with `python -m kiln_api.serve` (`make api`), which believes proxy headers only from `KILN_TRUSTED_PROXIES` (empty by default), and the Vite proxy forwards its real peer instead of the browser's header.

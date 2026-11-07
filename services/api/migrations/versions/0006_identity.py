@@ -16,6 +16,8 @@ down_revision = "0005_model_previews"
 branch_labels = None
 depends_on = None
 
+_OWNER_COLUMNS = (("assets", "owner_id"), ("asset_versions", "uploaded_by"))
+
 
 def _timestamps(*names: str) -> list[sa.Column[datetime]]:
     return [sa.Column(name, sa.DateTime(timezone=True), nullable=False) for name in names]
@@ -116,11 +118,17 @@ def upgrade() -> None:
     op.create_index(op.f("ix_sign_in_failures_created_at"), "sign_in_failures", ["created_at"])
     # Nullable columns with no default: a metadata-only change, no table rewrite (expand step).
     op.add_column("assets", sa.Column("owner_id", sa.Uuid(), nullable=True))
-    op.create_foreign_key(op.f("fk_assets_owner_id"), "assets", "users", ["owner_id"], ["id"])
     op.add_column("asset_versions", sa.Column("uploaded_by", sa.Uuid(), nullable=True))
-    op.create_foreign_key(
-        op.f("fk_asset_versions_uploaded_by"), "asset_versions", "users", ["uploaded_by"], ["id"]
-    )
+    # Foreign keys on live tables: added NOT VALID (a brief lock, no scan), then validated in their
+    # own transaction, which scans without blocking writers (KILN-12 review V4).
+    for table, column in _OWNER_COLUMNS:
+        op.execute(
+            f"ALTER TABLE {table} ADD CONSTRAINT fk_{table}_{column}"
+            f" FOREIGN KEY ({column}) REFERENCES users (id) NOT VALID"
+        )
+    with op.get_context().autocommit_block():
+        for table, column in _OWNER_COLUMNS:
+            op.execute(f"ALTER TABLE {table} VALIDATE CONSTRAINT fk_{table}_{column}")
 
 
 def downgrade() -> None:

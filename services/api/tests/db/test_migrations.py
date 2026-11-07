@@ -1,10 +1,14 @@
+import argparse
+import time
 import uuid
 
+import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import Engine, create_engine, inspect, make_url, text
+from sqlalchemy.exc import OperationalError
 
 from kiln_api.db.schema import metadata
 
@@ -360,3 +364,43 @@ def test_migration_0006_downgrades_back_to_anonymous_v0_1(
 
     assert not {"users", "sessions", "access_tokens", "sign_in_failures"} & tables
     assert "owner_id" not in asset_columns
+
+
+def test_migrations_give_up_on_a_held_lock_instead_of_queueing_writers(
+    database_url: str, alembic_config: Config
+) -> None:
+    """KILN-12 review V4: DDL waits `lock_timeout`, then fails; it never blocks the table."""
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0005_model_previews")
+    hurried = Config(alembic_config.config_file_name)
+    hurried.set_main_option("sqlalchemy.url", database_url)
+    hurried.cmd_opts = argparse.Namespace(x=["lock_timeout_ms=300"])
+    try:
+        with engine.connect() as holder:
+            holder.execute(text("LOCK TABLE assets IN ROW EXCLUSIVE MODE"))  # a writer at work
+            started = time.monotonic()
+            with pytest.raises(OperationalError, match="lock timeout"):
+                command.upgrade(hurried, "head")
+            waited = time.monotonic() - started
+            holder.rollback()
+    finally:
+        command.upgrade(alembic_config, "head")
+        engine.dispose()
+
+    assert waited < 5
+
+
+def test_the_owner_foreign_keys_end_validated(database_url: str) -> None:
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        rows: dict[str, bool] = dict(
+            connection.execute(
+                text(
+                    "SELECT conname, convalidated FROM pg_constraint WHERE conname IN"
+                    " ('fk_assets_owner_id', 'fk_asset_versions_uploaded_by')"
+                )
+            ).all()
+        )
+    engine.dispose()
+
+    assert rows == {"fk_assets_owner_id": True, "fk_asset_versions_uploaded_by": True}

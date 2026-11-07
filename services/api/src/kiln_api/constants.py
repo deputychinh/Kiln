@@ -68,6 +68,10 @@ STORAGE_BULKHEAD_WAIT_SECONDS = 0.5
 DB_CONNECT_TIMEOUT_SECONDS = 5
 DB_LOCK_TIMEOUT_MS = 5_000
 DB_STATEMENT_TIMEOUT_MS = 15_000
+# Migrations: a DDL statement waits at most this long for a lock (then fails, so it never queues
+# writers behind it), and a statement such as VALIDATE CONSTRAINT may scan this long.
+MIGRATION_LOCK_TIMEOUT_MS = 5_000
+MIGRATION_STATEMENT_TIMEOUT_MS = 10 * 60_000
 # A dead TCP link (no FIN, no RST) must not block a session forever: unacknowledged data fails the
 # socket after 30 s and an idle one is probed every 5 s after 10 s, three times (KILN-28 review).
 DB_TCP_USER_TIMEOUT_MS = 30_000

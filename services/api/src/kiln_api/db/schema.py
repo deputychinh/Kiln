@@ -76,6 +76,7 @@ sessions = Table(
     CheckConstraint("expires_at > created_at", name="expires_after_creation"),
     Index(None, "user_id"),
     Index(None, "expires_at"),
+    Index(None, "last_seen_at"),  # the idle purge at each sign-in (KILN-12 review V7)
 )
 
 access_tokens = Table(
