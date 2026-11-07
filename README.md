@@ -13,8 +13,10 @@ Requires Python 3.12 + [uv](https://docs.astral.sh/uv/), Node ≥ 24 and Docker.
 ```sh
 make install   # npm workspaces + uv workspace
 make up        # Postgres + SeaweedFS
-make api       # API on :8000
-make web       # web app on :5173
+make migrate   # database schema
+make api       # API on :8000 (own terminal)
+make worker    # previews and maintenance (own terminal)
+make web       # web app on http://localhost:5173 (own terminal)
 ```
 
 `make help` lists every command.
