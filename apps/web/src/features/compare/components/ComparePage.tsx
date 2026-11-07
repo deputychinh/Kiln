@@ -1,5 +1,13 @@
-import { EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
+import {
+  EmptyState,
+  ErrorState,
+  ICON_SIZE,
+  SegmentedControl,
+  Skeleton,
+  SkeletonShape,
+} from '@kiln/ui';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { ArrowLeft, Columns2, SplitSquareHorizontal } from 'lucide-react';
 import { type ReactElement, useEffect, useRef } from 'react';
 
 import { COMPARE_ROUTE_ID } from '@/constants/compare.constant';
@@ -24,6 +32,7 @@ const BackLink = ({ assetId }: { assetId: string }): ReactElement => {
   const copy = useCopy();
   return (
     <Link to="/assets/$assetId" params={{ assetId }} className="compare-page__back">
+      <ArrowLeft size={ICON_SIZE.sm} aria-hidden="true" />
       {copy.compare.back}
     </Link>
   );
@@ -100,29 +109,34 @@ const CompareBody = ({
 
   return (
     <article className="compare-page" aria-labelledby="compare-title">
-      <BackLink assetId={asset.id} />
-      <h1 id="compare-title" className="compare-page__title" ref={headingRef} tabIndex={-1}>
-        {copy.compare.title(asset.name)}
-      </h1>
+      <header className="compare-page__header">
+        <BackLink assetId={asset.id} />
+        <h1 id="compare-title" className="compare-page__title" ref={headingRef} tabIndex={-1}>
+          {copy.compare.title(asset.name)}
+        </h1>
+      </header>
       <div className="compare-page__controls">
         {picker('left')}
         {picker('right')}
-        <fieldset className="compare-page__modes">
-          <legend className="compare-page__picker-label">{copy.compare.modeLabel}</legend>
-          {[CompareMode.Side, CompareMode.Swipe].map((option) => (
-            <label key={option} className="compare-page__mode">
-              <input
-                type="radio"
-                name="compare-mode"
-                value={option}
-                checked={mode === option}
-                disabled={option === CompareMode.Swipe && !swipeAllowed}
-                onChange={() => setMode(option)}
-              />
-              {option === CompareMode.Side ? copy.compare.side : copy.compare.swipe}
-            </label>
-          ))}
-        </fieldset>
+        <SegmentedControl<CompareMode>
+          label={copy.compare.modeLabel}
+          name="compare-mode"
+          value={mode}
+          options={[
+            {
+              value: CompareMode.Side,
+              label: copy.compare.side,
+              icon: <Columns2 size={ICON_SIZE.sm} />,
+            },
+            {
+              value: CompareMode.Swipe,
+              label: copy.compare.swipe,
+              icon: <SplitSquareHorizontal size={ICON_SIZE.sm} />,
+              isDisabled: !swipeAllowed,
+            },
+          ]}
+          onChange={setMode}
+        />
       </div>
       {swipeAllowed ? null : <p className="compare-page__note">{copy.compare.swipeUnavailable}</p>}
       {mode === CompareMode.Swipe ? (

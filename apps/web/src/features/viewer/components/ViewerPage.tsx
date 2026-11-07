@@ -1,5 +1,6 @@
-import { EmptyState, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
+import { EmptyState, ErrorState, ICON_SIZE, Skeleton, SkeletonShape } from '@kiln/ui';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { ArrowLeft } from 'lucide-react';
 import { type ReactElement, useEffect, useRef } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
@@ -22,6 +23,7 @@ const BackLink = ({ assetId }: { assetId: string }): ReactElement => {
   const copy = useCopy();
   return (
     <Link to="/assets/$assetId" params={{ assetId }} className="viewer-page__back">
+      <ArrowLeft size={ICON_SIZE.sm} aria-hidden="true" />
       {copy.viewer.back}
     </Link>
   );
@@ -45,10 +47,12 @@ const ViewerBody = ({
 
   return (
     <article className="viewer-page" aria-labelledby="viewer-title">
-      <BackLink assetId={asset.id} />
-      <h1 id="viewer-title" className="viewer-page__title" ref={headingRef} tabIndex={-1}>
-        {copy.viewer.title(asset.name, version.number)}
-      </h1>
+      <header className="viewer-page__header">
+        <BackLink assetId={asset.id} />
+        <h1 id="viewer-title" className="viewer-page__title" ref={headingRef} tabIndex={-1}>
+          {copy.viewer.title(asset.name, version.number)}
+        </h1>
+      </header>
       <ModelViewer
         fileUrl={version.download_url}
         sizeBytes={version.size_bytes}
@@ -58,17 +62,17 @@ const ViewerBody = ({
         onRetry={onRetry}
       >
         <dl className="viewer-page__facts">
-          <dt>{copy.assets.kindLabel}</dt>
-          <dd>{copy.assets.kind[asset.kind]}</dd>
-          <dt>{copy.assets.versionLabel(version.number)}</dt>
-          <dd className="viewer-page__file">
+          <dt className="viewer-page__term">{copy.assets.kindLabel}</dt>
+          <dd className="viewer-page__value">{copy.assets.kind[asset.kind]}</dd>
+          <dt className="viewer-page__term">{copy.assets.versionLabel(version.number)}</dt>
+          <dd className="viewer-page__value viewer-page__file">
             {copy.assets.fileSummary(
               version.file_name,
               formatBytes(version.size_bytes, copy.locale),
             )}
           </dd>
-          <dt>{copy.assets.updated}</dt>
-          <dd>
+          <dt className="viewer-page__term">{copy.assets.updated}</dt>
+          <dd className="viewer-page__value">
             <RelativeTime iso={version.updated_at} />
           </dd>
         </dl>

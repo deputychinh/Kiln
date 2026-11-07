@@ -21,13 +21,6 @@
   gap: var(--kiln-space-1);
 }
 
-.viewer-controls__button {
-  inline-size: var(--kiln-target-primary);
-  min-block-size: var(--kiln-target-primary);
-  padding: 0;
-  font-size: var(--kiln-text-lg);
-}
-
 .viewer-controls__reset {
   min-block-size: var(--kiln-target-primary);
 }

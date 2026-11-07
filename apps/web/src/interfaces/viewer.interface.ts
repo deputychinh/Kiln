@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 import type { ViewerError } from '@/enums/viewer-error.enum';
 import type { AssetVersion } from '@/interfaces/asset.interface';
@@ -39,10 +39,10 @@ export interface ViewablePick {
   isCorrected: boolean;
 }
 
-/** One toolbar button: its name, its glyph and the step it takes. */
+/** One toolbar button: its name, its icon and the step it takes. */
 export interface ViewerStep {
   label: string;
-  glyph: string;
+  icon: ReactNode;
   run: (controller: ViewerController) => void;
 }
 
