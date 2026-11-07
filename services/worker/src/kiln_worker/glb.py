@@ -18,6 +18,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from kiln_worker.constants import (
+    MODEL_MAX_ACCESSOR_ELEMENTS,
     MODEL_MAX_INSTANCES,
     MODEL_MAX_JSON_BYTES,
     MODEL_MAX_NODE_DEPTH,
@@ -40,6 +41,9 @@ _INDEX_TYPES: dict[int, np.dtype[Any]] = {
     5125: np.dtype("<u4"),
 }
 _MAX_STRIDE = 252
+# Bytes per component and components per element of every accessor glTF 2.0 allows (§3.6.2).
+_COMPONENT_BYTES = {5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4}
+_TYPE_WIDTHS = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT2": 4, "MAT3": 9, "MAT4": 16}
 # Required extensions that change textures, materials or lights but never where vertices are.
 # KHR_mesh_quantization is allowed too: its integer positions fail the float-only layout check.
 _GEOMETRY_NEUTRAL_EXTENSIONS = frozenset(
@@ -94,6 +98,7 @@ def _read(data: bytes) -> Mesh:
     reader = _Reader(document, binary)
     instances = reader.instances()
     reader.check_budget(instances)
+    reader.check_document()
     parts = [reader.triangles(primitive, matrix) for primitive, matrix in instances]
     parts = [part for part in parts if len(part)]
     if not parts:
@@ -322,6 +327,75 @@ class _Reader:
             msg = f"{triangles} triangles, {vertices} vertices"
             raise ModelTooLargeError(msg)
 
+    def check_document(self) -> None:
+        """Every mesh and accessor of the file, drawn here or not (KILN-9).
+
+        The web viewer hands the whole file to three.js, which allocates every accessor it
+        names, so a count must be paid for in bytes: each accessor lies inside its bufferView
+        (offset, stride and element size), none is sparse or without a view, the attributes of a
+        primitive share one count, and vertices, indices and all elements together stay within
+        the budgets. Counts are checked first, so a huge claim is "too large" before it is read.
+        """
+        self._check_totals()
+        for index in range(len(self._accessors)):
+            accessor = self._accessor(index)
+            component = accessor.get("componentType")
+            size = _COMPONENT_BYTES.get(component) if type(component) is int else None
+            kind = accessor.get("type")
+            width = _TYPE_WIDTHS.get(kind) if isinstance(kind, str) else None
+            if size is None or width is None:
+                msg = "unknown accessor layout"
+                raise _fail(msg)
+            self._layout(index, size, width)
+
+    def _check_totals(self) -> None:
+        positions: set[int] = set()
+        indices: set[int] = set()
+        for entry in self._meshes:
+            primitives = entry.get("primitives", []) if isinstance(entry, dict) else None
+            if not isinstance(primitives, list):
+                msg = "primitives is not a list"
+                raise _fail(msg)
+            for primitive in primitives:
+                self._check_counts(primitive, positions, indices)
+        vertices = sum(self._count(a) for a in positions)
+        corners = sum(self._count(a) for a in indices)
+        elements = sum(self._count(a) for a in range(len(self._accessors)))
+        if vertices > MODEL_MAX_VERTICES:
+            msg = f"{vertices} vertices in all meshes"
+            raise ModelTooLargeError(msg)
+        if corners > 3 * MODEL_MAX_TRIANGLES:
+            msg = f"{corners} indices in all meshes"
+            raise ModelTooLargeError(msg)
+        if elements > MODEL_MAX_ACCESSOR_ELEMENTS:
+            msg = f"{elements} accessor elements"
+            raise ModelTooLargeError(msg)
+
+    def _check_counts(self, primitive: object, positions: set[int], indices: set[int]) -> None:
+        if not isinstance(primitive, dict):
+            msg = "primitive is not an object"
+            raise _fail(msg)
+        targets = primitive.get("targets", [])
+        if not isinstance(targets, list):
+            msg = "targets is not a list"
+            raise _fail(msg)
+        sets = [primitive.get("attributes", {}), *targets]
+        if not all(isinstance(attributes, dict) for attributes in sets):
+            msg = "attributes is not an object"
+            raise _fail(msg)
+        named = [_index(a, self._accessors, "accessor") for s in sets for a in s.values()]
+        if len({self._count(a) for a in named}) > 1:
+            msg = "the attributes of a primitive differ in count"
+            raise _fail(msg)
+        attributes = sets[0]
+        if "POSITION" in attributes:
+            positions.add(_index(attributes["POSITION"], self._accessors, "accessor"))
+        if primitive.get("indices") is not None:
+            indices.add(_index(primitive["indices"], self._accessors, "accessor"))
+
+    def _count(self, index: int) -> int:
+        return _non_negative(self._accessor(index).get("count"), "count")
+
     def triangles(self, primitive: _Primitive, matrix: Matrix) -> NDArray[np.float32]:
         """Triangles of one primitive instance, as (n, 3, 3), relative to the model origin."""
         positions = self._positions(primitive.positions)
@@ -390,9 +464,29 @@ class _Reader:
         if accessor.get("componentType") != component or accessor.get("type") != expected_type:
             msg = "unexpected accessor layout"
             raise _fail(msg)
-        count = _non_negative(accessor.get("count"), "count")
+        buffer, start, stride, count = self._layout(index, dtype.itemsize, width)
         if count == 0:
             return np.zeros((0, width), dtype=dtype)
+        values = np.ndarray(
+            shape=(count, width),
+            dtype=dtype,
+            buffer=buffer,
+            offset=start,
+            strides=(stride, dtype.itemsize),
+        )
+        return values.copy()  # only this accessor's elements, not the whole buffer
+
+    def _layout(self, index: int, size: int, width: int) -> tuple[memoryview, int, int, int]:
+        """Where an accessor's elements are: buffer, first byte, stride and count, all checked.
+
+        Every element must lie inside the accessor's bufferView, and the view inside the binary
+        chunk; an accessor without a view (zeros of any count in glTF) is refused.
+        """
+        accessor = self._accessor(index)
+        count = _non_negative(accessor.get("count"), "count")
+        if "bufferView" not in accessor:
+            msg = "accessor without a bufferView"
+            raise _fail(msg)
         view = self._views[_index(accessor.get("bufferView"), self._views, "bufferView")]
         if not isinstance(view, dict):
             msg = "bufferView is not an object"
@@ -403,23 +497,16 @@ class _Reader:
         if view_offset + view_length > len(buffer):
             msg = "bufferView runs past its buffer"
             raise _fail(msg)
-        element = dtype.itemsize * width
+        element = size * width
         stride = _non_negative(view.get("byteStride", element), "byteStride")
-        if stride < element or stride > _MAX_STRIDE or stride % dtype.itemsize:
+        if stride < element or stride > _MAX_STRIDE or stride % size:
             msg = "bad byteStride"
             raise _fail(msg)
         offset = _non_negative(accessor.get("byteOffset", 0), "byteOffset")
-        if offset % dtype.itemsize or offset + stride * (count - 1) + element > view_length:
+        if offset % size or (count and offset + stride * (count - 1) + element > view_length):
             msg = "accessor runs past its bufferView"
             raise _fail(msg)
-        values = np.ndarray(
-            shape=(count, width),
-            dtype=dtype,
-            buffer=buffer,
-            offset=view_offset + offset,
-            strides=(stride, dtype.itemsize),
-        )
-        return values.copy()  # only this accessor's elements, not the whole buffer
+        return buffer, view_offset + offset, stride, count
 
     def _buffer(self, index: int) -> memoryview:
         buffer = self._buffers[index]

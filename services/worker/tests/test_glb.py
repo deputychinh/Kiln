@@ -3,6 +3,7 @@ import math
 import struct
 import time
 import tracemalloc
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,7 +11,12 @@ import pytest
 from glb_builder import CUBE_INDICES, assemble, build_glb
 
 from kiln_worker import glb as glb_module
-from kiln_worker.constants import MODEL_MAX_OBJECTS, MODEL_MAX_TRIANGLES, MODEL_MAX_VERTICES
+from kiln_worker.constants import (
+    MODEL_MAX_ACCESSOR_ELEMENTS,
+    MODEL_MAX_OBJECTS,
+    MODEL_MAX_TRIANGLES,
+    MODEL_MAX_VERTICES,
+)
 from kiln_worker.errors import ModelTooLargeError, UnreadableModelError
 from kiln_worker.glb import read_glb
 
@@ -551,3 +557,147 @@ def test_an_overflowing_first_instance_does_not_spoil_the_others() -> None:
 
     finite = np.isfinite(mesh.triangles).all(axis=(1, 2))
     assert finite.sum() == 12  # the ordinary cube survives
+
+
+# KILN-9 review: the browser viewer reads every accessor of a ready file, so the worker must check
+# all of them, not only the ones its preview draws.
+_CRATE = Path(__file__).resolve().parents[3] / "apps/web/e2e/fixtures/crate.glb"
+
+
+def _colour_bomb() -> bytes:
+    """The review's 768-byte proof of concept: a COLOR_0 of 200,000,000 VEC4 with no bufferView."""
+    data = _CRATE.read_bytes()
+    (length,) = struct.unpack_from("<I", data, 12)
+    document = json.loads(data[20 : 20 + length])
+    binary = data[20 + length + 8 :]
+    document["accessors"].append({"componentType": 5126, "count": 200_000_000, "type": "VEC4"})
+    document["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = 2
+    return assemble(json.dumps(document, separators=(",", ":")).encode(), binary)
+
+
+def test_the_768_byte_colour_accessor_bomb_is_refused_without_allocating() -> None:
+    bomb = _colour_bomb()
+    assert len(bomb) == 768
+    tracemalloc.start()
+    try:
+        with pytest.raises(UnreadableModelError):
+            read_glb(bomb)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 5 * 1024 * 1024
+
+
+def _add_accessor(accessor: dict[str, Any]) -> Any:
+    def tweak(document: dict[str, Any]) -> None:
+        document["accessors"].append(accessor)
+
+    return tweak
+
+
+@pytest.mark.parametrize(
+    "accessor",
+    [
+        pytest.param({"componentType": 5126, "count": 8, "type": "VEC3"}, id="no bufferView"),
+        pytest.param(
+            {"bufferView": 0, "componentType": 5126, "count": 9, "type": "VEC3"},
+            id="one element past its view",
+        ),
+        pytest.param(
+            {"bufferView": 0, "byteOffset": 4, "componentType": 5126, "count": 8, "type": "VEC3"},
+            id="pushed past its view by its offset",
+        ),
+        pytest.param(
+            {"bufferView": 0, "componentType": 5126, "count": 2, "type": "MAT4"},
+            id="a matrix larger than its view",
+        ),
+        pytest.param(
+            {
+                "bufferView": 0,
+                "componentType": 5126,
+                "count": 2,
+                "type": "VEC3",
+                "sparse": {"count": 1},
+            },
+            id="sparse",
+        ),
+        pytest.param(
+            {"bufferView": 0, "componentType": 5124, "count": 1, "type": "SCALAR"}, id="int32"
+        ),
+        pytest.param(
+            {"bufferView": 0, "componentType": 5126, "count": 1, "type": "VEC5"}, id="no such type"
+        ),
+    ],
+)
+def test_every_accessor_must_lie_inside_its_buffer_view_even_one_nothing_draws(
+    accessor: dict[str, Any],
+) -> None:
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=_add_accessor(accessor)))
+
+
+def test_an_accessor_inside_its_view_that_nothing_draws_is_accepted() -> None:
+    accessor = {"bufferView": 0, "componentType": 5126, "count": 24, "type": "SCALAR"}
+    assert len(read_glb(build_glb(tweak=_add_accessor(accessor))).triangles) == 12
+
+
+def test_the_stride_of_a_view_bounds_its_accessors() -> None:
+    def strided(document: dict[str, Any]) -> None:  # 8 positions, 12 bytes apart, read 24 apart
+        document["bufferViews"][0]["byteStride"] = 24
+        document["accessors"].append(
+            {"bufferView": 0, "componentType": 5126, "count": 5, "type": "VEC3"}
+        )
+
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=strided))
+
+
+@pytest.mark.parametrize("where", ["attributes", "targets"])
+def test_attributes_of_a_primitive_must_have_the_same_count(where: str) -> None:
+    def mismatched(document: dict[str, Any]) -> None:
+        document["accessors"].append(
+            {"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"}
+        )
+        primitive = document["meshes"][0]["primitives"][0]
+        if where == "attributes":
+            primitive["attributes"]["NORMAL"] = 2
+        else:
+            primitive["targets"] = [{"POSITION": 2}]
+
+    with pytest.raises(UnreadableModelError, match="count"):
+        read_glb(build_glb(tweak=mismatched))
+
+
+def test_a_mesh_no_scene_draws_still_counts_toward_the_vertex_limit() -> None:
+    def hidden(document: dict[str, Any]) -> None:
+        document["accessors"].append(
+            {"bufferView": 0, "componentType": 5126, "count": MODEL_MAX_VERTICES, "type": "VEC3"}
+        )
+        document["meshes"].append({"primitives": [{"attributes": {"POSITION": 2}}]})
+
+    with pytest.raises(ModelTooLargeError, match="vertices"):
+        read_glb(build_glb(tweak=hidden))
+
+
+def test_indices_of_every_mesh_count_toward_the_triangle_limit() -> None:
+    def hidden(document: dict[str, Any]) -> None:
+        document["accessors"].append(
+            {
+                "bufferView": 1,
+                "componentType": 5125,
+                "count": 3 * MODEL_MAX_TRIANGLES,
+                "type": "SCALAR",
+            }
+        )
+        document["meshes"].append({"primitives": [{"attributes": {"POSITION": 0}, "indices": 2}]})
+
+    with pytest.raises(ModelTooLargeError, match="indices"):
+        read_glb(build_glb(tweak=hidden))
+
+
+def test_all_accessor_elements_together_are_capped() -> None:
+    count = MODEL_MAX_ACCESSOR_ELEMENTS + 1
+    accessor = {"bufferView": 0, "componentType": 5126, "count": count, "type": "SCALAR"}
+
+    with pytest.raises(ModelTooLargeError, match="accessor elements"):
+        read_glb(build_glb(tweak=_add_accessor(accessor)))
