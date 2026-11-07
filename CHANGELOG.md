@@ -27,6 +27,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Fixed
 
+- `make api` starts the API through `python -m kiln_api.serve`; the README says how to run the API and the web app on another port (KILN-12 review).
+
 - `KILN_API_PORT=… make e2e` runs the journeys against an API on another port when 8000 is taken (KILN-12 review).
 
 - Settings: on wide windows Revoke sits on the token name's line; `make web` no longer reloads the page while tests write coverage files (KILN-12 review).

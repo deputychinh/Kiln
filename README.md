@@ -20,7 +20,7 @@ make web       # web app on http://localhost:5173 (own terminal)
 make create-user EMAIL=you@studio.com NAME="Your Name"   # asks for a password twice
 ```
 
-Sign in at http://localhost:5173 with that account. There is no public sign-up: whoever runs Kiln creates each account. In the app, Settings → Access tokens makes a personal access token for the CLI and Blender (`Authorization: Bearer kiln_pat_…`). Over HTTPS set `KILN_ENV=production` (or `KILN_SECURE_COOKIES=true`) so the session cookie is `Secure` and `__Host-` prefixed, serve the web app and `/api` from one origin, and list that origin in `KILN_CORS_ORIGINS`.
+Sign in at http://localhost:5173 with that account. `make api` starts the API through `python -m kiln_api.serve`, which ignores `X-Forwarded-For` unless `KILN_TRUSTED_PROXIES` names the proxy. If another program holds :8000, run `make api API_PORT=8010` and `KILN_API_PROXY_TARGET=http://127.0.0.1:8010 make web` (and `KILN_API_PORT=8010 make e2e`). There is no public sign-up: whoever runs Kiln creates each account. In the app, Settings → Access tokens makes a personal access token for the CLI and Blender (`Authorization: Bearer kiln_pat_…`). Over HTTPS set `KILN_ENV=production` (or `KILN_SECURE_COOKIES=true`) so the session cookie is `Secure` and `__Host-` prefixed, serve the web app and `/api` from one origin, and list that origin in `KILN_CORS_ORIGINS`.
 
 `make help` lists every command. After an upgrade that tightens the model rules, run `make recheck-models` once, after every worker runs the new code: it re-reads every ready `.glb` with the current checks and fails the ones they refuse (safe to repeat and to run next to workers; ADR 0011).
 

@@ -104,7 +104,7 @@ Keyboard and screen reader: sign-in opens with focus on its heading; Tab reaches
 
 Exploratory: through the dev proxy (`http://localhost:5173/api/v1/…`) sign-in returns `Set-Cookie: kiln_session=…; HttpOnly; Max-Age=28800; Path=/; SameSite=lax`; `/api/v1/me` without it is 401 with `WWW-Authenticate: Bearer realm="kiln"`; a copied `.env.example` with `KILN_SECURE_COOKIES=` used to stop the API from starting (fixed in 9a3c976).
 
-**Local dev account (local database only, not a secret anywhere else):** `dev@kiln.local` / `kiln-dev-9UJ0irV52wP5` — created with `make create-user` after `make migrate` on the dev database. The e2e user (`e2e@kiln.test`) and its password live only in `apps/web/e2e/support/user.constant.ts`.
+**Local dev account:** create your own with `make migrate`, then `make create-user EMAIL=you@studio.com NAME="Your Name"` (asks for the password twice). The e2e user (`e2e@kiln.test`) and its test-only password live only in `apps/web/e2e/support/user.constant.ts`.
 
 ## Review round 1 (8.5/10)
 
@@ -120,3 +120,4 @@ Exploratory: through the dev proxy (`http://localhost:5173/api/v1/…`) sign-in 
 | Found on the way: another project's dev server held :8000, and the e2e's `reuseExistingServer` sent the journeys to it | `KILN_API_PORT` moves the e2e API (and the preview's `/api` proxy, seeding and the viewer's origin list) off 8000                                                                                                                                                                                                                                                                                                                           | `KILN_API_PORT=8010 make e2e`: 68 passed, 5 skipped                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Round 1 gates: `make lint` 0; `make test` 943 Python + 2 CLI + 136 UI + 472 web tests; `KILN_API_PORT=8010 make e2e` 68 passed, 5 skipped (load average 220 at the end); `make e2e-ui` 4 passed.
+| V5 the story printed the dev account's password | replaced by the `make create-user` instructions; the dev account itself is unchanged and still signs in (201 against an API started for the check). The password stays in the history of 805cd53 (main is never rewritten); it guards a local database only | `grep -c kiln-dev- docs/stories/KILN-12.md` → 0 |
