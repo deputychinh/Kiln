@@ -33,19 +33,21 @@ Icons: lucide (`lucide-react`, pinned), 1.5–2 px strokes at 16/20/32 px; an ic
 
 ## Layout per window size class (Material 3)
 
-| Class    | Width       | Navigation                                        | Top bar                      | Gallery                                                                                      |
-| -------- | ----------- | ------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
-| compact  | < 600 px    | none (one destination; the brand links to Assets) | brand, Upload, theme         | 2 large / 3 small columns; detail replaces the list                                          |
-| medium   | 600–839 px  | slim navigation rail (80 px)                      | brand, search, Upload, theme | 3 large / 5 small columns; detail replaces the list                                          |
-| expanded | 840–1199 px | slim rail                                         | as medium                    | the grid takes the full width until an asset is selected, then grid + inspector (320–400 px) |
-| large    | ≥ 1200 px   | slim rail                                         | as medium                    | grid + inspector, which says what to do while nothing is selected                            |
+| Class    | Width       | Navigation                                        | Top bar                              | Gallery                                                                                      |
+| -------- | ----------- | ------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| compact  | < 600 px    | none (one destination; the brand links to Assets) | brand, Upload, theme, avatar         | 2 large / 3 small columns; detail replaces the list                                          |
+| medium   | 600–839 px  | slim navigation rail (80 px)                      | brand, search, Upload, theme, avatar | 3 large / 5 small columns; detail replaces the list                                          |
+| expanded | 840–1199 px | slim rail                                         | as medium                            | the grid takes the full width until an asset is selected, then grid + inspector (320–400 px) |
+| large    | ≥ 1200 px   | slim rail                                         | as medium                            | grid + inspector, which says what to do while nothing is selected                            |
 
 The grid follows the list pane's width (container query), not the viewport. Material 3 uses a navigation bar for 3–5 destinations; with one (Assets) a phone shows none and keeps the height, and wider windows keep a slim rail that grows labelled items as destinations arrive (no 220 px sidebar for one entry). With no assets at all the inspector is not shown; the empty state owns the page. Uploads: the Upload button (top bar, empty state) opens the file picker; dragging files anywhere over the window shows a drop overlay (new assets, plus "new version of …" when an asset is open); running uploads live in a collapsible tray in the bottom corner (loaded on first use).
 
 ## Components
 
 - v0.1 (KILN-6, KILN-26): `Button` (primary 44 px, secondary, ghost; leading icon; `buttonClassName` for links), `Badge` (soft tint, optional icon), `AssetThumb` (4:3, checkerboard, reports the failed URL), `Skeleton` (line, tile, card), `EmptyState` (icon, heading level), `ErrorState` (`titleAs` for a page-level error), `ProgressBar` (determinate, `role="progressbar"`).
+- v0.2 (KILN-12): `TextField` (visible label, optional hint, error text with an icon tied by `aria-describedby`, `aria-invalid`; 44 px; read-only shows monospace for tokens). `SegmentedControl` moves its options under the legend when its row is full (1.4.10).
 - v0.2 (KILN-35): `IconButton` (label = name + tooltip, sizes 32/36/44, toggle state), `Tooltip` (hover after a delay or keyboard focus; hoverable; Escape dismisses — WCAG 1.4.13), `StatusDot`, `Toolbar` (start and end clusters), `SegmentedControl` (native radio group), `Tabs` (WAI-ARIA tabs, automatic activation, arrow/Home/End), `FilePickerButton` (the 2.5.7 alternative to every drop), `DropOverlay` (whole-window drop targets, pointer only). `Dropzone` was removed with the redesign.
+- App level (KILN-12): the sign-in page (one centred raised card under the brand on a faint ember glow, theme switch in the corner, no shell), the user menu (avatar initials on `surface-selected` as a 44 px disclosure; name and chevron from 840 px; panel on `surface-overlay` with name, email, Settings, Sign out) and Settings (one column up to 60 rem; the new-token form card; a show-once notice with a success border; token rows that put facts and Revoke beside the name from a 720 px container).
 - Next: `Dialog`, `Drawer`, `Avatar`, `CommentThread`, `AnnotationLayer`, `CompareSlider`, `TextField`; v0.3 `TagChip`, `SearchBar` (natural language → filter chips), `RuleViolation`.
 
 Every component has a story for each state, role-based tests, and no hard-coded strings (copy comes in through props).

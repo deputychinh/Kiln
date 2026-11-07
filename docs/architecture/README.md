@@ -27,10 +27,18 @@ Preview downloads are signed with botocore's SigV4 signer pinned to the start of
 
 5. Maintenance (KILN-22): at most once an hour across all workers (a lease row `maintenance_runs` updated in one statement on the database clock), the worker expires versions still `pending_upload` after 24 h (`failed`, `UPLOAD_EXPIRED`, saved before their staging object — and a final object a racing completion may have promoted — is deleted), deletes `uploads/` objects older than 24 h whose version is gone or no longer waiting (only keys of the form `uploads/<uuid>/<uuid>`), and purges idempotency keys past their 24 h window — at most 500 expiries and 500 deletions per run, a listing cut after 5,000 keys, versions looked up 100 at a time. A completion that loses the race to an expiry deletes the file it promoted, so neither order leaves an object behind. The worker process is a supervisor that runs the loop in a `spawn`ed child and replaces it after 200 jobs or 1 GiB of peak memory (Pillow keeps freed memory mapped), or after a crash with a 1–30 s backoff and jitter; a child whose supervisor dies stops after its current job (KILN-25). A watchdog thread ends the child with exit 76 when a job reaches its 30-minute maximum runtime (before its lease can expire, so no job runs twice at once) or has not finished 60 s after a stop; the supervisor starts a fresh child at once and kills one that outlives its grace by 10 s, native code that holds the GIL (or a frozen process) stops that thread and the heartbeat too, so the watchdog writes a sign of life to lock-free shared memory every poll and the supervisor kills a child in a job without one for 60 s — before the frozen lease can lapse — or still in one job 5 s past the runtime (ADR 0009). A hung job never blocks a worker or a shutdown (KILN-28); the supervisor keeps those checks while it waits for a stop, and the grace is capped at 120 s so a frozen job is still killed inside its lease; deployments must give the worker a stop timeout of at least grace + 10 s (70 s by default: Kubernetes `terminationGracePeriodSeconds`, compose `stop_grace_period`). Maintenance runs inline in the job loop, so a run pauses job processing for its duration (seconds at these batch sizes). Failures are logged and never stop job processing; a later run finishes what an interrupted one left. When the model rules tighten, `make recheck-models` (KILN-36, ADR 0011) is run once by hand: it walks ready model versions by id 100 at a time, re-reads each file (ETag-checked) in the same sandbox, and fails the ones now refused with a compare-and-set on `ready`, moving the asset's cover to the newest other ready version in the same transaction.
 
-## Endpoints (v0.1)
+## Sign-in and access (v0.2, KILN-12)
+
+People sign in at `/sign-in` (no public sign-up: the operator runs `make create-user`). `POST /api/v1/sessions` checks the Argon2id hash, throttles failures per account and per IP, and sets an opaque, `HttpOnly`, `SameSite=Lax` session cookie (`__Host-` + `Secure` over HTTPS) backed by a `sessions` row (SHA-256 of the id; 30 min idle, 8 h absolute). The web app calls `/api/v1` on its own origin — Vite's dev and preview servers proxy it to the API, a deployment puts both behind one origin — so the cookie is first-party, and every write sends `X-Kiln-Csrf: 1` (ADR 0013). The CLI and Blender send `Authorization: Bearer kiln_pat_…` personal access tokens (scopes `read`/`write`, made and revoked in Settings). `kiln_api/authentication.py` turns either into a `Principal`; every asset use case asks the one policy in `domain/authorization.py` (single workspace in v0.2, ADR 0012); assets record `owner_id`, versions `uploaded_by`, idempotency keys are per user.
+
+## Endpoints
 
 | Method and path                                        | Result                                                                                                                     |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/sessions`                                | `201` signed in, session cookie set; `401 INVALID_CREDENTIALS`, `429 SIGN_IN_THROTTLED`, `403 CSRF_CHECK_FAILED`           |
+| `DELETE /api/v1/sessions/current`                      | `204` signed out, cookie cleared (safe to repeat)                                                                          |
+| `GET /api/v1/me`                                       | who is calling, how (session or token) and with which scopes                                                               |
+| `GET`, `POST /api/v1/me/tokens`; `DELETE …/{token_id}` | list (no secrets), create (secret once, `201`), revoke (`204`); browser session only                                       |
 | `POST /api/v1/assets`                                  | `201` asset + version 1 + signed upload, `Location: /api/v1/assets/{id}`                                                   |
 | `GET /api/v1/assets?limit=&cursor=`                    | newest-first page `{items, next_cursor}`                                                                                   |
 | `GET /api/v1/assets/{asset_id}`                        | asset with `versions` (ready ones with `thumbnail_url` and `download_url`)                                                 |
@@ -39,6 +47,8 @@ Preview downloads are signed with botocore's SigV4 signer pinned to the start of
 | `POST /api/v1/asset-versions/{version_id}/completions` | `200` version in `processing` (idempotent); `409 UPLOAD_NOT_FOUND / UPLOAD_MISMATCH`                                       |
 | `GET /health`, `GET /ready`                            | liveness; readiness of Postgres (`SELECT 1`) and storage (1 s `HeadBucket`, one attempt) (`503` problem details otherwise) |
 
+Every endpoint above `/health` and `/ready` except sign-in and sign-out needs a session or a token (`401 UNAUTHENTICATED` otherwise; `403 INSUFFICIENT_SCOPE` for a token without the scope).
+
 ## Bounded contexts
 
 | Context  | Kind       | Main entities                         |
@@ -46,7 +56,7 @@ Preview downloads are signed with botocore's SigV4 signer pinned to the start of
 | assets   | core       | Asset, AssetVersion, StoredFile       |
 | review   | core       | Review, Annotation, Comment, Decision |
 | catalog  | supporting | Tag, NamingRule, SearchPlan           |
-| identity | generic    | User, Session, AccessToken (v0.2)     |
+| identity | generic    | User, Session, AccessToken (KILN-12)  |
 
 ## Boundaries
 
