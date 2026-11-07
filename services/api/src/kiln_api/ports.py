@@ -354,16 +354,22 @@ class IdentityStore(Protocol):
         """Record when a token was last used."""
         ...
 
-    def record_failure(
-        self, *, failure_id: UUID, account_key: bytes, client_ip: str, now: datetime
-    ) -> None:
-        """Remember a failed sign-in; also drops failures that have left every window."""
-        ...
+    def reserve_attempt(  # noqa: PLR0913 - keyword-only facts of one attempt
+        self,
+        *,
+        attempt_id: UUID,
+        account_key: bytes,
+        client_ip: str,
+        now: datetime,
+        since: datetime,
+        limits: tuple[int, int],
+    ) -> FailureCounts | None:
+        """Count recent failures and, under both limits, record this attempt as one.
 
-    def failures_since(
-        self, *, account_key: bytes, client_ip: str, since: datetime
-    ) -> FailureCounts:
-        """Count failures after `since` for the account and for the IP."""
+        Serialised per account and per IP (advisory locks), so parallel attempts can never check
+        more passwords than the limits allow. Returns the counts when a limit is reached (nothing
+        recorded), None once the attempt is recorded; a successful sign-in then clears it.
+        """
         ...
 
     def clear_failures(self, account_key: bytes) -> None:

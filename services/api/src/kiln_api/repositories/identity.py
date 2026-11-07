@@ -1,10 +1,11 @@
 """Postgres adapter for the `IdentityStore` port (KILN-12)."""
 
+import hashlib
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Engine, Row, delete, func, insert, or_, select, update
+from sqlalchemy import Connection, Engine, Row, delete, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from kiln_api.constants import SIGN_IN_WINDOW_MINUTES
@@ -51,6 +52,34 @@ def _token(row: Row[Any]) -> AccessToken:
         last_used_at=row.last_used_at,
         revoked_at=row.revoked_at,
     )
+
+
+def _lock_id(name: bytes) -> int:
+    """A signed 64-bit advisory-lock key from a name (account key or address)."""
+    return int.from_bytes(hashlib.sha256(name).digest()[:8], "big", signed=True)
+
+
+def _failure_counts(
+    connection: Connection, account_key: bytes, client_ip: str, since: datetime
+) -> FailureCounts:
+    """Failures after `since` for the account and for the IP: two index ranges, one statement."""
+    recent = sign_in_failures.c.created_at > since
+    by_account = (sign_in_failures.c.account_key == account_key) & recent
+    by_ip = (sign_in_failures.c.client_ip == client_ip) & recent
+    query = select(
+        func.count().filter(by_account),
+        func.count().filter(by_ip),
+        func.min(sign_in_failures.c.created_at).filter(by_account),
+        func.min(sign_in_failures.c.created_at).filter(by_ip),
+    ).where(
+        recent,
+        or_(
+            sign_in_failures.c.account_key == account_key,
+            sign_in_failures.c.client_ip == client_ip,
+        ),
+    )
+    account, ip, oldest_account, oldest_ip = connection.execute(query).one()
+    return FailureCounts(account=account, ip=ip, oldest_account=oldest_account, oldest_ip=oldest_ip)
 
 
 def _user_columns() -> list[Any]:
@@ -230,44 +259,47 @@ class SqlIdentityStore:
                 )
             )
 
-    def record_failure(
-        self, *, failure_id: UUID, account_key: bytes, client_ip: str, now: datetime
-    ) -> None:
-        """Insert one failure; rows older than the window go in the same transaction."""
+    def reserve_attempt(  # noqa: PLR0913 - keyword-only facts of one attempt
+        self,
+        *,
+        attempt_id: UUID,
+        account_key: bytes,
+        client_ip: str,
+        now: datetime,
+        since: datetime,
+        limits: tuple[int, int],
+    ) -> FailureCounts | None:
+        """Lock the account, then the IP (always that order: no deadlock), count, then insert.
+
+        Transaction-scoped advisory locks end at commit; the password check runs after it, so a
+        lock is held for three short statements, never for Argon2id.
+        """
+        max_account, max_ip = limits
         with self._engine.begin() as connection:
+            for lock in (
+                _lock_id(b"account:" + account_key),
+                _lock_id(b"ip:" + client_ip.encode()),
+            ):
+                connection.execute(select(func.pg_advisory_xact_lock(lock)))
             connection.execute(
                 delete(sign_in_failures).where(sign_in_failures.c.created_at <= now - _WINDOW)
             )
+            counts = _failure_counts(connection, account_key, client_ip, since)
+            if counts.account >= max_account or counts.ip >= max_ip:
+                return counts
             connection.execute(
                 insert(sign_in_failures).values(
-                    id=failure_id, account_key=account_key, client_ip=client_ip, created_at=now
+                    id=attempt_id, account_key=account_key, client_ip=client_ip, created_at=now
                 )
             )
+        return None
 
     def failures_since(
         self, *, account_key: bytes, client_ip: str, since: datetime
     ) -> FailureCounts:
         """Two index range counts in one round trip."""
-        recent = sign_in_failures.c.created_at > since
-        by_account = (sign_in_failures.c.account_key == account_key) & recent
-        by_ip = (sign_in_failures.c.client_ip == client_ip) & recent
-        query = select(
-            func.count().filter(by_account),
-            func.count().filter(by_ip),
-            func.min(sign_in_failures.c.created_at).filter(by_account),
-            func.min(sign_in_failures.c.created_at).filter(by_ip),
-        ).where(
-            recent,
-            or_(
-                sign_in_failures.c.account_key == account_key,
-                sign_in_failures.c.client_ip == client_ip,
-            ),
-        )
         with self._engine.connect() as connection:
-            account, ip, oldest_account, oldest_ip = connection.execute(query).one()
-        return FailureCounts(
-            account=account, ip=ip, oldest_account=oldest_account, oldest_ip=oldest_ip
-        )
+            return _failure_counts(connection, account_key, client_ip, since)
 
     def clear_failures(self, account_key: bytes) -> None:
         """Delete an account's failures."""

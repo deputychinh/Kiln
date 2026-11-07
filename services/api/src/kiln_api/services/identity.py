@@ -123,18 +123,17 @@ class IdentityService:
         """
         now = self._clock.now()
         key = account_key(email)
-        self._check_throttle(key, client_ip, now)
+        # Counted before the password is checked, under per-account and per-IP locks: parallel
+        # attempts can never check more passwords than the limits (review V2).
+        self._reserve_attempt(key, client_ip, now)
         user = self._user_for(email)
         password_ok = self._hasher.verify(
             self._dummy_hash if user is None else user.password_hash, password
         )
         if user is None or not password_ok:
-            self._store.record_failure(
-                failure_id=self._new_id(), account_key=key, client_ip=client_ip, now=now
-            )
             logger.warning("sign-in failed (account key %s)", key.hex()[:12])
-            raise InvalidCredentialsError
-        self._store.clear_failures(key)
+            raise InvalidCredentialsError  # the reserved attempt stays as the failure
+        self._store.clear_failures(key)  # the reservation and earlier failures
         if self._hasher.needs_rehash(user.password_hash):
             self._store.set_password_hash(user.id, self._hasher.hash(password), now=now)
         if previous_session is not None:
@@ -153,11 +152,16 @@ class IdentityService:
         except InvalidEmailError:
             return None  # same path as an unknown account
 
-    def _check_throttle(self, key: bytes, client_ip: str, now: datetime) -> None:
-        counts = self._store.failures_since(
-            account_key=key, client_ip=client_ip, since=now - _WINDOW
+    def _reserve_attempt(self, key: bytes, client_ip: str, now: datetime) -> None:
+        counts = self._store.reserve_attempt(
+            attempt_id=self._new_id(),
+            account_key=key,
+            client_ip=client_ip,
+            now=now,
+            since=now - _WINDOW,
+            limits=(SIGN_IN_MAX_FAILURES_PER_ACCOUNT, SIGN_IN_MAX_FAILURES_PER_IP),
         )
-        oldest = _blocking_oldest(counts)
+        oldest = None if counts is None else _blocking_oldest(counts)
         if oldest is None:
             return
         wait = max(1, math.ceil((oldest + _WINDOW - now).total_seconds()))

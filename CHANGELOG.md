@@ -27,6 +27,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Fixed
 
+- Parallel sign-ins could check more passwords than the throttle allows (27 for a limit of 10, KILN-12 review): each attempt is now reserved under per-account and per-IP advisory locks before its password is checked.
+
 - Sign-in throttling counted whatever `X-Forwarded-For` a caller sent through loopback (KILN-12 review): the API now starts with `python -m kiln_api.serve` (`make api`), which believes proxy headers only from `KILN_TRUSTED_PROXIES` (empty by default), and the Vite proxy forwards its real peer instead of the browser's header.
 
 - The worker's model reader checks the whole node graph, not only the default scene (KILN-36): a node with two parents (a DAG) or in a cycle anywhere in the file — a second scene, or no scene at all — a scene listing a node twice or listing a child, and chains deeper than 64 in any scene are refused as `UNREADABLE_MODEL`, so such a file is never marked ready (the 3D viewer refused it). Linear in the number of nodes.
