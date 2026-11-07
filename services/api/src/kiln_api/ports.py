@@ -172,13 +172,13 @@ class IdempotencyStore(Protocol):
     """Idempotency keys stored in the caller's transaction."""
 
     def claim(
-        self, *, key: str, operation: str, request_hash: bytes, now: datetime
+        self, *, user_id: UUID, key: str, operation: str, request_hash: bytes, now: datetime
     ) -> IdempotentResult | None:
-        """Claim `key` (None) or return the earlier result; raise on reuse or a long wait."""
+        """Claim `user_id`'s `key` (None) or return the earlier result; raise on reuse or a wait."""
         ...
 
-    def complete(self, *, key: str, asset_id: UUID, version_id: UUID) -> None:
-        """Record the created ids for `key`."""
+    def complete(self, *, user_id: UUID, key: str, asset_id: UUID, version_id: UUID) -> None:
+        """Record the created ids for `user_id`'s `key`."""
         ...
 
 

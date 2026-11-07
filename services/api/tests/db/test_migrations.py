@@ -312,3 +312,51 @@ def test_migration_0005_downgrade_maps_model_reasons_to_one_the_old_check_allows
     engine.dispose()
 
     assert reason == "PROCESSING_GAVE_UP"
+
+
+def test_migrations_0006_and_0007_keep_older_assets_without_an_owner_and_clear_keys(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0005_model_previews")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                " VALUES ('00000000-0000-7000-8000-000000000061', 'Old', 'image', now(), now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO idempotency_keys (key, operation, request_hash, created_at)"
+                " VALUES ('k', 'create_asset', :hash, now())"
+            ),
+            {"hash": b"\0" * 32},
+        )
+
+    command.upgrade(alembic_config, "head")
+    with engine.begin() as connection:
+        owner = connection.execute(text("SELECT owner_id FROM assets")).scalar_one()
+        keys = connection.execute(text("SELECT count(*) FROM idempotency_keys")).scalar_one()
+        connection.execute(text("DELETE FROM assets"))
+    tables = set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    assert owner is None
+    assert keys == 0
+    assert {"users", "sessions", "access_tokens", "sign_in_failures"} <= tables
+
+
+def test_migration_0006_downgrades_back_to_anonymous_v0_1(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+
+    command.downgrade(alembic_config, "0005_model_previews")
+    tables = set(inspect(engine).get_table_names())
+    asset_columns = {c["name"] for c in inspect(engine).get_columns("assets")}
+    command.upgrade(alembic_config, "head")
+    engine.dispose()
+
+    assert not {"users", "sessions", "access_tokens", "sign_in_failures"} & tables
+    assert "owner_id" not in asset_columns

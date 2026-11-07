@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from db_fixtures import artist
 from fakes import FakeStorage, FixedClock
 from sqlalchemy import Connection, Engine, text
 
@@ -62,13 +63,13 @@ def test_stale_pending_versions_are_found_oldest_first_and_bounded(
         clock=clock,
     )
     spec = UploadSpec(file_name="rock.png", content_type="image/png", size_bytes=10)
-    first = container.assets.create("First", spec).version
+    first = container.assets.create(artist(container.engine), "First", spec).version
     clock.advance(60)
-    second = container.assets.create("Second", spec).version
+    second = container.assets.create(artist(container.engine), "Second", spec).version
     clock.advance(60)
-    completed = container.assets.create("Done", spec)
+    completed = container.assets.create(artist(container.engine), "Done", spec)
     storage.put(completed.upload.fields["key"] if completed.upload else "", 10, "image/png")
-    container.assets.complete_upload(completed.version.id)
+    container.assets.complete_upload(artist(container.engine), completed.version.id)
     store = SqlMaintenanceStore(engine)
     day = timedelta(hours=24)
 
@@ -90,8 +91,8 @@ def test_versions_are_looked_up_by_id_in_one_query(database_url: str, engine: En
         clock=FixedClock(T0),
     )
     spec = UploadSpec(file_name="rock.png", content_type="image/png", size_bytes=10)
-    first = container.assets.create("First", spec).version
-    second = container.assets.create("Second", spec).version
+    first = container.assets.create(artist(container.engine), "First", spec).version
+    second = container.assets.create(artist(container.engine), "Second", spec).version
     repository = SqlAssetRepository(engine)
 
     found = repository.versions_by_id([first.id, second.id, uuid4()])

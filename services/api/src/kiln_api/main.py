@@ -13,6 +13,7 @@ from kiln_api.constants import (
     API_PREFIX,
     API_TITLE,
     API_VERSION,
+    CSRF_HEADER,
     IDEMPOTENCY_KEY_HEADER,
     REQUEST_ID_HEADER,
 )
@@ -24,7 +25,7 @@ from kiln_api.problems import (
     install_problem_schema,
     unexpected_problem,
 )
-from kiln_api.routes import assets, health
+from kiln_api.routes import assets, health, identity
 
 logger = logging.getLogger("kiln_api")
 
@@ -44,6 +45,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         app.state.container.engine.dispose()
 
     app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
+    app.state.settings = resolved
     # Starlette runs the last-added middleware first. Order from the outside in: CORS, request id
     # (with the one catch-all for unexpected errors), body limit; so 413 and 500 problems still
     # carry CORS headers and X-Request-Id.
@@ -60,19 +62,23 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         except Exception as error:
             response = unexpected_problem(request, error)
         response.headers[REQUEST_ID_HEADER] = value
+        # API answers are private to the caller (KILN-12); previews carry their own caching.
+        if request.url.path.startswith(API_PREFIX):
+            response.headers.setdefault("Cache-Control", "no-store")
         return response
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved.cors_origins,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", IDEMPOTENCY_KEY_HEADER, REQUEST_ID_HEADER],
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Content-Type", CSRF_HEADER, IDEMPOTENCY_KEY_HEADER, REQUEST_ID_HEADER],
         expose_headers=["Location", "Retry-After", REQUEST_ID_HEADER],
     )
     install_error_handlers(app)
     install_problem_schema(app)
     app.include_router(health.router)
     app.include_router(health.router, prefix=API_PREFIX)
+    app.include_router(identity.router)
     app.include_router(assets.router)
     return app
 

@@ -129,14 +129,642 @@
         }
       }
     },
+    "/api/v1/sessions": {
+      "post": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Sign In",
+        "description": "Sign in with email and password; a new session replaces any current one.\n\nThe cookie is `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` with the `__Host-` prefix\nover HTTPS. Writes from the browser need the `X-Kiln-Csrf: 1` header and an allowed Origin.",
+        "operationId": "sign_in_api_v1_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Signed in; the session cookie is set.",
+            "headers": {
+              "Location": {
+                "description": "URL of the created resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many failed sign-ins for this account or address; retry after `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/current": {
+      "delete": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Sign Out",
+        "description": "End the current session and clear the cookie; safe to repeat.",
+        "operationId": "sign_out_api_v1_sessions_current_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Me",
+        "description": "The signed-in user (session or token) and the scopes of this request.",
+        "operationId": "me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/tokens": {
+      "get": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "List Tokens",
+        "description": "Your access tokens that are not revoked, newest first; secrets are never returned.",
+        "operationId": "list_tokens_api_v1_me_tokens_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenListOut"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Create Token",
+        "description": "Create a personal access token for the CLI or Blender (browser session only).",
+        "operationId": "create_token_api_v1_me_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created; `token` is shown only now.",
+            "headers": {
+              "Location": {
+                "description": "URL of the created resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedTokenOut"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/tokens/{token_id}": {
+      "delete": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Revoke Token",
+        "description": "Revoke one of your tokens; it stops working at once.",
+        "operationId": "revoke_token_api_v1_me_tokens__token_id__delete",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Token Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/assets": {
       "post": {
         "tags": [
           "assets"
         ],
         "summary": "Create Asset",
-        "description": "Create an asset with version 1 and return the signed upload form.",
+        "description": "Create an asset with version 1, owned by the caller, and return the signed upload form.",
         "operationId": "create_asset_api_v1_assets_post",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -195,6 +823,34 @@
               }
             }
           },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Request body larger than 1 MB.",
             "content": {
@@ -244,7 +900,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -262,6 +918,14 @@
         "summary": "List Assets",
         "description": "List assets newest first; `limit` is 1 to 100.",
         "operationId": "list_assets_api_v1_assets_get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "cursor",
@@ -300,6 +964,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AssetPageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -363,6 +1055,14 @@
         "summary": "Get Asset",
         "description": "Return an asset with its first 500 versions by number.",
         "operationId": "get_asset_api_v1_assets__asset_id__get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "asset_id",
@@ -382,6 +1082,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AssetDetailOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -443,8 +1171,16 @@
           "assets"
         ],
         "summary": "Add Version",
-        "description": "Add the next version of an asset and return its signed upload form.",
+        "description": "Add the next version of an asset, uploaded by the caller; return its signed upload form.",
         "operationId": "add_version_api_v1_assets__asset_id__versions_post",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "asset_id",
@@ -513,6 +1249,34 @@
               }
             }
           },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Request body larger than 1 MB.",
             "content": {
@@ -572,7 +1336,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -592,6 +1356,14 @@
         "summary": "Get Version",
         "description": "Return one version.",
         "operationId": "get_version_api_v1_asset_versions__version_id__get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "version_id",
@@ -611,6 +1383,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -674,6 +1474,14 @@
         "summary": "Complete Upload",
         "description": "Confirm the file arrived intact and start processing; safe to repeat.",
         "operationId": "complete_upload_api_v1_asset_versions__version_id__completions_post",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "version_id",
@@ -693,6 +1501,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -746,7 +1582,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -796,6 +1632,19 @@
             ],
             "title": "Thumbnail Url",
             "description": "Preview of the newest ready version (signed, 15 minutes)."
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id",
+            "description": "The user who created the asset; null for assets before sign-in."
           },
           "versions": {
             "items": {
@@ -861,6 +1710,19 @@
             ],
             "title": "Thumbnail Url",
             "description": "Preview of the newest ready version (signed, 15 minutes)."
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id",
+            "description": "The user who created the asset; null for assets before sign-in."
           }
         },
         "type": "object",
@@ -903,6 +1765,15 @@
         "title": "AssetPageOut",
         "description": "A newest-first page; pass `next_cursor` back to get the next one."
       },
+      "AuthMethod": {
+        "type": "string",
+        "enum": [
+          "session",
+          "token"
+        ],
+        "title": "AuthMethod",
+        "description": "How a request proved who it is."
+      },
       "CreateAssetRequest": {
         "properties": {
           "file_name": {
@@ -935,6 +1806,107 @@
         ],
         "title": "CreateAssetRequest",
         "description": "A new asset and its first file."
+      },
+      "CreateTokenRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Scopes"
+          },
+          "expires_in_days": {
+            "type": "integer",
+            "enum": [
+              7,
+              30,
+              90,
+              365
+            ],
+            "title": "Expires In Days"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "scopes",
+          "expires_in_days"
+        ],
+        "title": "CreateTokenRequest",
+        "description": "A name people recognise, the scopes and one of the offered lifetimes."
+      },
+      "CreatedTokenOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "created_at",
+          "expires_at",
+          "last_used_at",
+          "token"
+        ],
+        "title": "CreatedTokenOut",
+        "description": "A new token with its secret, shown in this response only."
       },
       "FailureReason": {
         "type": "string",
@@ -976,6 +1948,43 @@
         "title": "HealthStatus",
         "description": "Result of a health or readiness probe."
       },
+      "MeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "auth_method": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "type": "array",
+            "title": "Scopes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "auth_method",
+          "scopes"
+        ],
+        "title": "MeOut",
+        "description": "The signed-in user and how the request was authenticated."
+      },
       "PendingUploadOut": {
         "properties": {
           "asset": {
@@ -1004,6 +2013,114 @@
         ],
         "title": "PendingUploadOut",
         "description": "A created asset or version waiting for its file."
+      },
+      "Scope": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write"
+        ],
+        "title": "Scope",
+        "description": "What a personal access token may do; a browser session has every scope (KILN-12)."
+      },
+      "SignInRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 1016,
+            "minLength": 1,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "SignInRequest",
+        "description": "Email and password; never logged."
+      },
+      "TokenListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TokenOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TokenListOut",
+        "description": "The caller's tokens that are not revoked, newest first."
+      },
+      "TokenOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "created_at",
+          "expires_at",
+          "last_used_at"
+        ],
+        "title": "TokenOut",
+        "description": "A token as listed: never its secret."
       },
       "UploadDeclaration": {
         "properties": {
@@ -1135,6 +2252,19 @@
             ],
             "title": "Download Url",
             "description": "The original file once the version is ready (signed like the preview)."
+          },
+          "uploaded_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded By",
+            "description": "The user who uploaded it; null for versions before sign-in."
           }
         },
         "type": "object",
@@ -1286,6 +2416,19 @@
         ],
         "title": "Problem",
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "accessToken": {
+        "type": "http",
+        "description": "A personal access token (`kiln_pat_\u2026`) for the CLI and Blender.",
+        "scheme": "bearer"
+      },
+      "sessionCookie": {
+        "type": "apiKey",
+        "description": "The browser session from `POST /api/v1/sessions` (`__Host-kiln_session` over HTTPS). Writes also need `X-Kiln-Csrf: 1` and an allowed Origin.",
+        "in": "cookie",
+        "name": "kiln_session"
       }
     }
   }

@@ -84,6 +84,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign In
+         * @description Sign in with email and password; a new session replaces any current one.
+         *
+         *     The cookie is `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` with the `__Host-` prefix
+         *     over HTTPS. Writes from the browser need the `X-Kiln-Csrf: 1` header and an allowed Origin.
+         */
+        post: operations["sign_in_api_v1_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign Out
+         * @description End the current session and clear the cookie; safe to repeat.
+         */
+        delete: operations["sign_out_api_v1_sessions_current_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Me
+         * @description The signed-in user (session or token) and the scopes of this request.
+         */
+        get: operations["me_api_v1_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tokens
+         * @description Your access tokens that are not revoked, newest first; secrets are never returned.
+         */
+        get: operations["list_tokens_api_v1_me_tokens_get"];
+        put?: never;
+        /**
+         * Create Token
+         * @description Create a personal access token for the CLI or Blender (browser session only).
+         */
+        post: operations["create_token_api_v1_me_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Token
+         * @description Revoke one of your tokens; it stops working at once.
+         */
+        delete: operations["revoke_token_api_v1_me_tokens__token_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assets": {
         parameters: {
             query?: never;
@@ -99,7 +206,7 @@ export interface paths {
         put?: never;
         /**
          * Create Asset
-         * @description Create an asset with version 1 and return the signed upload form.
+         * @description Create an asset with version 1, owned by the caller, and return the signed upload form.
          */
         post: operations["create_asset_api_v1_assets_post"];
         delete?: never;
@@ -139,7 +246,7 @@ export interface paths {
         put?: never;
         /**
          * Add Version
-         * @description Add the next version of an asset and return its signed upload form.
+         * @description Add the next version of an asset, uploaded by the caller; return its signed upload form.
          */
         post: operations["add_version_api_v1_assets__asset_id__versions_post"];
         delete?: never;
@@ -220,6 +327,11 @@ export interface components {
              * @description Preview of the newest ready version (signed, 15 minutes).
              */
             thumbnail_url?: string | null;
+            /**
+             * Owner Id
+             * @description The user who created the asset; null for assets before sign-in.
+             */
+            owner_id?: string | null;
             /** Versions */
             versions: components["schemas"]["VersionOut"][];
         };
@@ -257,6 +369,11 @@ export interface components {
              * @description Preview of the newest ready version (signed, 15 minutes).
              */
             thumbnail_url?: string | null;
+            /**
+             * Owner Id
+             * @description The user who created the asset; null for assets before sign-in.
+             */
+            owner_id?: string | null;
         };
         /**
          * AssetPageOut
@@ -268,6 +385,12 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /**
+         * AuthMethod
+         * @description How a request proved who it is.
+         * @enum {string}
+         */
+        AuthMethod: "session" | "token";
         /**
          * CreateAssetRequest
          * @description A new asset and its first file.
@@ -281,6 +404,52 @@ export interface components {
             size_bytes: number;
             /** Name */
             name: string;
+        };
+        /**
+         * CreateTokenRequest
+         * @description A name people recognise, the scopes and one of the offered lifetimes.
+         */
+        CreateTokenRequest: {
+            /** Name */
+            name: string;
+            /** Scopes */
+            scopes: components["schemas"]["Scope"][];
+            /**
+             * Expires In Days
+             * @enum {integer}
+             */
+            expires_in_days: 7 | 30 | 90 | 365;
+        };
+        /**
+         * CreatedTokenOut
+         * @description A new token with its secret, shown in this response only.
+         */
+        CreatedTokenOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Prefix */
+            prefix: string;
+            /** Scopes */
+            scopes: components["schemas"]["Scope"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Token */
+            token: string;
         };
         /**
          * FailureReason
@@ -304,6 +473,24 @@ export interface components {
          */
         HealthStatus: "ok";
         /**
+         * MeOut
+         * @description The signed-in user and how the request was authenticated.
+         */
+        MeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Display Name */
+            display_name: string;
+            auth_method: components["schemas"]["AuthMethod"];
+            /** Scopes */
+            scopes: components["schemas"]["Scope"][];
+        };
+        /**
          * PendingUploadOut
          * @description A created asset or version waiting for its file.
          */
@@ -312,6 +499,59 @@ export interface components {
             version: components["schemas"]["VersionOut"];
             /** @description Signed form for the file. A first creation always has one; a replay has null once the version left pending_upload. */
             upload: components["schemas"]["UploadOut"] | null;
+        };
+        /**
+         * Scope
+         * @description What a personal access token may do; a browser session has every scope (KILN-12).
+         * @enum {string}
+         */
+        Scope: "read" | "write";
+        /**
+         * SignInRequest
+         * @description Email and password; never logged.
+         */
+        SignInRequest: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /**
+         * TokenListOut
+         * @description The caller's tokens that are not revoked, newest first.
+         */
+        TokenListOut: {
+            /** Items */
+            items: components["schemas"]["TokenOut"][];
+        };
+        /**
+         * TokenOut
+         * @description A token as listed: never its secret.
+         */
+        TokenOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Prefix */
+            prefix: string;
+            /** Scopes */
+            scopes: components["schemas"]["Scope"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
         };
         /**
          * UploadDeclaration
@@ -388,6 +628,11 @@ export interface components {
              * @description The original file once the version is ready (signed like the preview).
              */
             download_url?: string | null;
+            /**
+             * Uploaded By
+             * @description The user who uploaded it; null for versions before sign-in.
+             */
+            uploaded_by?: string | null;
         };
         /**
          * VersionStatus
@@ -547,6 +792,443 @@ export interface operations {
             };
         };
     };
+    sign_in_api_v1_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignInRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in; the session cookie is set. */
+            201: {
+                headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many failed sign-ins for this account or address; retry after `Retry-After`. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    sign_out_api_v1_sessions_current_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    me_api_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_tokens_api_v1_me_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenListOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_token_api_v1_me_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `token` is shown only now. */
+            201: {
+                headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedTokenOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_token_api_v1_me_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_assets_api_v1_assets_get: {
         parameters: {
             query?: {
@@ -570,6 +1252,26 @@ export interface operations {
             };
             /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -646,7 +1348,27 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -704,6 +1426,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssetDetailOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description The resource does not exist. */
@@ -786,6 +1528,26 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description The resource does not exist. */
             404: {
                 headers: {
@@ -795,7 +1557,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -853,6 +1615,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description The resource does not exist. */
@@ -915,6 +1697,26 @@ export interface operations {
                     "application/json": components["schemas"]["VersionOut"];
                 };
             };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description The resource does not exist. */
             404: {
                 headers: {
@@ -924,7 +1726,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, or the Idempotency-Key is still in use. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
             409: {
                 headers: {
                     [name: string]: unknown;

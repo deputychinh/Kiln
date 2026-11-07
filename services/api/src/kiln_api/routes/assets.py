@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 
+from kiln_api.authentication import Authenticated
 from kiln_api.constants import (
     API_PREFIX,
     IDEMPOTENCY_KEY_HEADER,
@@ -27,7 +28,9 @@ from kiln_api.schemas.assets import (
 from kiln_api.schemas.problems import CREATED_HEADERS, problem_responses
 from kiln_api.services.assets import AssetService, PendingUpload
 
-router = APIRouter(prefix=API_PREFIX, tags=["assets"], responses=problem_responses(413, 422, 503))
+router = APIRouter(
+    prefix=API_PREFIX, tags=["assets"], responses=problem_responses(401, 403, 413, 422, 503)
+)
 
 
 def _service(request: Request) -> AssetService:
@@ -76,29 +79,34 @@ def _created(response: Response, pending: PendingUpload, location: str) -> Pendi
     },
 )
 def create_asset(
-    body: CreateAssetRequest, service: Service, response: Response, key: IdempotencyKey
+    body: CreateAssetRequest,
+    principal: Authenticated,
+    service: Service,
+    response: Response,
+    key: IdempotencyKey,
 ) -> PendingUploadOut:
-    """Create an asset with version 1 and return the signed upload form."""
-    pending = service.create(body.name, body.to_spec(), idempotency_key=key)
+    """Create an asset with version 1, owned by the caller, and return the signed upload form."""
+    pending = service.create(principal, body.name, body.to_spec(), idempotency_key=key)
     return _created(response, pending, f"{API_PREFIX}/assets/{pending.asset.id}")
 
 
 @router.get("/assets", responses=problem_responses(400))
 def list_assets(
+    principal: Authenticated,
     service: Service,
     cursor: Annotated[str | None, Query(max_length=256)] = None,
     limit: Annotated[int, Query(ge=PAGE_LIMIT_MIN, le=PAGE_LIMIT_MAX)] = PAGE_LIMIT_DEFAULT,
 ) -> AssetPageOut:
     """List assets newest first; `limit` is 1 to 100."""
-    page = service.list(cursor=cursor, limit=limit)
+    page = service.list(principal, cursor=cursor, limit=limit)
     items = [AssetOut.of(card.asset, card.thumbnail_url) for card in page.items]
     return AssetPageOut(items=items, next_cursor=page.next_cursor)
 
 
 @router.get("/assets/{asset_id}", responses=problem_responses(404))
-def get_asset(asset_id: UUID, service: Service) -> AssetDetailOut:
+def get_asset(asset_id: UUID, principal: Authenticated, service: Service) -> AssetDetailOut:
     """Return an asset with its first 500 versions by number."""
-    return AssetDetailOut.of_detail(service.get(asset_id))
+    return AssetDetailOut.of_detail(service.get(principal, asset_id))
 
 
 @router.post(
@@ -109,26 +117,27 @@ def get_asset(asset_id: UUID, service: Service) -> AssetDetailOut:
         **problem_responses(400, 404, 409),
     },
 )
-def add_version(
+def add_version(  # noqa: PLR0913, PLR0917 - FastAPI injects each parameter
     asset_id: UUID,
     body: UploadDeclaration,
+    principal: Authenticated,
     service: Service,
     response: Response,
     key: IdempotencyKey,
 ) -> PendingUploadOut:
-    """Add the next version of an asset and return its signed upload form."""
-    pending = service.add_version(asset_id, body.to_spec(), idempotency_key=key)
+    """Add the next version of an asset, uploaded by the caller; return its signed upload form."""
+    pending = service.add_version(principal, asset_id, body.to_spec(), idempotency_key=key)
     return _created(response, pending, f"{API_PREFIX}/asset-versions/{pending.version.id}")
 
 
 @router.get("/asset-versions/{version_id}", responses=problem_responses(404))
-def get_version(version_id: UUID, service: Service) -> VersionOut:
+def get_version(version_id: UUID, principal: Authenticated, service: Service) -> VersionOut:
     """Return one version."""
-    view = service.get_version(version_id)
+    view = service.get_version(principal, version_id)
     return VersionOut.of(view.version, view.thumbnail_url, view.download_url)
 
 
 @router.post("/asset-versions/{version_id}/completions", responses=problem_responses(404, 409))
-def complete_upload(version_id: UUID, service: Service) -> VersionOut:
+def complete_upload(version_id: UUID, principal: Authenticated, service: Service) -> VersionOut:
     """Confirm the file arrived intact and start processing; safe to repeat."""
-    return VersionOut.of(service.complete_upload(version_id))
+    return VersionOut.of(service.complete_upload(principal, version_id))

@@ -11,6 +11,7 @@ from itertools import chain
 
 import httpx2
 import pytest
+from db_fixtures import insert_token, insert_user
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
@@ -57,6 +58,8 @@ def real_client(settings: Settings, engine: Engine) -> Iterator[TestClient]:
     with TestClient(
         create_app(settings, container=build_container(settings, engine=engine, storage=storage))
     ) as client:
+        token = insert_token(engine, insert_user(engine), now=datetime.now(UTC))
+        client.headers["Authorization"] = f"Bearer {token}"
         yield client
 
 

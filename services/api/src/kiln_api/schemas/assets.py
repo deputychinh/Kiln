@@ -48,6 +48,9 @@ class AssetOut(BaseModel):
     thumbnail_url: str | None = Field(
         default=None, description="Preview of the newest ready version (signed, 15 minutes)."
     )
+    owner_id: UUID | None = Field(
+        default=None, description="The user who created the asset; null for assets before sign-in."
+    )
 
     @classmethod
     def of(cls, asset: Asset, thumbnail_url: str | None = None) -> "AssetOut":
@@ -59,6 +62,7 @@ class AssetOut(BaseModel):
             created_at=asset.created_at,
             updated_at=asset.updated_at,
             thumbnail_url=thumbnail_url,
+            owner_id=asset.owner_id,
         )
 
 
@@ -84,6 +88,9 @@ class VersionOut(BaseModel):
         default=None,
         description="The original file once the version is ready (signed like the preview).",
     )
+    uploaded_by: UUID | None = Field(
+        default=None, description="The user who uploaded it; null for versions before sign-in."
+    )
 
     @classmethod
     def of(
@@ -106,6 +113,7 @@ class VersionOut(BaseModel):
             failure_reason=version.failure_reason,
             thumbnail_url=thumbnail_url,
             download_url=download_url,
+            uploaded_by=version.uploaded_by,
         )
 
 

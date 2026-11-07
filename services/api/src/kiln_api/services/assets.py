@@ -22,9 +22,11 @@ from kiln_api.domain.assets import (
     transition,
     upload_key,
 )
+from kiln_api.domain.authorization import authorize, visible_owner
 from kiln_api.domain.idempotency import request_fingerprint
+from kiln_api.domain.identity import Principal
 from kiln_api.domain.jobs import new_job
-from kiln_api.enums import FailureReason, JobKind, PromotionResult, VersionStatus
+from kiln_api.enums import Action, FailureReason, JobKind, PromotionResult, VersionStatus
 from kiln_api.errors import (
     IdempotencyKeyInUseError,
     InvalidStatusTransitionError,
@@ -89,7 +91,11 @@ class AssetDetail:
 
 
 class AssetService:
-    """Coordinates the repository, object storage and the clock."""
+    """Coordinates the repository, object storage and the clock.
+
+    Every use case takes the calling `Principal` and asks the authorization policy first
+    (ADR 0012); the policy is the only place that decides.
+    """
 
     def __init__(
         self,
@@ -107,47 +113,82 @@ class AssetService:
         self._unit_of_work = unit_of_work
 
     def create(
-        self, name: str, spec: UploadSpec, *, idempotency_key: str | None = None
+        self,
+        principal: Principal,
+        name: str,
+        spec: UploadSpec,
+        *,
+        idempotency_key: str | None = None,
     ) -> PendingUpload:
-        """Store a new asset with version 1 and sign its upload.
+        """Store a new asset with version 1, owned by the caller, and sign its upload.
 
-        With an idempotency key, a repeat within the window replays the first result.
+        With an idempotency key, a repeat by the same user within the window replays the first
+        result.
         """
+        authorize(principal, Action.WRITE_ASSETS)
         payload = {"name": name, **_payload(spec)}
         with self._unit_of_work() as tx:
-            replay = self._claim(tx, idempotency_key, "create_asset", payload)
+            replay = self._claim(tx, principal, idempotency_key, "create_asset", payload)
             if replay is not None:
                 return self._replayed(tx, replay)
-            asset, version = new_asset(name, spec, now=self._clock.now(), new_id=self._new_id)
+            asset, version = new_asset(
+                name,
+                spec,
+                now=self._clock.now(),
+                new_id=self._new_id,
+                owner_id=principal.user_id,
+            )
             tx.assets.add(asset, version)
-            self._complete(tx, idempotency_key, version)
+            self._complete(tx, principal, idempotency_key, version)
         return PendingUpload(asset=asset, version=version, upload=self._sign(version))
 
     def add_version(
-        self, asset_id: UUID, spec: UploadSpec, *, idempotency_key: str | None = None
+        self,
+        principal: Principal,
+        asset_id: UUID,
+        spec: UploadSpec,
+        *,
+        idempotency_key: str | None = None,
     ) -> PendingUpload:
-        """Store the next version of an asset and sign its upload (idempotent with a key)."""
+        """Store the next version of an asset, uploaded by the caller, and sign its upload.
+
+        Idempotent per user with a key.
+        """
+        authorize(principal, Action.WRITE_ASSETS)
         now = self._clock.now()
+        operation = f"add_version:{asset_id}"
         with self._unit_of_work() as tx:
-            replay = self._claim(tx, idempotency_key, f"add_version:{asset_id}", _payload(spec))
+            replay = self._claim(tx, principal, idempotency_key, operation, _payload(spec))
             if replay is not None:
                 return self._replayed(tx, replay)
             version = tx.assets.add_next_version(
                 asset_id,
-                lambda asset, number: new_version(
-                    asset, number, spec, now=now, new_id=self._new_id
-                ),
+                lambda asset, number: self._next_version(principal, asset, number, spec, now),
             )
             asset = tx.assets.get(asset_id)
-            self._complete(tx, idempotency_key, version)
+            self._complete(tx, principal, idempotency_key, version)
         return PendingUpload(asset=asset, version=version, upload=self._sign(version))
 
+    def _next_version(
+        self, principal: Principal, asset: Asset, number: int, spec: UploadSpec, now: datetime
+    ) -> AssetVersion:
+        authorize(principal, Action.WRITE_ASSETS, asset)  # under the asset's row lock
+        return new_version(
+            asset, number, spec, now=now, new_id=self._new_id, uploaded_by=principal.user_id
+        )
+
     def _claim(
-        self, tx: Transaction, key: str | None, operation: str, payload: dict[str, object]
+        self,
+        tx: Transaction,
+        principal: Principal,
+        key: str | None,
+        operation: str,
+        payload: dict[str, object],
     ) -> IdempotentResult | None:
         if key is None:
             return None
         return tx.idempotency.claim(
+            user_id=principal.user_id,
             key=key,
             operation=operation,
             request_hash=request_fingerprint(operation, payload),
@@ -155,9 +196,16 @@ class AssetService:
         )
 
     @staticmethod
-    def _complete(tx: Transaction, key: str | None, version: AssetVersion) -> None:
+    def _complete(
+        tx: Transaction, principal: Principal, key: str | None, version: AssetVersion
+    ) -> None:
         if key is not None:
-            tx.idempotency.complete(key=key, asset_id=version.asset_id, version_id=version.id)
+            tx.idempotency.complete(
+                user_id=principal.user_id,
+                key=key,
+                asset_id=version.asset_id,
+                version_id=version.id,
+            )
 
     def _replayed(self, tx: Transaction, replay: IdempotentResult) -> PendingUpload:
         if replay.asset_id is None or replay.version_id is None:
@@ -168,7 +216,7 @@ class AssetService:
             asset=tx.assets.get(replay.asset_id), version=version, upload=upload, replayed=True
         )
 
-    def complete_upload(self, version_id: UUID) -> AssetVersion:
+    def complete_upload(self, principal: Principal, version_id: UUID) -> AssetVersion:
         """Check the stored object against the declaration and start processing.
 
         The file is copied from the staging key to the final key only if it is byte-for-byte
@@ -176,7 +224,9 @@ class AssetService:
         Idempotent: a version that already left `pending_upload` is returned unchanged, and a
         retry after a partial failure resumes where it stopped.
         """
+        authorize(principal, Action.WRITE_ASSETS)
         version = self._repository.get_version(version_id)
+        authorize(principal, Action.WRITE_ASSETS, self._repository.get(version.asset_id))
         if version.status is not VersionStatus.PENDING_UPLOAD:
             return version
         self._promote_staging(version)
@@ -225,19 +275,27 @@ class AssetService:
         if result is PromotionResult.PROMOTED:
             self._storage.delete(staging)
 
-    def get(self, asset_id: UUID) -> AssetDetail:
+    def get(self, principal: Principal, asset_id: UUID) -> AssetDetail:
         """Return an asset with its cover and versions, each with its preview URL."""
+        authorize(principal, Action.READ_ASSETS)
         asset = self._repository.get(asset_id)
+        authorize(principal, Action.READ_ASSETS, asset)
         versions = [self._view(v) for v in self._repository.versions_of(asset_id)]
         return AssetDetail(asset=asset, thumbnail_url=self._cover(asset), versions=versions)
 
-    def get_version(self, version_id: UUID) -> VersionView:
+    def get_version(self, principal: Principal, version_id: UUID) -> VersionView:
         """Return one version with its preview and file URLs."""
-        return self._view(self._repository.get_version(version_id))
+        authorize(principal, Action.READ_ASSETS)
+        version = self._repository.get_version(version_id)
+        authorize(principal, Action.READ_ASSETS, self._repository.get(version.asset_id))
+        return self._view(version)
 
-    def list(self, *, cursor: str | None, limit: int) -> Page[AssetCard]:
-        """Return assets newest first, each with its cover preview URL."""
-        page = self._repository.list_page(cursor=cursor, limit=limit)
+    def list(self, principal: Principal, *, cursor: str | None, limit: int) -> Page[AssetCard]:
+        """Return the assets the caller may see, newest first, each with its cover preview URL."""
+        authorize(principal, Action.READ_ASSETS)
+        page = self._repository.list_page(
+            cursor=cursor, limit=limit, owner_id=visible_owner(principal)
+        )
         cards = tuple(AssetCard(asset=a, thumbnail_url=self._cover(a)) for a in page.items)
         return Page(items=cards, next_cursor=page.next_cursor)
 

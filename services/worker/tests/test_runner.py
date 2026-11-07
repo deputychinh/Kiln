@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from db_fixtures import artist
 from fakes import FakeStorage, FixedClock
 from glb_builder import build_glb, cycle_in_a_second_scene, dag_in_a_second_scene
 from PIL import Image
@@ -72,12 +73,15 @@ def _uploaded(
 ) -> Any:
     spec = UploadSpec(file_name="rock.png", content_type=content_type, size_bytes=len(data))
     service = container.assets
+    by = artist(container.engine)
     pending = (
-        service.create("Rock", spec) if asset_id is None else service.add_version(asset_id, spec)
+        service.create(by, "Rock", spec)
+        if asset_id is None
+        else service.add_version(by, asset_id, spec)
     )
     assert pending.upload is not None
     storage.put(pending.upload.fields["key"], len(data), content_type, data)
-    return service.complete_upload(pending.version.id)
+    return service.complete_upload(by, pending.version.id)
 
 
 def _job_status(engine: Engine, version_id: Any) -> tuple[str, int]:
@@ -645,10 +649,10 @@ def test_a_webp_file_over_64_mb_is_refused_before_download(
     reason: FailureReason,
 ) -> None:
     spec = UploadSpec(file_name="anim.webp", content_type="image/webp", size_bytes=size)
-    pending = container.assets.create("Anim", spec)
+    pending = container.assets.create(artist(container.engine), "Anim", spec)
     assert pending.upload is not None
     storage.put(pending.upload.fields["key"], size, "image/webp", b"RIFF")
-    version = container.assets.complete_upload(pending.version.id)
+    version = container.assets.complete_upload(artist(container.engine), pending.version.id)
     downloads: list[str] = []
 
     def record(key: str, _into: Any, *, if_match: str | None = None) -> bool:

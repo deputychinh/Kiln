@@ -8,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from kiln_api.constants import (
     DB_LOCK_TIMEOUT_MS,
     DB_STATEMENT_TIMEOUT_MS,
+    SESSION_COOKIE_LOCAL,
+    SESSION_COOKIE_SECURE,
     STORAGE_BREAKER_COOLDOWN_SECONDS,
     STORAGE_BREAKER_FAILURES,
     STORAGE_BULKHEAD_WAIT_SECONDS,
@@ -46,6 +48,26 @@ class Settings(BaseSettings):
         default=STORAGE_MAX_CONCURRENT, gt=0, le=STORAGE_MAX_CONCURRENT_LIMIT
     )
     storage_bulkhead_wait_seconds: float = Field(default=STORAGE_BULKHEAD_WAIT_SECONDS, gt=0)
+    # Session cookie over HTTPS only (`Secure` and the `__Host-` prefix). Unset: on in production,
+    # off for local http, where browsers would drop a Secure cookie (KILN-12).
+    secure_cookies: bool | None = None
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Whether the session cookie is `Secure` (and named with `__Host-`)."""
+        if self.secure_cookies is not None:
+            return self.secure_cookies
+        return self.env is Environment.PRODUCTION
+
+    @property
+    def session_cookie_name(self) -> str:
+        """`__Host-kiln_session` over HTTPS, `kiln_session` on local http."""
+        return SESSION_COOKIE_SECURE if self.cookie_secure else SESSION_COOKIE_LOCAL
+
+    @property
+    def trusted_origins(self) -> frozenset[str]:
+        """Origins whose cookie-authenticated writes are accepted: the app's own (CSRF check)."""
+        return frozenset(self.cors_origins)
 
 
 @lru_cache

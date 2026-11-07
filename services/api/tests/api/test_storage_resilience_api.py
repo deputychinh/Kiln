@@ -3,6 +3,7 @@ import time
 from collections.abc import Iterator
 
 import pytest
+from db_fixtures import insert_user, sign_in_client
 from fakes import FakeStorage, FixedClock
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -27,7 +28,7 @@ def guarded_client(
         settings, engine=engine, storage=guard_storage(storage, settings), clock=clock
     )
     with TestClient(create_app(settings, container=container)) as test_client:
-        yield test_client
+        yield sign_in_client(test_client, engine, insert_user(engine), now=clock.now())
 
 
 def _pending_version(client: TestClient) -> str:

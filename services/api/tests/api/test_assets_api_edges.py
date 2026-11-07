@@ -6,11 +6,13 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from db_fixtures import insert_user, sign_in_client
 from fakes import FakeStorage, FixedClock
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
 from kiln_api.config import Settings
+from kiln_api.constants import SESSION_COOKIE_LOCAL
 from kiln_api.container import build_container
 from kiln_api.enums import Environment
 from kiln_api.main import create_app
@@ -162,6 +164,7 @@ def test_a_held_row_lock_returns_database_busy_with_retry_after(
     settings = Settings(env=Environment.TEST, database_url=database_url, db_lock_timeout_ms=200)
     container = build_container(settings, storage=FakeStorage(), clock=FixedClock())
     with TestClient(create_app(settings, container=container)) as client:
+        sign_in_client(client, engine, insert_user(engine), now=FixedClock().now())
         asset_id = _create(client)["asset"]["id"]
         locked = threading.Event()
         release = threading.Event()
@@ -196,6 +199,7 @@ def test_a_database_outage_on_a_request_is_a_503_problem() -> None:
     container = build_container(settings, storage=FakeStorage(), clock=FixedClock())
 
     with TestClient(create_app(settings, container=container)) as client:
+        client.cookies.set(SESSION_COOKIE_LOCAL, "a-session-id")  # looked up in the database
         response = client.get("/api/v1/assets")
 
     assert response.status_code == 503
@@ -213,7 +217,12 @@ def test_an_unexpected_error_is_a_500_problem_without_internals(
         raise RuntimeError(message)
 
     storage.on_head = explode
-    unsafe = TestClient(client.app, raise_server_exceptions=False)
+    unsafe = TestClient(
+        client.app,
+        raise_server_exceptions=False,
+        headers=dict(client.headers),
+        cookies=client.cookies,
+    )
 
     response = unsafe.post(f"/api/v1/asset-versions/{created['version']['id']}/completions")
 

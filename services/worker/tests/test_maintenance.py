@@ -4,6 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from db_fixtures import artist
 from fakes import FakeStorage, FixedClock
 from pydantic import ValidationError
 from sqlalchemy import Engine, text
@@ -42,7 +43,7 @@ def worker(container: Container, storage: FakeStorage, clock: FixedClock) -> Wor
 
 def _pending(container: Container, storage: FakeStorage, *, uploaded: bool = True) -> Any:
     """A version whose file was uploaded (or not) but never completed."""
-    pending = container.assets.create("Rock", SPEC)
+    pending = container.assets.create(artist(container.engine), "Rock", SPEC)
     assert pending.upload is not None
     if uploaded:
         storage.put(
@@ -84,7 +85,7 @@ def test_a_completion_after_expiry_returns_the_expired_version_unchanged(
     clock.advance(DAY.total_seconds() + 1)
     _run(worker)
 
-    completed = container.assets.complete_upload(abandoned.id)
+    completed = container.assets.complete_upload(artist(container.engine), abandoned.id)
 
     assert (completed.status, completed.failure_reason) == (
         VersionStatus.FAILED,
@@ -109,7 +110,9 @@ def test_a_version_completed_while_maintenance_runs_is_left_alone(
         found = original(self, version_ids)  # read while still pending...
         if not raced:
             raced.append(True)
-            container.assets.complete_upload(version.id)  # ...then the client wins the race
+            container.assets.complete_upload(
+                artist(container.engine), version.id
+            )  # ...then the client wins the race
         return found
 
     monkeypatch.setattr(SqlAssetRepository, "versions_by_id", complete_first)
@@ -124,10 +127,10 @@ def test_old_staging_objects_go_only_when_their_version_moved_on_or_is_gone(
     container: Container, worker: Worker, storage: FakeStorage, clock: FixedClock
 ) -> None:
     long_ago = clock.now() - DAY - timedelta(seconds=1)
-    completed = container.assets.create("Done", SPEC)
+    completed = container.assets.create(artist(container.engine), "Done", SPEC)
     assert completed.upload is not None
     storage.put(completed.upload.fields["key"], 10, "image/png")
-    container.assets.complete_upload(completed.version.id)
+    container.assets.complete_upload(artist(container.engine), completed.version.id)
     leftover = upload_key(completed.version)  # a deletion after promotion that failed
     storage.put(leftover, 10, "image/png", modified_at=long_ago)
     orphan = f"uploads/{uuid4()}/{uuid4()}"  # its version no longer exists
@@ -154,7 +157,7 @@ def test_old_staging_objects_go_only_when_their_version_moved_on_or_is_gone(
 def test_expired_idempotency_keys_are_purged(
     container: Container, worker: Worker, clock: FixedClock, engine: Engine
 ) -> None:
-    container.assets.create("Keyed", SPEC, idempotency_key="k-1")
+    container.assets.create(artist(container.engine), "Keyed", SPEC, idempotency_key="k-1")
     clock.advance(DAY.total_seconds() + 1)
 
     report = _run(worker)
@@ -205,7 +208,7 @@ def test_a_storage_outage_stops_the_storage_work_jobs_go_on_and_a_later_run_fini
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     abandoned = _pending(container, storage)
-    container.assets.create("Keyed", SPEC, idempotency_key="k-1")
+    container.assets.create(artist(container.engine), "Keyed", SPEC, idempotency_key="k-1")
     clock.advance(DAY.total_seconds() + 1)
     storage.delete_available = False
 
@@ -273,7 +276,10 @@ def test_expiry_after_a_racing_promotion_also_removes_the_final_object(
     assert report is not None
     assert report.expired_versions == 1
     assert version.object_key not in storage.objects
-    assert container.assets.complete_upload(version.id).status is VersionStatus.FAILED
+    assert (
+        container.assets.complete_upload(artist(container.engine), version.id).status
+        is VersionStatus.FAILED
+    )
 
 
 def test_a_version_gone_before_expiry_is_skipped(
@@ -382,7 +388,7 @@ def test_completion_and_expiry_racing_leave_an_expired_version_and_no_objects(
 
     monkeypatch.setattr(storage, "promote", racing_promote)
 
-    completed = container.assets.complete_upload(version.id)
+    completed = container.assets.complete_upload(artist(container.engine), version.id)
 
     assert (completed.status, completed.failure_reason) == (
         VersionStatus.FAILED,
@@ -403,7 +409,9 @@ def test_expired_keys_are_purged_batch_after_batch_up_to_a_bound(
     monkeypatch.setattr(maintenance_module, "MAINTENANCE_BATCH_SIZE", 2)
     monkeypatch.setattr(maintenance_module, "MAINTENANCE_PURGE_BATCHES", 2)
     for number in range(5):
-        container.assets.create("Keyed", SPEC, idempotency_key=f"k-{number}")
+        container.assets.create(
+            artist(container.engine), "Keyed", SPEC, idempotency_key=f"k-{number}"
+        )
     clock.advance(DAY.total_seconds() + 1)
 
     report = _run(worker)

@@ -3,6 +3,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from db_fixtures import insert_user, sign_in_client
 from fakes import FakeStorage, FixedClock
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
@@ -108,6 +109,7 @@ def test_a_key_held_longer_than_the_lock_timeout_is_in_use(
 ) -> None:
     settings = Settings(env=Environment.TEST, database_url=database_url, db_lock_timeout_ms=200)
     container = build_container(settings, storage=FakeStorage(), clock=FixedClock())
+    owner = insert_user(engine)
     holding = threading.Event()
     release = threading.Event()
 
@@ -115,10 +117,11 @@ def test_a_key_held_longer_than_the_lock_timeout_is_in_use(
         with engine.begin() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO idempotency_keys (key, operation, request_hash, created_at)"
-                    " VALUES (:key, 'create_asset', :hash, now())"
+                    "INSERT INTO idempotency_keys"
+                    " (user_id, key, operation, request_hash, created_at)"
+                    " VALUES (:user_id, :key, 'create_asset', :hash, now())"
                 ),
-                {"key": KEY.strip('"'), "hash": b"\x00" * 32},
+                {"user_id": owner.id, "key": KEY.strip('"'), "hash": b"\x00" * 32},
             )
             holding.set()
             release.wait(5)
@@ -128,6 +131,7 @@ def test_a_key_held_longer_than_the_lock_timeout_is_in_use(
     holding.wait(5)
     try:
         with TestClient(create_app(settings, container=container)) as client:
+            sign_in_client(client, engine, owner, now=FixedClock().now())
             response = _post(client, "/api/v1/assets", ROCK)
     finally:
         release.set()
@@ -201,9 +205,12 @@ def test_the_key_and_the_asset_commit_or_roll_back_together(
         raise RuntimeError(message)
 
     monkeypatch.setattr(SqlIdempotencyStore, "complete", fail_after_insert)
-    crashed = TestClient(client.app, raise_server_exceptions=False).post(
-        "/api/v1/assets", json=ROCK, headers={"Idempotency-Key": KEY}
-    )
+    crashed = TestClient(
+        client.app,
+        raise_server_exceptions=False,
+        headers=dict(client.headers),
+        cookies=client.cookies,
+    ).post("/api/v1/assets", json=ROCK, headers={"Idempotency-Key": KEY})
     assert crashed.status_code == 500
     assert (_count(engine, "assets"), _count(engine, "idempotency_keys")) == (0, 0)
 

@@ -181,6 +181,8 @@ asset_versions = Table(
 idempotency_keys = Table(
     "idempotency_keys",
     metadata,
+    # Keys are scoped per user (KILN-12): one user's key never replays another's response.
+    Column("user_id", Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
     Column("key", Text, primary_key=True),
     Column("operation", Text, nullable=False),
     Column("request_hash", LargeBinary, nullable=False),

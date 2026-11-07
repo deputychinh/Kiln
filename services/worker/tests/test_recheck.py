@@ -7,6 +7,7 @@ from typing import IO
 from uuid import UUID
 
 import pytest
+from db_fixtures import artist
 from fakes import FakeStorage, FixedClock
 from glb_builder import build_glb, cycle_in_a_second_scene, dag_in_a_second_scene
 from PIL import Image
@@ -61,12 +62,15 @@ def _ready(
     """Publish `data` and process it the way the worker did before KILN-36 (it became ready)."""
     spec = UploadSpec(file_name="crate.glb", content_type=content_type, size_bytes=len(data))
     service = container.assets
+    by = artist(container.engine)
     pending = (
-        service.create("Crate", spec) if asset_id is None else service.add_version(asset_id, spec)
+        service.create(by, "Crate", spec)
+        if asset_id is None
+        else service.add_version(by, asset_id, spec)
     )
     assert pending.upload is not None
     storage.put(pending.upload.fields["key"], len(data), content_type, data)
-    service.complete_upload(pending.version.id)
+    service.complete_upload(by, pending.version.id)
     with monkeypatch.context() as patch:
         patch.setattr("kiln_worker.runner.render_glb_sandboxed", _old_rules)
         assert build_worker(container.engine, storage=storage, clock=clock).run_once()
@@ -177,7 +181,7 @@ def test_images_and_versions_that_are_not_ready_are_never_checked(
 ) -> None:
     image = _ready(container, storage, clock, monkeypatch, _png(), content_type="image/png")
     spec = UploadSpec(file_name="crate.glb", content_type=GLB, size_bytes=len(DAG))
-    pending = container.assets.create("Waiting", spec).version
+    pending = container.assets.create(artist(container.engine), "Waiting", spec).version
     checked: list[bytes] = []
 
     def render(source: IO[bytes]) -> bytes:

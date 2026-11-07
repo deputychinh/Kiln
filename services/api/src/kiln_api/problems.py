@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from kiln_api.constants import (
+    AUTH_REALM,
     DB_BUSY_SQLSTATES,
     MAX_JSON_BODY_BYTES,
     PROBLEM_JSON,
@@ -68,6 +69,15 @@ async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
         )
     retry_after = getattr(exc, "retry_after_seconds", None)
     headers = {} if retry_after is None else {"Retry-After": str(retry_after)}
+    if exc.status == HTTPStatus.UNAUTHORIZED:
+        headers["WWW-Authenticate"] = f'Bearer realm="{AUTH_REALM}"'  # RFC 9110 section 15.5.2
+    elif exc.status == HTTPStatus.FORBIDDEN:
+        logger.warning(
+            "%s on %s (request %s)",
+            exc.code.value,
+            request.url.path,
+            getattr(request.state, "request_id", "-"),
+        )
     return _problem(request, exc.status, exc.code, exc.detail, headers=headers)
 
 

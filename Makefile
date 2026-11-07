@@ -1,6 +1,6 @@
 # Kiln — one command per task. `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help install lint format test e2e e2e-ui ci up down api worker recheck-models web storybook build migrate openapi blender-zip
+.PHONY: help install lint format test e2e e2e-ui ci up down api worker recheck-models web storybook build migrate create-user openapi blender-zip
 SHELL := /bin/bash
 API_PORT ?= 8000
 WEB_PORT ?= 5173
@@ -37,6 +37,9 @@ storybook: ## Run the design-system Storybook
 
 migrate: ## Apply database migrations
 	uv run --package kiln-api alembic -c services/api/alembic.ini upgrade head
+
+create-user: ## Create a user who can sign in (no public sign-up): make create-user EMAIL=… NAME="…"
+	uv run --package kiln-api python -m kiln_api.cli create-user --email "$(EMAIL)" --name "$(NAME)"
 
 openapi: ## Export the API schema and regenerate the web client types
 	uv run --package kiln-api python -m kiln_api.openapi > services/api/openapi.json

@@ -8,10 +8,13 @@ from botocore.config import Config
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from kiln_api.adapters import S3ObjectStorage
+from kiln_api.adapters import Argon2PasswordHasher, S3ObjectStorage
 from kiln_api.clock import SystemClock
 from kiln_api.config import Settings
 from kiln_api.constants import (
+    ARGON2_MEMORY_KIB,
+    ARGON2_PARALLELISM,
+    ARGON2_TIME_COST,
     DB_CONNECT_TIMEOUT_SECONDS,
     DB_KEEPALIVES_COUNT,
     DB_KEEPALIVES_IDLE_SECONDS,
@@ -24,11 +27,13 @@ from kiln_api.constants import (
 )
 from kiln_api.domain.ids import uuid7
 from kiln_api.errors import DatabaseUnavailableError
-from kiln_api.ports import Clock, ObjectStorage
+from kiln_api.ports import Clock, ObjectStorage, PasswordHasher
 from kiln_api.repositories.assets import SqlAssetRepository
+from kiln_api.repositories.identity import SqlIdentityStore
 from kiln_api.repositories.unit_of_work import SqlUnitOfWork
 from kiln_api.resilience import CircuitBreaker, GuardedStorage
 from kiln_api.services.assets import AssetService
+from kiln_api.services.identity import IdentityService
 from kiln_api.signing import SigningCredentials
 
 if TYPE_CHECKING:
@@ -42,6 +47,7 @@ class Container:
     engine: Engine
     storage: ObjectStorage
     assets: AssetService
+    identity: IdentityService
 
     def check_database(self) -> None:
         """Run `SELECT 1`; raise `DatabaseUnavailableError` when it fails."""
@@ -134,15 +140,27 @@ def build_container(
     engine: Engine | None = None,
     storage: ObjectStorage | None = None,
     clock: Clock | None = None,
+    hasher: PasswordHasher | None = None,
 ) -> Container:
     """Wire real adapters; tests pass their engine and fakes for storage and the clock."""
     engine = engine or build_engine(settings)
     resolved_storage = storage or guard_storage(build_storage(settings), settings)
+    resolved_clock = clock or SystemClock()
     service = AssetService(
         SqlAssetRepository(engine),
         resolved_storage,
-        clock or SystemClock(),
+        resolved_clock,
         uuid7,
         SqlUnitOfWork(engine),
     )
-    return Container(engine=engine, storage=resolved_storage, assets=service)
+    identity = IdentityService(
+        SqlIdentityStore(engine), hasher or build_hasher(), resolved_clock, uuid7
+    )
+    return Container(engine=engine, storage=resolved_storage, assets=service, identity=identity)
+
+
+def build_hasher() -> Argon2PasswordHasher:
+    """Argon2id with the OWASP parameters in `constants`."""
+    return Argon2PasswordHasher(
+        memory_kib=ARGON2_MEMORY_KIB, time_cost=ARGON2_TIME_COST, parallelism=ARGON2_PARALLELISM
+    )

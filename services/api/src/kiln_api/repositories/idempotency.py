@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Connection, Engine, Row, delete, func, select, update
+from sqlalchemy import Connection, Engine, Row, delete, func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 
@@ -24,7 +24,7 @@ class SqlIdempotencyStore:
         self._connection = connection
 
     def claim(
-        self, *, key: str, operation: str, request_hash: bytes, now: datetime
+        self, *, user_id: UUID, key: str, operation: str, request_hash: bytes, now: datetime
     ) -> IdempotentResult | None:
         """Return the stored result of a completed request, or None after claiming the key.
 
@@ -32,7 +32,7 @@ class SqlIdempotencyStore:
         `lock_timeout` becomes `IdempotencyKeyInUseError`.
         """
         try:
-            row = self._claim_or_read(key, operation, request_hash, now)
+            row = self._claim_or_read(user_id, key, operation, request_hash, now)
         except DBAPIError as error:
             if getattr(error.orig, "sqlstate", None) == LOCK_NOT_AVAILABLE_SQLSTATE:
                 raise IdempotencyKeyInUseError from error
@@ -44,30 +44,35 @@ class SqlIdempotencyStore:
         return IdempotentResult(asset_id=row.asset_id, version_id=row.version_id)
 
     def _claim_or_read(
-        self, key: str, operation: str, request_hash: bytes, now: datetime
+        self, user_id: UUID, key: str, operation: str, request_hash: bytes, now: datetime
     ) -> Row[Any] | None:
+        mine = (idempotency_keys.c.user_id == user_id, idempotency_keys.c.key == key)
         self._connection.execute(
-            delete(idempotency_keys).where(
-                idempotency_keys.c.key == key, idempotency_keys.c.created_at < now - _WINDOW
-            )
+            delete(idempotency_keys).where(*mine, idempotency_keys.c.created_at < now - _WINDOW)
         )
         claimed = self._connection.execute(
             insert(idempotency_keys)
-            .values(key=key, operation=operation, request_hash=request_hash, created_at=now)
-            .on_conflict_do_nothing(index_elements=[idempotency_keys.c.key])
+            .values(
+                user_id=user_id,
+                key=key,
+                operation=operation,
+                request_hash=request_hash,
+                created_at=now,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[idempotency_keys.c.user_id, idempotency_keys.c.key]
+            )
             .returning(idempotency_keys.c.key)
         ).first()
         if claimed is not None:
             return None
-        return self._connection.execute(
-            select(idempotency_keys).where(idempotency_keys.c.key == key)
-        ).one()
+        return self._connection.execute(select(idempotency_keys).where(*mine)).one()
 
-    def complete(self, *, key: str, asset_id: UUID, version_id: UUID) -> None:
+    def complete(self, *, user_id: UUID, key: str, asset_id: UUID, version_id: UUID) -> None:
         """Record what the request created, in the same transaction."""
         self._connection.execute(
             update(idempotency_keys)
-            .where(idempotency_keys.c.key == key)
+            .where(idempotency_keys.c.user_id == user_id, idempotency_keys.c.key == key)
             .values(asset_id=asset_id, version_id=version_id)
         )
 
@@ -79,13 +84,15 @@ def purge_expired_keys(engine: Engine, *, now: datetime | None = None, limit: in
     """
     cutoff = (func.now() if now is None else now) - _WINDOW
     expired = (
-        select(idempotency_keys.c.key)
+        select(idempotency_keys.c.user_id, idempotency_keys.c.key)
         .where(idempotency_keys.c.created_at < cutoff)
         .order_by(idempotency_keys.c.created_at)
         .limit(limit)
     )
     with engine.begin() as connection:
         result = connection.execute(
-            delete(idempotency_keys).where(idempotency_keys.c.key.in_(expired.scalar_subquery()))
+            delete(idempotency_keys).where(
+                tuple_(idempotency_keys.c.user_id, idempotency_keys.c.key).in_(expired)
+            )
         )
     return result.rowcount
