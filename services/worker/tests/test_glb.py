@@ -8,7 +8,15 @@ from typing import Any
 
 import numpy as np
 import pytest
-from glb_builder import CUBE_INDICES, assemble, build_glb
+from glb_builder import (
+    CUBE_INDICES,
+    add_doubling_chain,
+    assemble,
+    build_glb,
+    cycle_in_a_second_scene,
+    dag_in_a_second_scene,
+    dag_in_the_default_scene,
+)
 
 from kiln_worker import glb as glb_module
 from kiln_worker.constants import (
@@ -701,3 +709,84 @@ def test_all_accessor_elements_together_are_capped() -> None:
 
     with pytest.raises(ModelTooLargeError, match="accessor elements"):
         read_glb(build_glb(tweak=_add_accessor(accessor)))
+
+
+# KILN-36: the strict-tree rule covers every scene and every node, not only the default scene.
+# The first three cases are the KILN-9 reviewer's files (glb_builder mirrors dag.mjs).
+
+
+def _dag_in_no_scene(document: dict[str, Any]) -> None:
+    add_doubling_chain(document)  # nodes no scene lists are still handed to the viewer
+
+
+def _cycle_in_no_scene(document: dict[str, Any]) -> None:
+    document["nodes"] += [{"children": [2]}, {"children": [1]}]
+
+
+def _child_shared_across_scenes(document: dict[str, Any]) -> None:
+    document["nodes"] += [{"children": [0]}]  # node 0 is a root of scene 0 and a child of 1
+    document["scenes"].append({"nodes": [1]})
+
+
+def _root_listed_twice(document: dict[str, Any]) -> None:
+    document["scenes"].append({"nodes": [0, 0]})
+
+
+@pytest.mark.parametrize(
+    "tweak",
+    [
+        dag_in_a_second_scene,
+        dag_in_the_default_scene,
+        cycle_in_a_second_scene,
+        _dag_in_no_scene,
+        _cycle_in_no_scene,
+        _child_shared_across_scenes,
+        _root_listed_twice,
+    ],
+)
+def test_a_node_reached_twice_anywhere_in_the_file_is_refused(tweak: Any) -> None:
+    with pytest.raises(UnreadableModelError, match="reached twice"):
+        read_glb(build_glb(tweak=tweak))
+
+
+def test_a_too_deep_chain_in_a_second_scene_is_refused() -> None:
+    def deep(document: dict[str, Any]) -> None:
+        document["nodes"] += [{"children": [i + 2]} for i in range(100)] + [{"mesh": 0}]
+        document["scenes"].append({"nodes": [1]})
+
+    with pytest.raises(UnreadableModelError, match="too deep"):
+        read_glb(build_glb(tweak=deep))
+
+
+@pytest.mark.parametrize(
+    "scene",
+    [{"nodes": [99]}, {"nodes": "0"}, "scene", {"nodes": [True]}],
+)
+def test_a_broken_second_scene_is_refused(scene: object) -> None:
+    def broken(document: dict[str, Any]) -> None:
+        document["scenes"].append(scene)
+
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=broken))
+
+
+def test_well_formed_trees_in_several_scenes_and_a_node_in_two_scenes_are_accepted() -> None:
+    def scenes(document: dict[str, Any]) -> None:
+        document["nodes"] += [{"children": [2], "translation": [5, 0, 0]}, {"mesh": 0}, {}]
+        document["scenes"] += [{"nodes": [1, 3]}, {"nodes": [0]}]  # node 0 in two scenes
+
+    assert read_glb(build_glb(tweak=scenes)).triangles.shape == (12, 3, 3)
+
+
+def test_a_wide_node_graph_is_checked_in_linear_time() -> None:
+    def wide(document: dict[str, Any]) -> None:  # one long chain plus many leaves
+        count = MODEL_MAX_OBJECTS - 1
+        document["nodes"] = [{"children": [1]}] + [{"children": [i + 2]} for i in range(60)]
+        document["nodes"] += [{} for _ in range(count - len(document["nodes"]))]
+        document["nodes"].append({"mesh": 0})
+        document["nodes"][60]["children"] = [count]
+        document["scenes"] = [{"nodes": [0]}, {"nodes": list(range(62, count))}]
+
+    started = time.monotonic()
+    assert read_glb(build_glb(tweak=wide)).triangles.shape == (12, 3, 3)
+    assert time.monotonic() - started < 2

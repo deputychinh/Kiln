@@ -1,7 +1,8 @@
 """A defensive reader for glTF 2.0 binaries (KILN-5): triangles in world space, nothing else.
 
 The file is untrusted. Every length, offset, stride, count and index is checked before use, no
-URI is ever fetched, the node graph must be a strict tree (each node reached once), and the
+URI is ever fetched, the node graph must be a strict tree in every scene and outside them
+(each node has at most one parent, no cycles, bounded depth, KILN-36), and the
 triangle and vertex budgets are checked from accessor counts before anything is decoded. Each
 accessor is decoded once, without copying the binary chunk. Any malformed structure — deep
 JSON, absurd numbers, wrong types — is reported as an unreadable model.
@@ -96,6 +97,7 @@ def _read(data: bytes) -> Mesh:
         msg = "required extensions are not supported"
         raise UnreadableModelError(msg)
     reader = _Reader(document, binary)
+    reader.check_node_graph()
     instances = reader.instances()
     reader.check_budget(instances)
     reader.check_document()
@@ -211,11 +213,13 @@ class _Reader:
         self._origin: NDArray[np.float64] | None = None
 
     def instances(self) -> list[tuple[_Primitive, Matrix]]:
-        """Every triangle primitive of the default scene with its world matrix."""
+        """Every triangle primitive of the default scene with its world matrix.
+
+        Call `check_node_graph` first: the walk relies on the nodes forming strict trees.
+        """
         found: list[tuple[_Primitive, Matrix]] = []
-        visited: set[int] = set()
         for root in self._roots():
-            self._walk(root, np.identity(4), 0, found, visited)
+            self._walk(root, np.identity(4), found)
         if not self._nodes:  # meshes without a scene graph
             for mesh in range(len(self._meshes)):
                 found.extend((p, np.identity(4)) for p in self._primitives(mesh))
@@ -237,33 +241,74 @@ class _Reader:
     def _roots(self) -> list[int]:
         scenes = _items(self._doc, "scenes")
         if scenes:
-            scene = scenes[_index(self._doc.get("scene", 0), scenes, "scene")]
-            if not isinstance(scene, dict):
-                msg = "scene is not an object"
-                raise _fail(msg)
-            nodes = scene.get("nodes", [])
-            if not isinstance(nodes, list):
-                msg = "scene nodes are not a list"
-                raise _fail(msg)
-            return [_index(n, self._nodes, "node") for n in nodes]
+            return self._scene_roots(scenes[_index(self._doc.get("scene", 0), scenes, "scene")])
         children = {c for node in self._nodes for c in self._children(node)}
         return [i for i in range(len(self._nodes)) if i not in children]
+
+    def _scene_roots(self, scene: object) -> list[int]:
+        if not isinstance(scene, dict):
+            msg = "scene is not an object"
+            raise _fail(msg)
+        nodes = scene.get("nodes", [])
+        if not isinstance(nodes, list):
+            msg = "scene nodes are not a list"
+            raise _fail(msg)
+        return [_index(n, self._nodes, "node") for n in nodes]
+
+    def check_node_graph(self) -> None:
+        """Every node of the file and every scene form strict trees (KILN-36).
+
+        The web viewer builds every scene and node the file names, not only the default scene
+        drawn here, so the rule holds everywhere: a node has at most one parent, no chain of
+        parents loops or runs deeper than `MODEL_MAX_NODE_DEPTH`, and a scene lists only
+        parentless nodes, each once. Linear in the number of nodes and children.
+        """
+        parents: list[int | None] = [None] * len(self._nodes)
+        for index, node in enumerate(self._nodes):
+            for child in self._children(node):
+                if parents[child] is not None:
+                    msg = "a node is reached twice: it has two parents"
+                    raise _fail(msg)
+                parents[child] = index
+        self._check_depths(parents)
+        for scene in _items(self._doc, "scenes"):
+            roots = self._scene_roots(scene)
+            if len(set(roots)) != len(roots):
+                msg = "a node is reached twice: a scene lists it twice"
+                raise _fail(msg)
+            if any(parents[root] is not None for root in roots):
+                msg = "a node is reached twice: a scene root is also a child"
+                raise _fail(msg)
+
+    @staticmethod
+    def _check_depths(parents: list[int | None]) -> None:
+        """Follow each node's parents to a root once, remembering depths; refuse loops."""
+        depths = [-1] * len(parents)  # -1: not known yet
+        for start in range(len(parents)):
+            path: list[int] = []
+            on_path: set[int] = set()
+            node: int | None = start
+            while node is not None and depths[node] < 0:
+                if node in on_path:
+                    msg = "a node is reached twice: the node graph has a cycle"
+                    raise _fail(msg)
+                on_path.add(node)
+                path.append(node)
+                node = parents[node]
+            depth = -1 if node is None else depths[node]
+            for item in reversed(path):
+                depth += 1
+                if depth > MODEL_MAX_NODE_DEPTH:
+                    msg = "node hierarchy too deep"
+                    raise _fail(msg)
+                depths[item] = depth
 
     def _walk(
         self,
         index: int,
         parent: Matrix,
-        depth: int,
         found: list[tuple[_Primitive, Matrix]],
-        visited: set[int],
     ) -> None:
-        if index in visited:  # glTF nodes form disjoint trees: shared children or cycles
-            msg = "a node is reached twice"
-            raise _fail(msg)
-        visited.add(index)
-        if depth > MODEL_MAX_NODE_DEPTH:
-            msg = "node hierarchy too deep"
-            raise _fail(msg)
         node = self._nodes[index]
         children = self._children(node)
         matrix = parent @ _local_matrix(node)
@@ -274,7 +319,7 @@ class _Reader:
                 msg = "too many mesh instances"
                 raise ModelTooLargeError(msg)
         for child in children:
-            self._walk(child, matrix, depth + 1, found, visited)
+            self._walk(child, matrix, found)
 
     def _primitives(self, mesh: int) -> list[_Primitive]:
         """A mesh's drawable primitives, resolved once however many nodes use the mesh."""

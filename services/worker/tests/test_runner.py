@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 from fakes import FakeStorage, FixedClock
-from glb_builder import build_glb
+from glb_builder import build_glb, cycle_in_a_second_scene, dag_in_a_second_scene
 from PIL import Image
 from sqlalchemy import Engine, text
 
@@ -212,7 +212,11 @@ def test_a_model_gets_a_rendered_preview_and_becomes_the_cover(
             build_glb(tweak=lambda d: d["accessors"][1].update(count=3 * 2_000_001)),
             FailureReason.MODEL_TOO_LARGE,
         ),
+        # KILN-36: the reviewer's files; the default scene alone is a valid cube.
+        (build_glb(tweak=dag_in_a_second_scene), FailureReason.UNREADABLE_MODEL),
+        (build_glb(tweak=cycle_in_a_second_scene), FailureReason.UNREADABLE_MODEL),
     ],
+    ids=["not-glb", "draco", "too-many-indices", "dag-in-second-scene", "cycle-in-second-scene"],
 )
 def test_unreadable_or_oversized_models_fail_with_a_reason(
     container: Container,

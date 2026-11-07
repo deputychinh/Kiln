@@ -73,3 +73,38 @@ def build_glb(
     if tweak is not None:
         tweak(document)
     return assemble(document, binary)
+
+
+# KILN-36: the KILN-9 reviewer's crafted files (dag.mjs), as tweaks of `build_glb`'s cube.
+DOUBLING_CHAIN_LENGTH = 24
+
+
+def add_doubling_chain(document: dict[str, Any]) -> int:
+    """Append nodes where each lists the next twice (a DAG) and the last holds the mesh.
+
+    Returns the chain's first node; walked naively it has 2**23 paths to the mesh.
+    """
+    first = len(document["nodes"])
+    document["nodes"] += [
+        {"children": [first + i + 1, first + i + 1]}
+        if i < DOUBLING_CHAIN_LENGTH - 1
+        else {"mesh": 0}
+        for i in range(DOUBLING_CHAIN_LENGTH)
+    ]
+    return first
+
+
+def dag_in_a_second_scene(document: dict[str, Any]) -> None:
+    """dag.mjs `scene1`: the default scene is a valid cube; a second scene holds the DAG."""
+    document["scenes"].append({"nodes": [add_doubling_chain(document)]})
+
+
+def dag_in_the_default_scene(document: dict[str, Any]) -> None:
+    """dag.mjs `scene0`: the DAG is a second root of the default scene."""
+    document["scenes"][0]["nodes"].append(add_doubling_chain(document))
+
+
+def cycle_in_a_second_scene(document: dict[str, Any]) -> None:
+    """dag.mjs `cycle`: a node that is its own child, the root of a second scene."""
+    document["nodes"].append({"children": [len(document["nodes"])]})
+    document["scenes"].append({"nodes": [len(document["nodes"]) - 1]})
