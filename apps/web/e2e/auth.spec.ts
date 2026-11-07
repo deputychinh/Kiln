@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, type Page, test } from '@playwright/test';
 
+import { API_URL } from './support/api.constant';
 import { E2E_USER } from './support/user.constant';
 
-const API_URL = 'http://127.0.0.1:8000';
 const SIGNED_OUT = { cookies: [], origins: [] };
 
 const seriousViolations = async (page: Page): Promise<string[]> => {

@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { API_PORT, API_URL } from './e2e/support/api.constant';
 import { AUTH_STATE } from './e2e/support/user.constant';
 
 const WEB_URL = 'http://127.0.0.1:4173';
@@ -27,9 +28,9 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'uv run --package kiln-api python -m kiln_api.serve --port 8000',
+      command: `uv run --package kiln-api python -m kiln_api.serve --port ${API_PORT}`,
       cwd: '../..',
-      url: 'http://127.0.0.1:8000/health',
+      url: `${API_URL}/health`,
       reuseExistingServer: true,
     },
     {
@@ -42,6 +43,7 @@ export default defineConfig({
     {
       command: 'npm run build && npm run preview',
       url: WEB_URL,
+      env: { KILN_API_PROXY_TARGET: API_URL },
       reuseExistingServer: true,
     },
   ],

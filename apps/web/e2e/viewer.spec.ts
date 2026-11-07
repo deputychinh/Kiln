@@ -3,9 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, type Locator, type Page, test, type TestInfo } from '@playwright/test';
 
+import { API_URL } from './support/api.constant';
 import { seedModelAsset } from './support/seed';
 
-const ORIGINS = ['http://127.0.0.1:4173', 'http://127.0.0.1:8000', 'http://127.0.0.1:8333'];
+const ORIGINS = ['http://127.0.0.1:4173', API_URL, 'http://127.0.0.1:8333'];
 /** A change of view moves well over this share of the pixels; a reset leaves well under it. */
 const CHANGED = 0.01;
 

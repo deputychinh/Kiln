@@ -4,9 +4,9 @@ import type { APIRequestContext } from '@playwright/test';
 
 import type { components } from '@/api/kiln.schema';
 
+import { API_URL } from './api.constant';
 import { AUTH_TOKEN } from './user.constant';
 
-const API_URL = 'http://127.0.0.1:8000';
 const fixture = (name: string): Buffer =>
   readFileSync(new URL(`../fixtures/${name}`, import.meta.url));
 const SWATCH = { fileName: 'swatch.png', mimeType: 'image/png', buffer: fixture('swatch.png') };
