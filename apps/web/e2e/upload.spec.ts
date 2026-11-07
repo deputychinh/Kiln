@@ -150,3 +150,56 @@ test('a slow upload can be cancelled from the keyboard, retried with the same ke
   expect(new Set(keys).size).toBe(1);
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
+
+test('a new version dropped on an asset detail becomes its next version and its preview', async ({
+  page,
+}, testInfo) => {
+  const firstName = uniqueFileName('versioned', 'png', testInfo);
+  const assetName = firstName.replace(/\.png$/, '');
+  const secondName = uniqueFileName('second', 'png', testInfo);
+  await page.goto('/assets');
+  await dropzone(page)
+    .locator('input[type="file"]')
+    .setInputFiles({ name: firstName, mimeType: 'image/png', buffer: SWATCH });
+  const firstRow = uploadRow(page, firstName);
+  await expect(firstRow.getByText('Ready')).toBeVisible({ timeout: 30_000 });
+  await firstRow.getByRole('link').click();
+
+  const detail = page.getByRole('article', { name: assetName });
+  const hero = detail.getByRole('img', { name: `Preview of ${assetName}` });
+  await expect(hero).toBeVisible();
+  const firstPreview = (await hero.getAttribute('src'))?.split('?')[0];
+
+  // A model is refused for an image asset before anything is sent; the PNG becomes version 2.
+  const zone = detail.getByRole('group', { name: `Drop a new version of ${assetName} here` });
+  await zone.locator('input[type="file"]').setInputFiles([
+    { name: secondName, mimeType: 'image/png', buffer: SWATCH },
+    { name: 'crate.glb', mimeType: '', buffer: CRATE },
+  ]);
+  const rows = detail.getByRole('list', { name: `New versions of ${assetName}` });
+  await expect(rows.getByRole('listitem').filter({ hasText: 'crate.glb' })).toContainText(
+    'This asset holds images: choose a PNG, JPEG or WebP file.',
+  );
+  const secondRow = rows.getByRole('listitem').filter({ hasText: secondName });
+  await expect(secondRow.getByText('Ready')).toBeVisible({ timeout: 30_000 });
+
+  // No reload: the versions list and the preview follow the new version.
+  const newest = detail.locator('.asset-detail__versions > li').first();
+  await expect(newest).toContainText('Version 2');
+  await expect(newest).toContainText('Ready');
+  await expect(hero).not.toHaveAttribute('src', new RegExp(`^${firstPreview ?? ''}`));
+  // Only the gallery's own rows stay in its list: the version row is not a new asset there.
+  await expect(uploadRow(page, secondName)).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(
+    results.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+  ).toEqual([]);
+  // The expanded detail pane scrolls on its own: bring the new rows into view for the evidence.
+  await rows.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `test-results/screens/upload-version-${testInfo.project.name}.png`,
+  });
+});
