@@ -10,7 +10,7 @@ import {
 } from '@/constants/assets.constant';
 import { ALREADY_COMPLETE_CODE, UPLOAD_CONCURRENCY } from '@/constants/upload.constant';
 import { UploadStatus } from '@/enums/upload-status.enum';
-import { getAsset } from '@/features/assets/services/assets.service';
+import { assetDetailQueryOptions } from '@/features/assets/services/asset-detail.query';
 import {
   addVersion,
   completeUpload,
@@ -24,6 +24,7 @@ import type {
   UploadsApi,
   UploadTarget,
 } from '@/interfaces/upload.interface';
+import { sleep, untilAborted } from '@/utils/abort.util';
 import { uploadFailureOf } from '@/utils/upload-error.util';
 import { declareUpload } from '@/utils/upload-file.util';
 
@@ -75,19 +76,6 @@ const reducer = (state: UploadQueueState, action: Action): UploadQueueState => {
 
 const isAbort = (error: unknown): boolean =>
   error instanceof DOMException && error.name === 'AbortError';
-
-const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer);
-        reject(new DOMException('Stopped waiting', 'AbortError'));
-      },
-      { once: true },
-    );
-  });
 
 /**
  * Queued rows to start now, in order: at most `UPLOAD_CONCURRENCY` running in all, and never two
@@ -157,19 +145,16 @@ export const useUploads = (): UploadsApi => {
       const deadline = Date.now() + PROCESSING_POLL_MAX_MS;
       while (Date.now() < deadline) {
         await sleep(PROCESSING_POLL_MS, signal);
-        // Through the shared cache: an open detail polling the same asset answers for us, and a
-        // request already in flight is shared instead of repeated (KILN-34).
-        const detail = await queryClient
-          .fetchQuery({
-            queryKey: assetDetailQueryKey(assetId),
-            // The query's own signal: cancelling this upload must not abort a fetch the detail shares.
-            queryFn: ({ signal: querySignal }) => getAsset(assetId, querySignal),
-            staleTime: PROCESSING_POLL_MS,
-          })
-          .catch((error: unknown) => {
-            if (isAbort(error) || signal.aborted) throw error;
-            return null; // a failed poll is retried on the next tick
-          });
+        // Through the shared cache and the detail's own query definition: an open detail polling
+        // the same asset answers for us, a request in flight is shared, and kept preview URLs stay
+        // kept. Cancelling the upload stops waiting at once; the shared request runs on for others.
+        const detail = await untilAborted(
+          queryClient.query({ ...assetDetailQueryOptions(assetId), staleTime: PROCESSING_POLL_MS }),
+          signal,
+        ).catch((error: unknown) => {
+          if (isAbort(error) || signal.aborted) throw error;
+          return null; // a failed poll is retried on the next tick
+        });
         const version = detail?.versions.find((candidate) => candidate.id === versionId);
         if (version?.status === 'ready') {
           patch(item.id, { status: UploadStatus.Ready });

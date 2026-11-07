@@ -1,20 +1,14 @@
-import {
-  replaceEqualDeep,
-  useQuery,
-  useQueryClient,
-  type UseQueryResult,
-} from '@tanstack/react-query';
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { ASSET_LIST_QUERY_KEY, THUMB_REFRESH_WINDOW_MS } from '@/constants/assets.constant';
 import {
-  ASSET_LIST_QUERY_KEY,
-  assetDetailQueryKey,
-  THUMB_REFRESH_WINDOW_MS,
-} from '@/constants/assets.constant';
-import { getAsset } from '@/features/assets/services/assets.service';
+  assetDetailQueryOptions,
+  markPreviewFailed,
+} from '@/features/assets/services/asset-detail.query';
 import { useKeyedThrottle } from '@/hooks/useKeyedThrottle';
 import type { AssetDetail } from '@/interfaces/asset.interface';
-import { hasProcessingVersion, keepSignedUrls, processingPollInterval } from '@/utils/asset.util';
+import { hasProcessingVersion, processingPollInterval } from '@/utils/asset.util';
 import { withoutQuery } from '@/utils/signed-url.util';
 
 /**
@@ -27,18 +21,9 @@ export const useAsset = (
 ): { query: UseQueryResult<AssetDetail>; reportBrokenThumb: (src: string) => void } => {
   const queryClient = useQueryClient();
   const processingSinceRef = useRef<number | null>(null);
-  const failedUrlsRef = useRef(new Set<string>());
   const refreshOnce = useKeyedThrottle(THUMB_REFRESH_WINDOW_MS);
   const query = useQuery({
-    queryKey: assetDetailQueryKey(id),
-    queryFn: ({ signal }) => getAsset(id, signal),
-    structuralSharing: (previous, next) =>
-      replaceEqualDeep(
-        previous,
-        keepSignedUrls(previous as AssetDetail | undefined, next as AssetDetail, {
-          failed: failedUrlsRef.current,
-        }),
-      ),
+    ...assetDetailQueryOptions(id),
     refetchInterval: ({ state }) => {
       if (!hasProcessingVersion(state.data)) processingSinceRef.current = null;
       else processingSinceRef.current ??= Date.now();
@@ -60,10 +45,10 @@ export const useAsset = (
   const { refetch } = query;
   const reportBrokenThumb = useCallback(
     (src: string) => {
-      failedUrlsRef.current.add(src);
+      markPreviewFailed(id, src);
       refreshOnce(withoutQuery(src), () => void refetch());
     },
-    [refetch, refreshOnce],
+    [id, refetch, refreshOnce],
   );
 
   return { query, reportBrokenThumb };

@@ -12,6 +12,7 @@ import {
 } from '@/constants/assets.constant';
 import { STORAGE_REJECTED_CODE } from '@/constants/upload.constant';
 import { UploadStatus } from '@/enums/upload-status.enum';
+import { assetDetailQueryOptions } from '@/features/assets/services/asset-detail.query';
 import { getAsset } from '@/features/assets/services/assets.service';
 import { useUploads } from '@/features/uploads/hooks/useUploads';
 import {
@@ -21,7 +22,7 @@ import {
   sendToStorage,
 } from '@/features/uploads/services/uploads.service';
 import type { PendingUpload } from '@/interfaces/upload.interface';
-import { aDetail, anAsset, aVersion } from '@/test/fake-api';
+import { aDetail, anAsset, aVersion, signedUrl } from '@/test/fake-api';
 import { uploadSummaryOf } from '@/utils/upload-summary.util';
 
 vi.mock('@/features/uploads/services/uploads.service');
@@ -307,6 +308,93 @@ describe('useUploads', () => {
     expect(queryClient.getQueryData(assetDetailQueryKey('asset-1'))).toMatchObject({
       id: 'asset-1',
     });
+  });
+
+  it('keeps a still-valid preview URL when its own fetch brings a newly signed one', async () => {
+    const amzDate = (ms: number) =>
+      new Date(ms)
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
+    const signedNow = signedUrl('thumbs/asset-1/v1.webp', amzDate(Date.now()));
+    const signedLater = signedUrl('thumbs/asset-1/v1.webp', amzDate(Date.now() + 60_000));
+    const withThumb = (url: string, status: 'processing' | 'ready') => ({
+      ...detailWith(status),
+      thumbnail_url: url,
+      versions: detailWith(status).versions.map((version) => ({ ...version, thumbnail_url: url })),
+    });
+    vi.mocked(getAsset).mockResolvedValue(withThumb(signedLater, 'ready'));
+    const { result, queryClient } = setupWithClient();
+    act(() => {
+      queryClient.setQueryData(assetDetailQueryKey('asset-1'), withThumb(signedNow, 'processing'));
+    });
+    act(() => result.current.add([png()]));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS));
+
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
+    const cached = queryClient.getQueryData<ReturnType<typeof withThumb>>(
+      assetDetailQueryKey('asset-1'),
+    );
+    expect(cached?.thumbnail_url).toBe(signedNow);
+    expect(cached?.versions[0]?.status).toBe('ready');
+  });
+
+  it('shares a detail request already in flight instead of sending another', async () => {
+    const held = deferred<ReturnType<typeof detailWith>>();
+    vi.mocked(getAsset).mockReturnValue(held.promise);
+    const { result, queryClient } = setupWithClient();
+    act(() => result.current.add([png()]));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+
+    // The open detail starts its poll just before the queue's tick.
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS - 10));
+    void queryClient.prefetchQuery(assetDetailQueryOptions('asset-1'));
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(getAsset).toHaveBeenCalledTimes(1);
+
+    held.resolve(detailWith('ready'));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
+    expect(getAsset).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends a row as cancelled at once even while a shared detail request is in flight', async () => {
+    const held = deferred<ReturnType<typeof detailWith>>();
+    vi.mocked(getAsset).mockReturnValue(held.promise);
+    const { result } = setupWithClient();
+    act(() => result.current.add([png()]));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS));
+    expect(getAsset).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.cancel(result.current.items[0]!.id));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Cancelled));
+    held.resolve(detailWith('ready'));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(statusOf(result)).toBe(UploadStatus.Cancelled);
+  });
+
+  it('retries after a failed shared fetch and keeps the cached detail meanwhile', async () => {
+    vi.mocked(getAsset)
+      .mockRejectedValueOnce(apiError(503, 'Unavailable', 'DATABASE_UNAVAILABLE'))
+      .mockResolvedValue(detailWith('ready'));
+    const { result, queryClient } = setupWithClient();
+    act(() => {
+      queryClient.setQueryData(assetDetailQueryKey('asset-1'), detailWith('processing'));
+    });
+    act(() => result.current.add([png()]));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS));
+    await waitFor(() => expect(getAsset).toHaveBeenCalled());
+    expect(queryClient.getQueryData(assetDetailQueryKey('asset-1'))).toMatchObject({
+      id: 'asset-1',
+    });
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS * 2));
+
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
   });
 
   it('sends at most two files at a time; the rest wait in the queue', async () => {

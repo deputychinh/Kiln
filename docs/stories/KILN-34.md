@@ -16,19 +16,20 @@ As a **user watching a new version process**, I want the page to ask the server 
 
 ## Design
 
-`waitForPreview` calls `queryClient.fetchQuery({ queryKey: assetDetailQueryKey(id), queryFn, staleTime: PROCESSING_POLL_MS })` instead of `getAsset`: fresh cache → no request; stale → one request shared with any in-flight one. Stable signed URLs (KILN-27) keep previews equal across both readers.
+`waitForPreview` calls `queryClient.query({ ...assetDetailQueryOptions(id), staleTime: PROCESSING_POLL_MS })`, raced against the upload's signal, instead of `getAsset`; `useAsset` spreads the same `assetDetailQueryOptions`, so either side's fetch keeps still-valid signed URLs and never a failed one (failed previews live in a per-asset registry): fresh cache → no request; stale → one request shared with any in-flight one. Stable signed URLs (KILN-27) keep previews equal across both readers.
 
 ## QA
 
-| AC  | Test(s)                                                                                                                                                                | Result    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| AC1 | `useUploads.test.tsx` "reads a fresh detail answer from the cache instead of polling the API again" (mutation: `staleTime: 0` → fails)                                 | pass      |
-| AC2 | `useUploads.test.tsx` "fetches when nothing fresh is cached and leaves the answer in the shared cache"; existing "creates, sends, completes and waits for the preview" | pass      |
-| AC3 | TanStack Query deduplicates `fetchQuery` with an in-flight fetch of the same key (library behaviour, not re-tested here)                                               | by design |
+| AC  | Test(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Result |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| AC1 | `useUploads.test.tsx` "reads a fresh detail answer from the cache instead of polling the API again" (mutation: `staleTime: 0` → fails)                                                                                                                                                                                                                                                                                                                                                                              | pass   |
+| AC2 | `useUploads.test.tsx` "fetches when nothing fresh is cached and leaves the answer in the shared cache"; existing "creates, sends, completes and waits for the preview"; "keeps a still-valid preview URL when its own fetch brings a newly signed one" (mutant: queue without the shared structuralSharing → fails); "retries after a failed shared fetch and keeps the cached detail meanwhile"; "ends a row as cancelled at once even while a shared detail request is in flight" (mutant: no abort race → fails) | pass   |
+| AC3 | `useUploads.test.tsx` "shares a detail request already in flight instead of sending another"                                                                                                                                                                                                                                                                                                                                                                                                                        | pass   |
 
-Gates: `make lint` 0; `make test` all green (227 web tests); `make e2e` green.
+Gates after round 1: `make lint` 0; `make test` green (231 web tests); `make e2e` green.
 
 ## Review rounds
 
-| Round | Score | Findings → fixes |
-| ----- | ----- | ---------------- |
+| Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                       |
+| ----- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | 8.0   | The queue's fetch stored answers without the detail's `keepSignedUrls` (two definitions of one query); cancelling waited for the shared request and could end Ready; no tests for AC3, URL retention, cancel mid-fetch or errors; deprecated `fetchQuery` → one `assetDetailQueryOptions` for both hooks, `untilAborted` race, `queryClient.query`, four tests each killing its mutant |
