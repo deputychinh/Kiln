@@ -18,7 +18,8 @@ const apiProxy: Record<string, ProxyOptions> = {
 };
 
 export default defineConfig({
-  server: { proxy: apiProxy },
+  // Test runs rewrite coverage/ often; watching it reloaded the open page each time.
+  server: { proxy: apiProxy, watch: { ignored: ['**/coverage/**'] } },
   preview: { proxy: apiProxy },
   plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },

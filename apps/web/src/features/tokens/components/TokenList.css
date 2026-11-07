@@ -113,20 +113,26 @@
   padding: var(--kiln-space-4) 0;
 }
 
-/* With room, the facts and the action sit beside the name. */
+/* With room, Revoke sits on the name's line, at the end; the facts go under the name. */
 @container (min-width: 720px) {
   .token-list__row {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }
 
+  .token-list__main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
   .token-list__facts {
+    grid-column: 1;
     grid-row: 2;
   }
 
   .token-list__actions {
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     justify-content: flex-end;
   }
 }
