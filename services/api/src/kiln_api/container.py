@@ -33,6 +33,7 @@ from kiln_api.repositories.identity import SqlIdentityStore
 from kiln_api.repositories.unit_of_work import SqlUnitOfWork
 from kiln_api.resilience import CircuitBreaker, GuardedStorage
 from kiln_api.services.assets import AssetService
+from kiln_api.services.comments import CommentService
 from kiln_api.services.identity import IdentityService
 from kiln_api.signing import SigningCredentials
 
@@ -48,6 +49,7 @@ class Container:
     storage: ObjectStorage
     assets: AssetService
     identity: IdentityService
+    comments: CommentService
 
     def check_database(self) -> None:
         """Run `SELECT 1`; raise `DatabaseUnavailableError` when it fails."""
@@ -156,7 +158,14 @@ def build_container(
     identity = IdentityService(
         SqlIdentityStore(engine), hasher or build_hasher(), resolved_clock, uuid7
     )
-    return Container(engine=engine, storage=resolved_storage, assets=service, identity=identity)
+    comments = CommentService(resolved_clock, uuid7, SqlUnitOfWork(engine))
+    return Container(
+        engine=engine,
+        storage=resolved_storage,
+        assets=service,
+        identity=identity,
+        comments=comments,
+    )
 
 
 def build_hasher() -> Argon2PasswordHasher:

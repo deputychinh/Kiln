@@ -41,7 +41,9 @@ class SqlIdempotencyStore:
             return None
         if row.request_hash != request_hash:
             raise IdempotencyKeyReusedError
-        return IdempotentResult(asset_id=row.asset_id, version_id=row.version_id)
+        return IdempotentResult(
+            asset_id=row.asset_id, version_id=row.version_id, resource_id=row.resource_id
+        )
 
     def _claim_or_read(
         self, user_id: UUID, key: str, operation: str, request_hash: bytes, now: datetime
@@ -74,6 +76,14 @@ class SqlIdempotencyStore:
             update(idempotency_keys)
             .where(idempotency_keys.c.user_id == user_id, idempotency_keys.c.key == key)
             .values(asset_id=asset_id, version_id=version_id)
+        )
+
+    def complete_resource(self, *, user_id: UUID, key: str, resource_id: UUID) -> None:
+        """Record the comment thread or reply the request created, in the same transaction."""
+        self._connection.execute(
+            update(idempotency_keys)
+            .where(idempotency_keys.c.user_id == user_id, idempotency_keys.c.key == key)
+            .values(resource_id=resource_id)
         )
 
 

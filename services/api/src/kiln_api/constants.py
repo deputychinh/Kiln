@@ -150,3 +150,14 @@ SIGN_IN_WINDOW_MINUTES = 15
 SIGN_IN_MAX_FAILURES_PER_ACCOUNT = 10
 SIGN_IN_MAX_FAILURES_PER_IP = 50
 AUTH_REALM = "kiln"
+
+# --- comments and region annotations (KILN-10) --------------------------------------------------
+COMMENT_BODY_MAX_LENGTH = 2_000
+# Edge limit on the JSON field; generous so the domain reports the precise rule.
+MAX_COMMENT_BODY_FIELD_LENGTH = 10_000
+COMMENT_PAGE_LIMIT_MIN = 1
+COMMENT_PAGE_LIMIT_MAX = 100
+COMMENT_PAGE_LIMIT_DEFAULT = 50
+# Regions are normalised to the image: 0 to 1 on each axis, origin top left (Frame.io's model).
+REGION_MIN = 0.0
+REGION_MAX = 1.0

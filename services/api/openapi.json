@@ -1593,6 +1593,1289 @@
           }
         }
       }
+    },
+    "/api/v1/asset-versions/{version_id}/comment-threads": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "List Threads",
+        "description": "A version's comment threads by number, each with its first comment; `limit` is 1 to 100.",
+        "operationId": "list_threads_api_v1_asset_versions__version_id__comment_threads_get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadPageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Start Thread",
+        "description": "Start a thread on a version: on a region of its image (images only) or on all of it.",
+        "operationId": "start_thread_api_v1_asset_versions__version_id__comment_threads_post",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartThreadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URL of the created resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/comment-threads/{thread_id}": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Get Thread",
+        "description": "One thread with its first comment.",
+        "operationId": "get_thread_api_v1_comment_threads__thread_id__get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Resolve Thread",
+        "description": "Resolve or reopen a thread; resolving again keeps the first resolution.",
+        "operationId": "resolve_thread_api_v1_comment_threads__thread_id__patch",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/comment-threads/{thread_id}/comments": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "List Replies",
+        "description": "A thread's replies oldest first (its first comment is on the thread); `limit` 1 to 100.",
+        "operationId": "list_replies_api_v1_comment_threads__thread_id__comments_get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Reply",
+        "description": "Reply at the end of a thread.",
+        "operationId": "reply_api_v1_comment_threads__thread_id__comments_post",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentOut"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URL of the created resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/comments/{comment_id}": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Get Comment",
+        "description": "One comment.",
+        "operationId": "get_comment_api_v1_comments__comment_id__get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Edit Comment",
+        "description": "Change the text of your own comment.",
+        "operationId": "edit_comment_api_v1_comments__comment_id__patch",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Delete Comment",
+        "description": "Delete your own comment; it stays in its thread as deleted. Safe to repeat.",
+        "operationId": "delete_comment_api_v1_comments__comment_id__delete",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1773,6 +3056,125 @@
         ],
         "title": "AuthMethod",
         "description": "How a request proved who it is."
+      },
+      "AuthorOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "AuthorOut",
+        "description": "Who wrote or resolved something."
+      },
+      "CommentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Thread Id"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AuthorOut"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited At"
+          },
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "thread_id",
+          "author",
+          "body",
+          "created_at",
+          "edited_at",
+          "deleted"
+        ],
+        "title": "CommentOut",
+        "description": "One comment; a deleted one keeps its place with an empty body."
+      },
+      "CommentPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CommentOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "CommentPageOut",
+        "description": "A page of replies, oldest first; `next_cursor` is null on the last page."
+      },
+      "CommentRequest": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 10000,
+            "title": "Body"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "CommentRequest",
+        "description": "A reply, or the new text of a comment."
       },
       "CreateAssetRequest": {
         "properties": {
@@ -2014,6 +3416,127 @@
         "title": "PendingUploadOut",
         "description": "A created asset or version waiting for its file."
       },
+      "RegionIn": {
+        "properties": {
+          "shape": {
+            "$ref": "#/components/schemas/RegionShape"
+          },
+          "x": {
+            "type": "number",
+            "title": "X",
+            "description": "Left edge of a rectangle, or a point. Normalised to the image: 0 is the left (top) edge, 1 the right (bottom) edge."
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "description": "Top edge of a rectangle, or a point. Normalised to the image: 0 is the left (top) edge, 1 the right (bottom) edge."
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width",
+            "description": "Rectangles only, above 0."
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height",
+            "description": "Rectangles only, above 0."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "shape",
+          "x",
+          "y"
+        ],
+        "title": "RegionIn",
+        "description": "A rectangle (`width` and `height`) or a point (neither), normalised to the image."
+      },
+      "RegionOut": {
+        "properties": {
+          "shape": {
+            "$ref": "#/components/schemas/RegionShape"
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "shape",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "RegionOut",
+        "description": "A region as stored."
+      },
+      "RegionShape": {
+        "type": "string",
+        "enum": [
+          "rect",
+          "point"
+        ],
+        "title": "RegionShape",
+        "description": "What a comment marks on an image (KILN-10)."
+      },
+      "ResolveRequest": {
+        "properties": {
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "resolved"
+        ],
+        "title": "ResolveRequest",
+        "description": "Resolve (`true`) or reopen (`false`) a thread."
+      },
       "Scope": {
         "type": "string",
         "enum": [
@@ -2046,6 +3569,139 @@
         ],
         "title": "SignInRequest",
         "description": "Email and password; never logged."
+      },
+      "StartThreadRequest": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 10000,
+            "title": "Body"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "StartThreadRequest",
+        "description": "The first comment of a thread, on a region or on the whole version."
+      },
+      "ThreadOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "version_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Version Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number",
+            "description": "Per version, from 1, in the order threads were started."
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comment": {
+            "$ref": "#/components/schemas/CommentOut",
+            "description": "The first comment."
+          },
+          "reply_count": {
+            "type": "integer",
+            "title": "Reply Count"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuthorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version_id",
+          "number",
+          "region",
+          "comment",
+          "reply_count",
+          "resolved_at",
+          "resolved_by",
+          "created_at"
+        ],
+        "title": "ThreadOut",
+        "description": "A thread with its first comment; replies are read page by page."
+      },
+      "ThreadPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ThreadPageOut",
+        "description": "A page of threads by number; `next_cursor` is null on the last page."
       },
       "TokenListOut": {
         "properties": {
@@ -2330,7 +3986,14 @@
           "INVALID_DISPLAY_NAME",
           "WEAK_PASSWORD",
           "EMAIL_TAKEN",
-          "INVALID_TOKEN_NAME"
+          "INVALID_TOKEN_NAME",
+          "COMMENT_THREAD_NOT_FOUND",
+          "COMMENT_NOT_FOUND",
+          "INVALID_COMMENT_BODY",
+          "INVALID_REGION",
+          "REGION_NOT_SUPPORTED",
+          "NOT_COMMENT_AUTHOR",
+          "COMMENT_DELETED"
         ],
         "title": "ErrorCode",
         "type": "string"

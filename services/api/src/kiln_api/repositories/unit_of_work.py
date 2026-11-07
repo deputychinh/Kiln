@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine
 
 from kiln_api.repositories.assets import SqlAssetRepository
+from kiln_api.repositories.comments import SqlCommentStore
 from kiln_api.repositories.idempotency import SqlIdempotencyStore
 from kiln_api.repositories.jobs import SqlJobQueue
 
@@ -18,6 +19,7 @@ class SqlTransaction:
     assets: SqlAssetRepository
     idempotency: SqlIdempotencyStore
     jobs: SqlJobQueue
+    comments: SqlCommentStore
 
 
 class SqlUnitOfWork:
@@ -35,4 +37,5 @@ class SqlUnitOfWork:
                 assets=SqlAssetRepository(connection),
                 idempotency=SqlIdempotencyStore(connection),
                 jobs=SqlJobQueue(connection),
+                comments=SqlCommentStore(connection),
             )

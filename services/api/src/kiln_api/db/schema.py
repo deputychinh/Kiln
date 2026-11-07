@@ -3,9 +3,11 @@
 from sqlalchemy import (
     ARRAY,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
+    Double,
     ForeignKey,
     Index,
     Integer,
@@ -21,13 +23,22 @@ from sqlalchemy import (
 from kiln_api.constants import (
     ACCESS_TOKEN_NAME_MAX_LENGTH,
     ASSET_NAME_MAX_LENGTH,
+    COMMENT_BODY_MAX_LENGTH,
     DISPLAY_NAME_MAX_LENGTH,
     EMAIL_MAX_LENGTH,
     FILE_NAME_MAX_LENGTH,
     IDEMPOTENCY_KEY_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
 )
-from kiln_api.enums import AssetKind, FailureReason, JobKind, JobStatus, Scope, VersionStatus
+from kiln_api.enums import (
+    AssetKind,
+    FailureReason,
+    JobKind,
+    JobStatus,
+    RegionShape,
+    Scope,
+    VersionStatus,
+)
 
 metadata = MetaData(
     naming_convention={
@@ -189,12 +200,90 @@ idempotency_keys = Table(
     Column("request_hash", LargeBinary, nullable=False),
     Column("asset_id", Uuid, nullable=True),
     Column("version_id", Uuid, nullable=True),
+    # What a comment request created: a thread or a reply (KILN-10).
+    Column("resource_id", Uuid, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
         f"char_length(key) BETWEEN 1 AND {IDEMPOTENCY_KEY_MAX_LENGTH}", name="key_length"
     ),
     CheckConstraint("octet_length(request_hash) = 32", name="request_hash_length"),
     Index(None, "created_at"),
+)
+
+
+# --- comments and region annotations (KILN-10) --------------------------------------------------
+_IN_IMAGE = "BETWEEN 0 AND 1"
+
+comment_threads = Table(
+    "comment_threads",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("version_id", Uuid, ForeignKey("asset_versions.id", ondelete="CASCADE"), nullable=False),
+    Column("number", Integer, nullable=False),  # per version, from 1, under an advisory lock
+    Column("author_id", Uuid, ForeignKey("users.id"), nullable=False),
+    # A region normalised to the image (0 to 1, origin top left); all NULL for a plain comment.
+    Column("region_shape", Text, nullable=True),
+    Column("region_x", Double, nullable=True),
+    Column("region_y", Double, nullable=True),
+    Column("region_width", Double, nullable=True),
+    Column("region_height", Double, nullable=True),
+    Column("resolved_at", DateTime(timezone=True), nullable=True),
+    Column("resolved_by", Uuid, ForeignKey("users.id"), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("version_id", "number"),
+    CheckConstraint("number >= 1", name="number_positive"),
+    CheckConstraint(
+        "region_shape IS NULL OR " + _one_of("region_shape", [s.value for s in RegionShape]),
+        name="region_shape",
+    ),
+    CheckConstraint(
+        "(region_shape IS NULL AND region_x IS NULL AND region_y IS NULL"
+        " AND region_width IS NULL AND region_height IS NULL)"
+        " OR (region_shape IS NOT NULL AND region_x IS NOT NULL AND region_y IS NOT NULL"
+        f" AND region_x {_IN_IMAGE} AND region_y {_IN_IMAGE})",
+        name="region_position",
+    ),
+    CheckConstraint(
+        "region_shape IS DISTINCT FROM 'point' OR (region_width IS NULL AND region_height IS NULL)",
+        name="point_has_no_size",
+    ),
+    CheckConstraint(
+        "region_shape IS DISTINCT FROM 'rect'"
+        " OR (region_width IS NOT NULL AND region_height IS NOT NULL"
+        " AND region_width > 0 AND region_height > 0"
+        " AND region_x + region_width <= 1 AND region_y + region_height <= 1)",
+        name="rect_inside_image",
+    ),
+    CheckConstraint(
+        "(resolved_at IS NULL) = (resolved_by IS NULL)", name="resolved_by_when_resolved"
+    ),
+)
+
+comments = Table(
+    "comments",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("thread_id", Uuid, ForeignKey("comment_threads.id", ondelete="CASCADE"), nullable=False),
+    Column("author_id", Uuid, ForeignKey("users.id"), nullable=False),
+    Column("body", Text, nullable=False),  # empty once deleted (soft delete keeps the place)
+    Column("is_root", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("edited_at", DateTime(timezone=True), nullable=True),
+    Column("deleted_at", DateTime(timezone=True), nullable=True),
+    CheckConstraint(
+        f"(deleted_at IS NULL AND char_length(body) BETWEEN 1 AND {COMMENT_BODY_MAX_LENGTH})"
+        " OR (deleted_at IS NOT NULL AND body = '')",
+        name="body_unless_deleted",
+    ),
+    Index(None, "thread_id", "created_at", "id"),
+    # One root per thread; also how a thread page finds its first comments.
+    Index(
+        "uq_comments_thread_id_root",
+        "thread_id",
+        unique=True,
+        postgresql_where=text("is_root"),
+    ),
 )
 
 

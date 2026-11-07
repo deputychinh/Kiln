@@ -8,6 +8,7 @@ from typing import IO, Protocol
 from uuid import UUID
 
 from kiln_api.domain.assets import Asset, AssetVersion
+from kiln_api.domain.comments import Author, Comment, CommentThread
 from kiln_api.domain.identity import AccessToken, Session, User
 from kiln_api.domain.jobs import Job
 from kiln_api.enums import PromotionResult, VersionStatus
@@ -166,6 +167,7 @@ class IdempotentResult:
 
     asset_id: UUID | None
     version_id: UUID | None
+    resource_id: UUID | None = None  # a comment thread or reply (KILN-10)
 
 
 class IdempotencyStore(Protocol):
@@ -179,6 +181,10 @@ class IdempotencyStore(Protocol):
 
     def complete(self, *, user_id: UUID, key: str, asset_id: UUID, version_id: UUID) -> None:
         """Record the created ids for `user_id`'s `key`."""
+        ...
+
+    def complete_resource(self, *, user_id: UUID, key: str, resource_id: UUID) -> None:
+        """Record the one resource (a comment thread or reply) `user_id`'s `key` created."""
         ...
 
 
@@ -224,6 +230,71 @@ class JobQueue(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class CommentView:
+    """A comment with its author's name."""
+
+    comment: Comment
+    author: Author
+
+
+@dataclass(frozen=True, slots=True)
+class ThreadView:
+    """A thread with its first comment, who resolved it and how many replies it has."""
+
+    thread: CommentThread
+    root: CommentView
+    resolved_by: Author | None
+    reply_count: int
+
+
+class CommentStore(Protocol):
+    """Comment threads and comments on asset versions (KILN-10)."""
+
+    def add_thread(self, thread: CommentThread, root: Comment) -> CommentThread:
+        """Store a thread with the next number of its version, and its first comment.
+
+        Numbers are taken under a per-version advisory lock, so parallel threads never share one.
+        """
+        ...
+
+    def get_thread(self, thread_id: UUID, *, for_update: bool = False) -> CommentThread:
+        """Return a thread (row-locked when `for_update`) or raise `CommentThreadNotFoundError`."""
+        ...
+
+    def thread_view(self, thread_id: UUID) -> ThreadView:
+        """A thread as listed, or raise `CommentThreadNotFoundError`."""
+        ...
+
+    def threads_page(self, version_id: UUID, *, cursor: str | None, limit: int) -> Page[ThreadView]:
+        """A version's threads oldest first (by creation, so by number) after `cursor`."""
+        ...
+
+    def save_thread(self, thread: CommentThread) -> None:
+        """Persist a thread's resolution."""
+        ...
+
+    def add_comment(self, comment: Comment) -> None:
+        """Store a reply."""
+        ...
+
+    def get_comment(self, comment_id: UUID, *, for_update: bool = False) -> Comment:
+        """Return a comment (row-locked when `for_update`) or raise `CommentNotFoundError`."""
+        ...
+
+    def comment_view(self, comment_id: UUID) -> CommentView:
+        """A comment with its author, or raise `CommentNotFoundError`."""
+        ...
+
+    def replies_page(self, thread_id: UUID, *, cursor: str | None, limit: int) -> Page[CommentView]:
+        """A thread's replies (its first comment excluded) oldest first after `cursor`."""
+        ...
+
+    def save_comment(self, comment: Comment) -> None:
+        """Persist an edit or a soft delete."""
+        ...
+
+
 class Transaction(Protocol):
     """Repositories that share one database transaction."""
 
@@ -240,6 +311,11 @@ class Transaction(Protocol):
     @property
     def jobs(self) -> JobQueue:
         """Jobs in this transaction (outbox)."""
+        ...
+
+    @property
+    def comments(self) -> CommentStore:
+        """Comment threads and comments in this transaction."""
         ...
 
 

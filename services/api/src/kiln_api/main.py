@@ -25,7 +25,7 @@ from kiln_api.problems import (
     install_problem_schema,
     unexpected_problem,
 )
-from kiln_api.routes import assets, health, identity
+from kiln_api.routes import assets, comments, health, identity
 
 logger = logging.getLogger("kiln_api")
 
@@ -70,7 +70,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved.cors_origins,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Content-Type", CSRF_HEADER, IDEMPOTENCY_KEY_HEADER, REQUEST_ID_HEADER],
         expose_headers=["Location", "Retry-After", REQUEST_ID_HEADER],
     )
@@ -80,6 +80,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(identity.router)
     app.include_router(assets.router)
+    app.include_router(comments.router)
     return app
 
 

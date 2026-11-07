@@ -49,6 +49,13 @@ class ErrorCode(StrEnum):
     WEAK_PASSWORD = "WEAK_PASSWORD"  # noqa: S105 - an error code, not a secret
     EMAIL_TAKEN = "EMAIL_TAKEN"
     INVALID_TOKEN_NAME = "INVALID_TOKEN_NAME"  # noqa: S105 - an error code, not a secret
+    COMMENT_THREAD_NOT_FOUND = "COMMENT_THREAD_NOT_FOUND"
+    COMMENT_NOT_FOUND = "COMMENT_NOT_FOUND"
+    INVALID_COMMENT_BODY = "INVALID_COMMENT_BODY"
+    INVALID_REGION = "INVALID_REGION"
+    REGION_NOT_SUPPORTED = "REGION_NOT_SUPPORTED"
+    NOT_COMMENT_AUTHOR = "NOT_COMMENT_AUTHOR"
+    COMMENT_DELETED = "COMMENT_DELETED"
 
 
 class HealthStatus(StrEnum):
@@ -143,3 +150,13 @@ class Action(StrEnum):
     READ_ASSETS = "read_assets"
     WRITE_ASSETS = "write_assets"
     MANAGE_TOKENS = "manage_tokens"
+    READ_COMMENTS = "read_comments"
+    WRITE_COMMENTS = "write_comments"  # start, reply, resolve, reopen
+    CHANGE_OWN_COMMENT = "change_own_comment"  # edit or delete: the author only
+
+
+class RegionShape(StrEnum):
+    """What a comment marks on an image (KILN-10)."""
+
+    RECT = "rect"
+    POINT = "point"

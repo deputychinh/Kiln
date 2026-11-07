@@ -7,6 +7,7 @@ from kiln_api.constants import (
     ACCESS_TOKEN_MAX_PER_USER,
     ACCESS_TOKEN_NAME_MAX_LENGTH,
     ASSET_NAME_MAX_LENGTH,
+    COMMENT_BODY_MAX_LENGTH,
     DISPLAY_NAME_MAX_LENGTH,
     FILE_NAME_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
@@ -309,3 +310,69 @@ class EmailTakenError(DomainError):
     status = HTTPStatus.CONFLICT
     code = ErrorCode.EMAIL_TAKEN
     default_detail = "A user with this email already exists."
+
+
+class CommentThreadNotFoundError(NotFoundError):
+    """No comment thread with that id."""
+
+    code = ErrorCode.COMMENT_THREAD_NOT_FOUND
+
+    def __init__(self, thread_id: UUID) -> None:
+        """Name the missing id."""
+        super().__init__(f"Comment thread {thread_id} does not exist.")
+
+
+class CommentNotFoundError(NotFoundError):
+    """No comment with that id."""
+
+    code = ErrorCode.COMMENT_NOT_FOUND
+
+    def __init__(self, comment_id: UUID) -> None:
+        """Name the missing id."""
+        super().__init__(f"Comment {comment_id} does not exist.")
+
+
+class InvalidCommentBodyError(DomainError):
+    """A comment is blank, too long or hides characters."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.INVALID_COMMENT_BODY
+    default_detail = (
+        f"A comment needs 1 to {COMMENT_BODY_MAX_LENGTH} characters,"
+        " without hidden or control characters (line breaks are fine)."
+    )
+
+
+class InvalidRegionError(DomainError):
+    """A region lies outside the image or has the wrong size for its shape."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.INVALID_REGION
+    default_detail = (
+        "A region needs x and y from 0 to 1; a rectangle a width and height above 0 that stay"
+        " inside the image; a point no size."
+    )
+
+
+class RegionNotSupportedError(DomainError):
+    """Regions mark images; a 3D model takes plain comments only."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.REGION_NOT_SUPPORTED
+    default_detail = "Regions can be marked on images only; comment on a model without one."
+
+
+class NotCommentAuthorError(DomainError):
+    """Only a comment's author may edit or delete it."""
+
+    status = HTTPStatus.FORBIDDEN
+    code = ErrorCode.NOT_COMMENT_AUTHOR
+    default_detail = "Only the author of a comment can change or delete it."
+
+
+class CommentDeletedError(DomainError):
+    """A deleted comment cannot be edited."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.COMMENT_DELETED
+    default_detail = "This comment was deleted."

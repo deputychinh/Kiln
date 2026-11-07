@@ -10,23 +10,44 @@ from uuid import UUID
 from kiln_api.domain.assets import Asset
 from kiln_api.domain.identity import Principal
 from kiln_api.enums import Action, AuthMethod, Scope
-from kiln_api.errors import AssetNotFoundError, InsufficientScopeError, SessionRequiredError
+from kiln_api.errors import (
+    AssetNotFoundError,
+    InsufficientScopeError,
+    NotCommentAuthorError,
+    SessionRequiredError,
+)
 
 _REQUIRED_SCOPE: dict[Action, Scope] = {
     Action.READ_ASSETS: Scope.READ,
     Action.WRITE_ASSETS: Scope.WRITE,
     Action.MANAGE_TOKENS: Scope.WRITE,
+    # Comments (KILN-10): whoever can read an asset may comment on it (one studio, ADR 0012).
+    Action.READ_COMMENTS: Scope.READ,
+    Action.WRITE_COMMENTS: Scope.WRITE,
+    Action.CHANGE_OWN_COMMENT: Scope.WRITE,
 }
 _SESSION_ONLY = frozenset({Action.MANAGE_TOKENS})
+# Actions on something one person wrote: only that person, whatever the workspace allows.
+_AUTHOR_ONLY = frozenset({Action.CHANGE_OWN_COMMENT})
 
 
-def authorize(principal: Principal, action: Action, asset: Asset | None = None) -> None:
-    """Allow `action` (on `asset`, when given) or raise.
+def authorize(
+    principal: Principal,
+    action: Action,
+    asset: Asset | None = None,
+    *,
+    author_id: UUID | None = None,
+) -> None:
+    """Allow `action` (on `asset`, and on something written by `author_id`, when given) or raise.
+
+    Author-only actions are refused unless `author_id` is the caller (deny by default: a call that
+    forgets to pass the author is refused, never allowed).
 
     Raises:
         SessionRequiredError: The action needs a browser session (a leaked token cannot mint more).
         InsufficientScopeError: The token lacks the scope (403, BOLA/BFLA guard).
         AssetNotFoundError: The asset is outside the caller's workspace (404, so ids do not leak).
+        NotCommentAuthorError: The action is the author's alone (403).
     """
     if action in _SESSION_ONLY and principal.method is not AuthMethod.SESSION:
         raise SessionRequiredError
@@ -34,6 +55,8 @@ def authorize(principal: Principal, action: Action, asset: Asset | None = None) 
         raise InsufficientScopeError
     if asset is not None and not _in_workspace(principal, asset):
         raise AssetNotFoundError(asset.id)
+    if action in _AUTHOR_ONLY and author_id != principal.user_id:
+        raise NotCommentAuthorError
 
 
 def visible_owner(principal: Principal) -> UUID | None:

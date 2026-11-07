@@ -404,3 +404,46 @@ def test_the_owner_foreign_keys_end_validated(database_url: str) -> None:
     engine.dispose()
 
     assert rows == {"fk_assets_owner_id": True, "fk_asset_versions_uploaded_by": True}
+
+
+def test_migration_0009_adds_comments_and_downgrades_without_them(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+
+    command.downgrade(alembic_config, "0008_sessions_last_seen_index")
+    tables = set(inspect(engine).get_table_names())
+    key_columns = {c["name"] for c in inspect(engine).get_columns("idempotency_keys")}
+    command.upgrade(alembic_config, "head")
+    upgraded = set(inspect(engine).get_table_names())
+    upgraded_key_columns = {c["name"] for c in inspect(engine).get_columns("idempotency_keys")}
+    engine.dispose()
+
+    assert not {"comment_threads", "comments"} & tables
+    assert "resource_id" not in key_columns
+    assert {"comment_threads", "comments"} <= upgraded
+    assert "resource_id" in upgraded_key_columns
+
+
+def test_migration_0009_gives_up_while_a_writer_holds_asset_versions(
+    database_url: str, alembic_config: Config
+) -> None:
+    """The new foreign key briefly locks `asset_versions`: behind a writer it fails fast."""
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0008_sessions_last_seen_index")
+    hurried = Config(alembic_config.config_file_name)
+    hurried.set_main_option("sqlalchemy.url", database_url)
+    hurried.cmd_opts = argparse.Namespace(x=["lock_timeout_ms=300"])
+    try:
+        with engine.connect() as holder:
+            holder.execute(text("LOCK TABLE asset_versions IN ROW EXCLUSIVE MODE"))
+            started = time.monotonic()
+            with pytest.raises(OperationalError, match="lock timeout"):
+                command.upgrade(hurried, "head")
+            waited = time.monotonic() - started
+            holder.rollback()
+    finally:
+        command.upgrade(alembic_config, "head")
+        engine.dispose()
+
+    assert waited < 5

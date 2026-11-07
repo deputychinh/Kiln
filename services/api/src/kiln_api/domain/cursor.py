@@ -17,6 +17,30 @@ def encode_cursor(created_at: datetime, item_id: UUID) -> str:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
+def encode_number_cursor(number: int) -> str:
+    """Encode the position after a numbered item (comment threads are listed by number)."""
+    return base64.urlsafe_b64encode(f"n{_SEPARATOR}{number}".encode()).decode().rstrip("=")
+
+
+def decode_number_cursor(cursor: str) -> int:
+    """Decode a cursor from `encode_number_cursor`.
+
+    Raises:
+        InvalidCursorError: The cursor was not produced by this API.
+    """
+    if len(cursor) > _MAX_CURSOR_LENGTH:
+        raise InvalidCursorError
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        raw = base64.b64decode(padded, altchars=b"-_", validate=True).decode()
+        marker, number_text = raw.split(_SEPARATOR)
+    except (binascii.Error, UnicodeDecodeError, ValueError) as error:
+        raise InvalidCursorError from error
+    if marker != "n" or not number_text.isascii() or not number_text.isdigit():
+        raise InvalidCursorError
+    return int(number_text)
+
+
 def decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     """Decode a cursor from `encode_cursor`.
 
