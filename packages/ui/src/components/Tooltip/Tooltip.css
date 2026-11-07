@@ -22,10 +22,9 @@
   background-color: var(--kiln-color-tooltip);
   border-radius: var(--kiln-radius-sm);
   box-shadow: var(--kiln-shadow-2);
-  opacity: 0;
-  transition:
-    opacity var(--kiln-duration-fast) var(--kiln-ease-standard),
-    visibility var(--kiln-duration-fast);
+
+  /* It appears whole after the delay: no fade, so it is never caught half-transparent. */
+  transition: visibility 0s;
   pointer-events: none;
   visibility: hidden;
 }
@@ -45,10 +44,22 @@
   translate: 0 -50%;
 }
 
+/* For triggers at the window's right edge: the bubble grows leftwards, never past the edge. */
+.tooltip--bottom-end .tooltip__bubble {
+  inset: calc(100% + var(--kiln-space-1)) 0 auto auto;
+}
+
+/* A stretched trigger (a card's name): the bubble spans it and wraps, so it never overflows. */
+.tooltip--block .tooltip__bubble {
+  inline-size: auto;
+  max-inline-size: none;
+  inset-inline: 0;
+  translate: none;
+}
+
 /* Hover (after a delay, and the bubble itself keeps it open) or keyboard focus shows it. */
 .tooltip:hover .tooltip__bubble,
 .tooltip:has(:focus-visible) .tooltip__bubble {
-  opacity: 1;
   pointer-events: auto;
   transition-delay: var(--kiln-delay-tooltip);
   visibility: visible;
@@ -56,7 +67,6 @@
 
 .tooltip--dismissed:hover .tooltip__bubble,
 .tooltip--dismissed:has(:focus-visible) .tooltip__bubble {
-  opacity: 0;
   transition-delay: 0s;
   visibility: hidden;
 }

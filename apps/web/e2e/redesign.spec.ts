@@ -35,7 +35,9 @@ const BACKGROUND = { dark: 'rgb(19, 19, 22)', light: 'rgb(250, 250, 250)' } as c
 
 for (const theme of ['dark', 'light'] as const) {
   test.describe(`${theme} theme`, () => {
-    test.use({ colorScheme: theme });
+    // No transitions: axe measures contrast at one instant, and a pill fading out of a card the
+    // pointer just left is not a resting state.
+    test.use({ colorScheme: theme, reducedMotion: 'reduce' });
 
     test(`gallery, detail, compare and the 3D viewer pass axe in the ${theme} theme`, async ({
       page,
@@ -51,6 +53,11 @@ for (const theme of ['dark', 'light'] as const) {
       // The tokens follow the system theme until the person chooses one.
       await expect(page.locator('body')).toHaveCSS('background-color', BACKGROUND[theme]);
       expect(await seriousViolations(page), 'gallery').toEqual([]);
+      // Reflow (1.4.10): nothing, not even a hidden tooltip, widens the page past the window.
+      const width = page.viewportSize()?.width ?? 0;
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
 
       await cardOf(page, image.id).click();
       const detail = page.getByRole('article', { name: image.name });
@@ -146,6 +153,7 @@ test('files dropped on the open asset become its next version, outside the uploa
   await page.locator('main').dispatchEvent('dragenter', { dataTransfer });
   const target = page.locator('[data-drop-target="version"]');
   await expect(target).toContainText(`New version of ${asset.name}`);
+  await expect(page.locator('.drop-overlay')).toHaveCSS('opacity', '1'); // its fade-in is done
   await page.screenshot({ path: `test-results/screens/drop-overlay-${testInfo.project.name}.png` });
   await target.dispatchEvent('drop', { dataTransfer });
 

@@ -41,7 +41,7 @@ export const UploadTray = (): ReactElement => {
             isCollapsed ? <ChevronUp size={ICON_SIZE.md} /> : <ChevronDown size={ICON_SIZE.md} />
           }
           size={IconButtonSize.Small}
-          tooltipPlacement={TooltipPlacement.Top}
+          tooltipPlacement={TooltipPlacement.BottomEnd}
           aria-expanded={!isCollapsed}
           aria-controls={bodyId}
           onClick={() => setCollapsedAt(isCollapsed ? null : items.length)}

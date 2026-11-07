@@ -1,4 +1,4 @@
-import { ICON_SIZE, IconButton } from '@kiln/ui';
+import { ICON_SIZE, IconButton, TooltipPlacement } from '@kiln/ui';
 import { Moon, Sun } from 'lucide-react';
 import type { ReactElement } from 'react';
 
@@ -15,6 +15,7 @@ export const ThemeToggle = (): ReactElement => {
     <IconButton
       label={isDark ? copy.app.themeToLight : copy.app.themeToDark}
       icon={isDark ? <Sun size={ICON_SIZE.md} /> : <Moon size={ICON_SIZE.md} />}
+      tooltipPlacement={TooltipPlacement.BottomEnd}
       onClick={toggle}
     />
   );

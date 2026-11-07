@@ -70,8 +70,6 @@
   --kiln-color-tooltip: var(--kiln-zinc-100);
   --kiln-color-on-tooltip: var(--kiln-zinc-900);
   --kiln-color-scrim: rgb(0 0 0 / 62%);
-  --kiln-color-media-scrim: rgb(0 0 0 / 55%);
-  --kiln-color-on-media: var(--kiln-zinc-0);
   --kiln-color-checker-a: var(--kiln-zinc-850);
   --kiln-color-checker-b: var(--kiln-zinc-800);
 

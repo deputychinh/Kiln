@@ -31,7 +31,7 @@ export const AssetThumb = ({
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const showImage = src !== null && src !== failedSrc;
   return (
-    <div className={showImage ? 'asset-thumb' : 'asset-thumb asset-thumb--empty'}>
+    <div className="asset-thumb">
       {showImage ? (
         <img
           className="asset-thumb__image"

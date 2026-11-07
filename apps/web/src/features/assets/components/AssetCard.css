@@ -47,17 +47,16 @@
   font-size: var(--kiln-text-xs);
   font-weight: var(--kiln-weight-semibold);
   text-decoration: none;
-  color: var(--kiln-color-on-media);
-  background-color: var(--kiln-color-media-scrim);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-overlay);
   border-radius: var(--kiln-radius-full);
-  transition: opacity var(--kiln-duration-fast) var(--kiln-ease-standard);
-  backdrop-filter: blur(6px);
+  box-shadow: var(--kiln-shadow-2);
 }
 
 .asset-card__open {
   position: absolute;
   inset: auto auto var(--kiln-space-2) var(--kiln-space-2);
-  opacity: 0;
+  visibility: hidden;
 }
 
 .asset-card__action {
@@ -122,10 +121,11 @@
 
   .asset-card:hover .asset-card__open,
   .asset-card:focus-within .asset-card__open {
-    opacity: 1;
+    visibility: visible;
   }
 
   .asset-card:not(:hover, :focus-within) .asset-card__action {
+    /* Opacity, not visibility: the link stays in the tab order (reached backwards too). */
     opacity: 0;
   }
 }

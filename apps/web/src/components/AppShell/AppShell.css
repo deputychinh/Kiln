@@ -3,6 +3,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--kiln-shell-bar) minmax(0, 1fr);
+
+  /* Nothing may widen the page past the window (1.4.10 reflow); clip keeps sticky bars working. */
+  overflow-x: clip;
   min-block-size: 100dvh;
 }
 

@@ -24,6 +24,8 @@ export const Bottom: Story = { args: { placement: TooltipPlacement.Bottom } };
 
 export const End: Story = { args: { placement: TooltipPlacement.End } };
 
+export const BottomEnd: Story = { args: { placement: TooltipPlacement.BottomEnd } };
+
 /** Keyboard focus shows it; Escape hides it and focus stays on the trigger (WCAG 1.4.13). */
 export const DismissedWithEscape: Story = {
   play: async ({ canvasElement }) => {
