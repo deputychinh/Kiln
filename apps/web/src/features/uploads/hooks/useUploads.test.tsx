@@ -51,6 +51,15 @@ const detailWith = (status: 'processing' | 'ready' | 'failed', n = 1) =>
     ],
   });
 
+/** Like `setup`, but also returns the query client the hook shares with the detail. */
+const setupWithClient = () => {
+  const queryClient = createQueryClient(0);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return { ...renderHook(() => useUploads(), { wrapper }), queryClient };
+};
+
 const setup = () => {
   const queryClient = createQueryClient(0);
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
@@ -266,6 +275,37 @@ describe('useUploads', () => {
     expect(result.current.items[0]).toMatchObject({
       error: 'This asset holds 3D models: choose a .glb file.',
       canRetry: false,
+    });
+  });
+
+  it('reads a fresh detail answer from the cache instead of polling the API again', async () => {
+    const { result, queryClient } = setupWithClient();
+    act(() => result.current.add([png()]));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+    const callsBefore = vi.mocked(getAsset).mock.calls.length;
+
+    // The open detail polled moments ago and saw the preview ready.
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS - 100));
+    act(() => {
+      queryClient.setQueryData(assetDetailQueryKey('asset-1'), detailWith('ready'));
+    });
+    await act(() => vi.advanceTimersByTimeAsync(100));
+
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Ready));
+    expect(vi.mocked(getAsset).mock.calls.length).toBe(callsBefore);
+  });
+
+  it('fetches when nothing fresh is cached and leaves the answer in the shared cache', async () => {
+    vi.mocked(getAsset).mockResolvedValue(detailWith('processing'));
+    const { result, queryClient } = setupWithClient();
+    act(() => result.current.add([png()]));
+    await waitFor(() => expect(statusOf(result)).toBe(UploadStatus.Processing));
+
+    await act(() => vi.advanceTimersByTimeAsync(PROCESSING_POLL_MS));
+
+    await waitFor(() => expect(getAsset).toHaveBeenCalledWith('asset-1', expect.any(AbortSignal)));
+    expect(queryClient.getQueryData(assetDetailQueryKey('asset-1'))).toMatchObject({
+      id: 'asset-1',
     });
   });
 

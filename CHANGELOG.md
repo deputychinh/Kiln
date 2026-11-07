@@ -12,6 +12,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ### Fixed
 
+- A processing asset is polled once, not twice, when its upload and its detail are both open: the upload queue reads the detail's cached answer (KILN-34).
 - The local web app on `http://localhost:5173` (the URL `make web` prints) could not reach the API: the default CORS allow-list now has `localhost` next to `127.0.0.1` for the dev and preview ports.
 
 ## [0.1.0] - 2026-11-06

@@ -157,10 +157,19 @@ export const useUploads = (): UploadsApi => {
       const deadline = Date.now() + PROCESSING_POLL_MAX_MS;
       while (Date.now() < deadline) {
         await sleep(PROCESSING_POLL_MS, signal);
-        const detail = await getAsset(assetId, signal).catch((error: unknown) => {
-          if (isAbort(error) || signal.aborted) throw error;
-          return null; // a failed poll is retried on the next tick
-        });
+        // Through the shared cache: an open detail polling the same asset answers for us, and a
+        // request already in flight is shared instead of repeated (KILN-34).
+        const detail = await queryClient
+          .fetchQuery({
+            queryKey: assetDetailQueryKey(assetId),
+            // The query's own signal: cancelling this upload must not abort a fetch the detail shares.
+            queryFn: ({ signal: querySignal }) => getAsset(assetId, querySignal),
+            staleTime: PROCESSING_POLL_MS,
+          })
+          .catch((error: unknown) => {
+            if (isAbort(error) || signal.aborted) throw error;
+            return null; // a failed poll is retried on the next tick
+          });
         const version = detail?.versions.find((candidate) => candidate.id === versionId);
         if (version?.status === 'ready') {
           patch(item.id, { status: UploadStatus.Ready });
@@ -182,7 +191,7 @@ export const useUploads = (): UploadsApi => {
       }
       patch(item.id, { status: UploadStatus.Uploaded });
     },
-    [copy, patch, refreshGallery, refreshTarget],
+    [copy, patch, queryClient, refreshGallery, refreshTarget],
   );
 
   const run = useCallback(
