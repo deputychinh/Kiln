@@ -172,3 +172,54 @@ def test_a_preview_url_lives_25_minutes_and_is_privately_cacheable(
     assert expires_at - clock.now() >= timedelta(minutes=15)
     assert expires_at - signed_at == timedelta(minutes=25)
     assert query["cache"] == ["private, max-age=1500, immutable"]
+
+
+def test_a_ready_model_version_links_its_original_file_signed_like_its_preview(
+    client: TestClient, storage: FakeStorage, engine: Engine, clock: FixedClock
+) -> None:
+    """KILN-9: the 3D viewer downloads the original .glb with a window-pinned signed GET."""
+    clock.current = datetime(2026, 11, 6, 8, 39, 59, tzinfo=UTC)
+    model = {"name": "Crate", "file_name": "crate.glb", "content_type": "model/gltf-binary"}
+    created: dict[str, Any] = client.post("/api/v1/assets", json={**model, "size_bytes": 4}).json()
+    storage.put(created["upload"]["fields"]["key"], 4, "model/gltf-binary", b"glTF")
+    asset_id, version_id = created["asset"]["id"], created["version"]["id"]
+    client.post(f"/api/v1/asset-versions/{version_id}/completions")
+    processing = client.get(f"/api/v1/asset-versions/{version_id}").json()
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE asset_versions SET status = 'ready' WHERE id = :id"), {"id": version_id}
+        )
+
+    detail = client.get(f"/api/v1/assets/{asset_id}").json()
+    version = client.get(f"/api/v1/asset-versions/{version_id}").json()
+
+    assert created["version"]["download_url"] is None
+    assert processing["download_url"] is None
+    url = detail["versions"][0]["download_url"]
+    expected = f"http://storage.test/kiln-assets/assets/{asset_id}/v1/{version_id}.glb"
+    assert url.startswith(f"{expected}?")
+    assert version["download_url"] == url
+    query = parse_qs(urlsplit(url).query)
+    assert query["signed"] == ["2026-11-06T08:30:00+00:00"]
+    assert query["ttl"] == ["1500"]
+    assert query["cache"] == ["private, max-age=1500, immutable"]
+
+
+def test_a_failed_version_links_no_file(
+    client: TestClient, storage: FakeStorage, engine: Engine
+) -> None:
+    created = _created_and_completed(client, storage)
+    version_id = created["version"]["id"]
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE asset_versions SET status = 'failed', failure_reason = 'UNREADABLE_IMAGE'"
+                " WHERE id = :id"
+            ),
+            {"id": version_id},
+        )
+
+    version = client.get(f"/api/v1/asset-versions/{version_id}").json()
+
+    assert version["status"] == "failed"
+    assert version["download_url"] is None

@@ -125,7 +125,7 @@ def add_version(
 def get_version(version_id: UUID, service: Service) -> VersionOut:
     """Return one version."""
     view = service.get_version(version_id)
-    return VersionOut.of(view.version, view.thumbnail_url)
+    return VersionOut.of(view.version, view.thumbnail_url, view.download_url)
 
 
 @router.post("/asset-versions/{version_id}/completions", responses=problem_responses(404, 409))

@@ -64,10 +64,11 @@ class PendingUpload:
 
 @dataclass(frozen=True, slots=True)
 class VersionView:
-    """A version with the URL of its preview (None until it is ready)."""
+    """A version with the URLs of its preview and its original file (None until it is ready)."""
 
     version: AssetVersion
     thumbnail_url: str | None
+    download_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,16 +228,12 @@ class AssetService:
     def get(self, asset_id: UUID) -> AssetDetail:
         """Return an asset with its cover and versions, each with its preview URL."""
         asset = self._repository.get(asset_id)
-        versions = [
-            VersionView(version=v, thumbnail_url=self._version_thumbnail(v))
-            for v in self._repository.versions_of(asset_id)
-        ]
+        versions = [self._view(v) for v in self._repository.versions_of(asset_id)]
         return AssetDetail(asset=asset, thumbnail_url=self._cover(asset), versions=versions)
 
     def get_version(self, version_id: UUID) -> VersionView:
-        """Return one version with its preview URL."""
-        version = self._repository.get_version(version_id)
-        return VersionView(version=version, thumbnail_url=self._version_thumbnail(version))
+        """Return one version with its preview and file URLs."""
+        return self._view(self._repository.get_version(version_id))
 
     def list(self, *, cursor: str | None, limit: int) -> Page[AssetCard]:
         """Return assets newest first, each with its cover preview URL."""
@@ -244,10 +241,19 @@ class AssetService:
         cards = tuple(AssetCard(asset=a, thumbnail_url=self._cover(a)) for a in page.items)
         return Page(items=cards, next_cursor=page.next_cursor)
 
-    def _version_thumbnail(self, version: AssetVersion) -> str | None:
+    def _view(self, version: AssetVersion) -> VersionView:
+        """Ready versions link their preview and, for the 3D viewer, their original (KILN-9).
+
+        Only a ready file has passed the worker's checks; the key is immutable, so the original
+        is signed and cached exactly like a preview (ADR 0008).
+        """
         if version.status is not VersionStatus.READY:
-            return None
-        return self._download_url(thumbnail_key(version))
+            return VersionView(version=version, thumbnail_url=None)
+        return VersionView(
+            version=version,
+            thumbnail_url=self._download_url(thumbnail_key(version)),
+            download_url=self._download_url(version.object_key),
+        )
 
     def _cover(self, asset: Asset) -> str | None:
         if asset.cover_version_id is None:

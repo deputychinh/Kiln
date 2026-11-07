@@ -383,6 +383,11 @@ export interface components {
              * @description Preview once the version is ready (signed, 15 minutes).
              */
             thumbnail_url?: string | null;
+            /**
+             * Download Url
+             * @description The original file once the version is ready (signed like the preview).
+             */
+            download_url?: string | null;
         };
         /**
          * VersionStatus

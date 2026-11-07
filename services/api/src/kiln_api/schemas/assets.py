@@ -80,9 +80,18 @@ class VersionOut(BaseModel):
     thumbnail_url: str | None = Field(
         default=None, description="Preview once the version is ready (signed, 15 minutes)."
     )
+    download_url: str | None = Field(
+        default=None,
+        description="The original file once the version is ready (signed like the preview).",
+    )
 
     @classmethod
-    def of(cls, version: AssetVersion, thumbnail_url: str | None = None) -> "VersionOut":
+    def of(
+        cls,
+        version: AssetVersion,
+        thumbnail_url: str | None = None,
+        download_url: str | None = None,
+    ) -> "VersionOut":
         """Build from the domain object."""
         return cls(
             id=version.id,
@@ -96,6 +105,7 @@ class VersionOut(BaseModel):
             updated_at=version.updated_at,
             failure_reason=version.failure_reason,
             thumbnail_url=thumbnail_url,
+            download_url=download_url,
         )
 
 
@@ -145,7 +155,10 @@ class AssetDetailOut(AssetOut):
         """Build from the service result."""
         return cls(
             **AssetOut.of(detail.asset, detail.thumbnail_url).model_dump(),
-            versions=[VersionOut.of(view.version, view.thumbnail_url) for view in detail.versions],
+            versions=[
+                VersionOut.of(view.version, view.thumbnail_url, view.download_url)
+                for view in detail.versions
+            ],
         )
 
 
