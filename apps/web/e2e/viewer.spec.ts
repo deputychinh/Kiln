@@ -17,7 +17,8 @@ const openModelInViewer = async (page: Page, testInfo: TestInfo): Promise<string
   const { id, name } = await seedModelAsset(page.request, uniqueName(testInfo));
   await page.goto(`/assets/${id}`);
   // The detail polls while the worker renders the preview; the link appears once it is ready.
-  await page.getByRole('link', { name: 'View version 1 in 3D' }).click({ timeout: 30_000 });
+  // The header's action (newest ready version) comes first; the version's own link second.
+  await page.getByRole('link', { name: 'View version 1 in 3D' }).first().click({ timeout: 30_000 });
   return name;
 };
 

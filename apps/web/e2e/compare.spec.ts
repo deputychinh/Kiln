@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, type Page, test, type TestInfo } from '@playwright/test';
 
+import { chooseFiles, uploadButton } from './support/upload';
+
 const SWATCH = readFileSync(new URL('./fixtures/swatch.png', import.meta.url));
 
 const uniqueName = (prefix: string, testInfo: TestInfo): string =>
@@ -13,10 +15,11 @@ const uniqueName = (prefix: string, testInfo: TestInfo): string =>
 const assetWithTwoVersions = async (page: Page, testInfo: TestInfo): Promise<string> => {
   const name = uniqueName('compare', testInfo);
   await page.goto('/assets');
-  await page
-    .getByRole('group', { name: 'Drop images or .glb files here' })
-    .locator('input[type="file"]')
-    .setInputFiles({ name: `${name}.png`, mimeType: 'image/png', buffer: SWATCH });
+  await chooseFiles(page, uploadButton(page), {
+    name: `${name}.png`,
+    mimeType: 'image/png',
+    buffer: SWATCH,
+  });
   const row = page
     .getByRole('list', { name: 'Uploads' })
     .getByRole('listitem')
@@ -25,10 +28,11 @@ const assetWithTwoVersions = async (page: Page, testInfo: TestInfo): Promise<str
   await row.getByRole('link').click();
 
   const detail = page.getByRole('article', { name });
-  await detail
-    .getByRole('group', { name: `Drop a new version of ${name} here` })
-    .locator('input[type="file"]')
-    .setInputFiles({ name: `${name}_v2.png`, mimeType: 'image/png', buffer: SWATCH });
+  await chooseFiles(page, detail.getByRole('button', { name: `Upload new version of ${name}` }), {
+    name: `${name}_v2.png`,
+    mimeType: 'image/png',
+    buffer: SWATCH,
+  });
   await expect(
     detail
       .getByRole('list', { name: `New versions of ${name}` })

@@ -4,15 +4,14 @@ import { readFileSync } from 'node:fs';
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, type Locator, type Page, test, type TestInfo } from '@playwright/test';
 
+import { chooseFiles, uploadButton } from './support/upload';
+
 const SWATCH = readFileSync(new URL('./fixtures/swatch.png', import.meta.url));
 const CRATE = readFileSync(new URL('./fixtures/crate.glb', import.meta.url));
 
 /** Unique across parallel projects and runs, so each upload is its own asset. */
 const uniqueFileName = (prefix: string, extension: string, testInfo: TestInfo): string =>
   `e2e_${prefix}_${testInfo.project.name}_${randomUUID().slice(0, 8)}.${extension}`;
-
-const dropzone = (page: Page): Locator =>
-  page.getByRole('group', { name: 'Drop images or .glb files here' });
 
 const uploadRow = (page: Page, fileName: string): Locator =>
   page.getByRole('list', { name: 'Uploads' }).getByRole('listitem').filter({ hasText: fileName });
@@ -23,18 +22,16 @@ const assetIdOf = async (row: Locator): Promise<string> => {
   return href?.split('/').pop() ?? '';
 };
 
-test('an image chosen with the file button uploads and its preview appears in the gallery', async ({
+test("an image chosen with the top bar's Upload button uploads and its preview appears in the gallery", async ({
   page,
 }, testInfo) => {
   const fileName = uniqueFileName('upload', 'png', testInfo);
   await page.goto('/assets');
 
-  await dropzone(page)
-    .locator('input[type="file"]')
-    .setInputFiles([
-      { name: fileName, mimeType: 'image/png', buffer: SWATCH },
-      { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') },
-    ]);
+  await chooseFiles(page, uploadButton(page), [
+    { name: fileName, mimeType: 'image/png', buffer: SWATCH },
+    { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') },
+  ]);
 
   const refused = uploadRow(page, 'notes.txt');
   await expect(refused).toContainText('Only PNG, JPEG, WebP and .glb files can be uploaded.');
@@ -60,12 +57,12 @@ test('an image chosen with the file button uploads and its preview appears in th
   await expect(refused).toHaveCount(0);
 });
 
-test('a glTF model dropped on the dropzone uploads and gets a rendered preview', async ({
+test('a glTF model dropped anywhere on the page uploads and gets a rendered preview', async ({
   page,
 }, testInfo) => {
   const fileName = uniqueFileName('drop', 'glb', testInfo);
   await page.goto('/assets');
-  await expect(dropzone(page)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Assets' })).toBeVisible();
 
   const dataTransfer = await page.evaluateHandle(
     ({ name, base64 }) => {
@@ -76,9 +73,14 @@ test('a glTF model dropped on the dropzone uploads and gets a rendered preview',
     },
     { name: fileName, base64: CRATE.toString('base64') },
   );
-  await dropzone(page).dispatchEvent('dragenter', { dataTransfer });
-  await expect(dropzone(page)).toHaveClass(/dropzone--active/);
-  await dropzone(page).dispatchEvent('drop', { dataTransfer });
+  // Dragging files over the window shows the overlay; dropping on "New assets" uploads them.
+  await page.locator('main').dispatchEvent('dragenter', { dataTransfer });
+  const target = page.locator('[data-drop-target="assets"]');
+  await expect(target).toContainText('New assets');
+  await target.dispatchEvent('dragover', { dataTransfer });
+  await expect(target).toHaveClass(/drop-overlay__target--active/);
+  await target.dispatchEvent('drop', { dataTransfer });
+  await expect(page.locator('.drop-overlay')).toHaveCount(0);
 
   const row = uploadRow(page, fileName);
   await expect(row.getByText('Ready')).toBeVisible({ timeout: 60_000 });
@@ -113,9 +115,11 @@ test('a slow upload can be cancelled from the keyboard, retried with the same ke
     },
   );
   await page.goto('/assets');
-  await dropzone(page)
-    .locator('input[type="file"]')
-    .setInputFiles({ name: fileName, mimeType: 'image/png', buffer: SWATCH });
+  await chooseFiles(page, uploadButton(page), {
+    name: fileName,
+    mimeType: 'image/png',
+    buffer: SWATCH,
+  });
 
   const row = uploadRow(page, fileName);
   await expect(row.getByText(/^Uploading/)).toBeVisible();
@@ -131,8 +135,11 @@ test('a slow upload can be cancelled from the keyboard, retried with the same ke
   });
 
   // Keyboard only: Cancel, then Retry where focus lands.
-  // Real Tab order: from Choose files, the next stop is this row's Cancel.
-  await page.getByRole('button', { name: 'Choose files' }).focus();
+  // Real Tab order: from the tray's collapse button, the next stop is this row's Cancel.
+  await page
+    .getByRole('region', { name: 'Uploads' })
+    .getByRole('button', { name: 'Collapse uploads' })
+    .focus();
   await page.keyboard.press('Tab');
   await expect(row.getByRole('button', { name: `Cancel ${fileName}` })).toBeFocused();
   await page.keyboard.press('Enter');
@@ -151,16 +158,18 @@ test('a slow upload can be cancelled from the keyboard, retried with the same ke
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
-test('a new version dropped on an asset detail becomes its next version and its preview', async ({
+test('a new version uploaded from an asset detail becomes its next version and its preview', async ({
   page,
 }, testInfo) => {
   const firstName = uniqueFileName('versioned', 'png', testInfo);
   const assetName = firstName.replace(/\.png$/, '');
   const secondName = uniqueFileName('second', 'png', testInfo);
   await page.goto('/assets');
-  await dropzone(page)
-    .locator('input[type="file"]')
-    .setInputFiles({ name: firstName, mimeType: 'image/png', buffer: SWATCH });
+  await chooseFiles(page, uploadButton(page), {
+    name: firstName,
+    mimeType: 'image/png',
+    buffer: SWATCH,
+  });
   const firstRow = uploadRow(page, firstName);
   await expect(firstRow.getByText('Ready')).toBeVisible({ timeout: 30_000 });
   await firstRow.getByRole('link').click();
@@ -171,11 +180,14 @@ test('a new version dropped on an asset detail becomes its next version and its 
   const firstPreview = (await hero.getAttribute('src'))?.split('?')[0];
 
   // A model is refused for an image asset before anything is sent; the PNG becomes version 2.
-  const zone = detail.getByRole('group', { name: `Drop a new version of ${assetName} here` });
-  await zone.locator('input[type="file"]').setInputFiles([
-    { name: secondName, mimeType: 'image/png', buffer: SWATCH },
-    { name: 'crate.glb', mimeType: '', buffer: CRATE },
-  ]);
+  await chooseFiles(
+    page,
+    detail.getByRole('button', { name: `Upload new version of ${assetName}` }),
+    [
+      { name: secondName, mimeType: 'image/png', buffer: SWATCH },
+      { name: 'crate.glb', mimeType: '', buffer: CRATE },
+    ],
+  );
   const rows = detail.getByRole('list', { name: `New versions of ${assetName}` });
   await expect(rows.getByRole('listitem').filter({ hasText: 'crate.glb' })).toContainText(
     'This asset holds images: choose a PNG, JPEG or WebP file.',

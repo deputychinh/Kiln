@@ -15,25 +15,21 @@ const CRATE = {
 };
 
 type SeedFile = typeof SWATCH;
+type PendingUpload = components['schemas']['PendingUploadOut'];
 
-/** Publishes a file through the real API and storage, as the CLI will: create, upload, complete. */
-const seedAsset = async (
+const declarationOf = (file: SeedFile) => ({
+  file_name: file.fileName,
+  content_type: file.mimeType,
+  size_bytes: file.buffer.length,
+});
+
+/** Sends the file to storage with the form the API handed out, then records the completion. */
+const uploadAndComplete = async (
   request: APIRequestContext,
-  name: string,
+  pending: PendingUpload,
   file: SeedFile,
-): Promise<{ id: string; name: string }> => {
-  const created = await request.post(`${API_URL}/api/v1/assets`, {
-    data: {
-      name,
-      file_name: file.fileName,
-      content_type: file.mimeType,
-      size_bytes: file.buffer.length,
-    },
-  });
-  if (!created.ok()) throw new Error(`create failed: ${String(created.status())}`);
-  const pending = (await created.json()) as components['schemas']['PendingUploadOut'];
-  if (!pending.upload) throw new Error('a new asset always has an upload form');
-
+): Promise<void> => {
+  if (!pending.upload) throw new Error('a new upload always has an upload form');
   const uploaded = await request.post(pending.upload.url, {
     multipart: {
       ...pending.upload.fields,
@@ -46,6 +42,20 @@ const seedAsset = async (
     `${API_URL}/api/v1/asset-versions/${pending.version.id}/completions`,
   );
   if (!completed.ok()) throw new Error(`completion failed: ${String(completed.status())}`);
+};
+
+/** Publishes a file through the real API and storage, as the CLI will: create, upload, complete. */
+const seedAsset = async (
+  request: APIRequestContext,
+  name: string,
+  file: SeedFile,
+): Promise<{ id: string; name: string }> => {
+  const created = await request.post(`${API_URL}/api/v1/assets`, {
+    data: { name, ...declarationOf(file) },
+  });
+  if (!created.ok()) throw new Error(`create failed: ${String(created.status())}`);
+  const pending = (await created.json()) as PendingUpload;
+  await uploadAndComplete(request, pending, file);
   return { id: pending.asset.id, name: pending.asset.name };
 };
 
@@ -68,3 +78,15 @@ export const seedModelBytes = (
   buffer: Buffer,
 ): Promise<{ id: string; name: string }> =>
   seedAsset(request, name, { fileName: 'model.glb', mimeType: 'model/gltf-binary', buffer });
+
+/** The next version of an image asset (the same small PNG). */
+export const seedImageVersion = async (
+  request: APIRequestContext,
+  assetId: string,
+): Promise<void> => {
+  const created = await request.post(`${API_URL}/api/v1/assets/${assetId}/versions`, {
+    data: declarationOf(SWATCH),
+  });
+  if (!created.ok()) throw new Error(`version failed: ${String(created.status())}`);
+  await uploadAndComplete(request, (await created.json()) as PendingUpload, SWATCH);
+};

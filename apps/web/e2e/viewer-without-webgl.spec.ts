@@ -14,7 +14,7 @@ test('without WebGL the viewer says why and shows the still preview instead', as
   const name = `e2e_viewer_nogl_${testInfo.project.name}_${randomUUID().slice(0, 8)}`;
   const { id } = await seedModelAsset(page.request, name);
   await page.goto(`/assets/${id}`);
-  await page.getByRole('link', { name: 'View version 1 in 3D' }).click({ timeout: 30_000 });
+  await page.getByRole('link', { name: 'View version 1 in 3D' }).first().click({ timeout: 30_000 });
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('This browser could not start 3D graphics (WebGL).');
