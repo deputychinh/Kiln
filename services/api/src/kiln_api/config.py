@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # Session cookie over HTTPS only (`Secure` and the `__Host-` prefix). Unset: on in production,
     # off for local http, where browsers would drop a Secure cookie (KILN-12).
     secure_cookies: bool | None = None
+    # Reverse proxies whose X-Forwarded-For / X-Forwarded-Proto are believed, comma-separated
+    # (IPs or CIDRs). Empty: proxy headers are ignored and the peer address is the client, so no
+    # caller can choose the IP that sign-in throttling counts (KILN-12 review).
+    trusted_proxies: str = ""
 
     @field_validator("secure_cookies", mode="before")
     @classmethod
@@ -69,6 +73,11 @@ class Settings(BaseSettings):
     def session_cookie_name(self) -> str:
         """`__Host-kiln_session` over HTTPS, `kiln_session` on local http."""
         return SESSION_COOKIE_SECURE if self.cookie_secure else SESSION_COOKIE_LOCAL
+
+    @property
+    def trusted_proxy_list(self) -> list[str]:
+        """`trusted_proxies` split into addresses; empty when none are trusted."""
+        return [item.strip() for item in self.trusted_proxies.split(",") if item.strip()]
 
     @property
     def trusted_origins(self) -> frozenset[str]:

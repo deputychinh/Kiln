@@ -17,7 +17,7 @@ KILN-12 signs people in with email and password. The web app ran on `:5173` and 
 ## Consequences
 
 - One origin in every deployment, or the cookie stops being first-party; `KILN_CORS_ORIGINS` doubles as the CSRF allow-list and must list the app's origin.
-- Behind a reverse proxy, uvicorn must run with `--proxy-headers` and a forwarded-allow list, or every client shares the proxy's IP for sign-in throttling.
+- The API is started with `python -m kiln_api.serve` (`make api`), which reads `X-Forwarded-For` only from the proxies in `KILN_TRUSTED_PROXIES` (empty by default: proxy headers ignored). Plain `uvicorn` believes that header from 127.0.0.1, which let any caller arriving through loopback choose the address sign-in throttling counts (KILN-12 review). Behind a reverse proxy, list it in `KILN_TRUSTED_PROXIES`, or every client shares the proxy's address. The Vite dev and preview proxy drops the browser's own forwarding headers and sends its real peer.
 - A stolen session cookie works until idle, absolute expiry or sign-out; `HttpOnly` and no inline script keep it out of page scripts.
 
 ## Sources

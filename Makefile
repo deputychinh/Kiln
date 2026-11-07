@@ -21,7 +21,7 @@ down: ## Stop local infrastructure
 	docker compose down
 
 api: ## Run the API with reload on :$(API_PORT)
-	uv run --package kiln-api uvicorn kiln_api.main:app --reload --port $(API_PORT)
+	uv run --package kiln-api python -m kiln_api.serve --reload --port $(API_PORT)
 
 worker: ## Run the asset worker
 	uv run --package kiln-worker python -m kiln_worker

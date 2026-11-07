@@ -27,7 +27,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'uv run --package kiln-api uvicorn kiln_api.main:app --port 8000',
+      command: 'uv run --package kiln-api python -m kiln_api.serve --port 8000',
       cwd: '../..',
       url: 'http://127.0.0.1:8000/health',
       reuseExistingServer: true,

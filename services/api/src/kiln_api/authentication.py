@@ -52,7 +52,11 @@ def identity_of(request: Request) -> IdentityService:
 
 
 def client_ip(request: Request) -> str:
-    """The peer address; behind a proxy, run uvicorn with `--proxy-headers` and its allow-list."""
+    """The client address: the TCP peer, or what a proxy in `KILN_TRUSTED_PROXIES` reports.
+
+    Start the API with `python -m kiln_api.serve` (`make api`): plain `uvicorn` believes
+    `X-Forwarded-For` from 127.0.0.1 and would let a caller pick this value.
+    """
     return request.client.host if request.client else "unknown"
 
 
