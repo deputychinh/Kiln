@@ -1,9 +1,11 @@
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import pytest
 from fakes import FakeStorage, FixedClock
-from sqlalchemy import Engine
+from sqlalchemy import Connection, Engine, text
 
 from kiln_api.config import Settings
 from kiln_api.container import build_container
@@ -178,3 +180,75 @@ def test_dropping_the_only_ready_version_leaves_no_cover(engine: Engine) -> None
     repository.drop_cover(only)
 
     assert repository.get(only.asset_id).cover_version_id is None
+
+
+def test_dropping_a_newer_version_than_an_older_cover_keeps_the_older_cover(
+    engine: Engine,
+) -> None:
+    repository = SqlAssetRepository(engine)
+    cover = _model_in(repository, VersionStatus.READY)
+    middle = _model_in(repository, VersionStatus.READY, asset_id=cover.asset_id)
+    newest = _model_in(repository, VersionStatus.READY, asset_id=cover.asset_id)
+    repository.promote_cover(cover)  # e.g. the newer ones became ready before a later rollback
+    assert repository.get(cover.asset_id).cover_version_id == cover.id
+
+    repository.drop_cover(newest)
+
+    assert repository.get(middle.asset_id).cover_version_id == cover.id
+
+
+def _fail_in(connection: Connection, version: AssetVersion) -> AssetVersion:
+    failed = transition(
+        version, VersionStatus.FAILED, now=T0, failure_reason=FailureReason.UNREADABLE_MODEL
+    )
+    SqlAssetRepository(connection).save_version(failed, expected=VersionStatus.READY)
+    return failed
+
+
+def _wait_until_blocked_or_done(engine: Engine, pid: int, thread: threading.Thread) -> None:
+    """Return once `thread` ended or Postgres reports `pid` waiting for a lock (no sleeps)."""
+    deadline = time.monotonic() + 10
+    with engine.connect() as watcher:
+        while time.monotonic() < deadline and thread.is_alive():
+            blockers = watcher.execute(text("SELECT pg_blocking_pids(:pid)"), {"pid": pid})
+            if blockers.scalar_one():
+                return
+            watcher.rollback()
+    if thread.is_alive():
+        pytest.fail("the second transaction neither ended nor waited for a lock")
+
+
+def test_two_versions_failed_at_once_never_leave_a_failed_cover(engine: Engine) -> None:
+    repository = SqlAssetRepository(engine)
+    oldest = _model_in(repository, VersionStatus.READY)
+    middle = _model_in(repository, VersionStatus.READY, asset_id=oldest.asset_id)
+    newest = _model_in(repository, VersionStatus.READY, asset_id=oldest.asset_id)
+    repository.promote_cover(newest)
+    second_pid: list[int] = []
+    second_started = threading.Event()
+    errors: list[BaseException] = []
+
+    def second_run() -> None:  # fails the middle version while the first run holds the asset
+        try:
+            with engine.begin() as connection:
+                second_pid.append(connection.execute(text("SELECT pg_backend_pid()")).scalar_one())
+                failed = _fail_in(connection, middle)
+                second_started.set()
+                SqlAssetRepository(connection).drop_cover(failed)  # waits for the first run
+        except BaseException as error:  # reported by the main thread
+            errors.append(error)
+            second_started.set()
+
+    with engine.begin() as first:
+        # First run: fails the cover and picks the middle version, still ready in its view.
+        SqlAssetRepository(first).drop_cover(_fail_in(first, newest))
+        thread = threading.Thread(target=second_run)
+        thread.start()
+        assert second_started.wait(10)
+        # Before the fix the second run saw the uncommitted cover, changed nothing and ended;
+        # with it, it waits for the asset row and then sees the first run's choice.
+        _wait_until_blocked_or_done(engine, second_pid[0], thread)
+    thread.join(10)
+
+    assert not errors
+    assert repository.get(oldest.asset_id).cover_version_id == oldest.id

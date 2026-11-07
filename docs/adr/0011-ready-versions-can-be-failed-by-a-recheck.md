@@ -9,7 +9,7 @@
 ## Decision
 
 1. The life cycle allows `ready → failed`, and only a re-check writes it: `make recheck-models` (`python -m kiln_worker.recheck`) reads every ready model version again with the worker's current sandboxed reader and renderer and fails one it now refuses with `UNREADABLE_MODEL` or `MODEL_TOO_LARGE`.
-2. The write is a compare-and-set on `status = 'ready'` (as every queue write is), in one transaction with the cover change: if the version was the cover, the newest other ready version of the asset becomes the cover, or none.
+2. The write is a compare-and-set on `status = 'ready'` (as every queue write is), in one transaction with the cover change: if the version was the cover, the asset row is locked (`SELECT … FOR UPDATE`) and the newest other ready version of the asset becomes the cover, or none — chosen after the lock, so two versions failed at once never leave a failed cover.
 3. It is a command run once per rule change (and safe to repeat), not a scheduled job: a version that could not be judged (its file changed or vanished, the preview process crashed) stays ready and is counted as skipped; storage going away stops the run with exit 1.
 
 ## Consequences
@@ -17,3 +17,4 @@
 - An asset can lose its cover or a version it showed as ready; clients already handle failed versions and assets without a cover.
 - The thumbnail of a failed version stays in storage until a later cleanup; nothing links to it once the cover moves.
 - New model rules should come with a run of `make recheck-models` in their release notes.
+- Order of operations: deploy the new reader to every worker first, then run `make recheck-models`. The command walks ready versions by id; a version that becomes ready during the run with an id below the cursor is not visited, so it is covered only if the worker that made it ready already ran the new reader.

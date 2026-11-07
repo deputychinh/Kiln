@@ -790,3 +790,73 @@ def test_a_wide_node_graph_is_checked_in_linear_time() -> None:
     started = time.monotonic()
     assert read_glb(build_glb(tweak=wide)).triangles.shape == (12, 3, 3)
     assert time.monotonic() - started < 2
+
+
+# KILN-36 review round 1: three.js resolves every node's mesh, skin and camera and every skin's
+# joints and skeleton, drawn or not, so each reference must be in range wherever the node is.
+_BAD_INDICES = [99, -1, True, 1.0, "0"]
+
+
+def _on_node_in_a_second_scene(field: str, value: object) -> Any:
+    def tweak(document: dict[str, Any]) -> None:
+        document["nodes"].append({field: value})
+        document["scenes"].append({"nodes": [len(document["nodes"]) - 1]})
+
+    return tweak
+
+
+def _on_node_in_no_scene(field: str, value: object) -> Any:
+    def tweak(document: dict[str, Any]) -> None:
+        document["nodes"].append({field: value})
+
+    return tweak
+
+
+def _with_a_skin(skin: dict[str, Any]) -> Any:
+    def tweak(document: dict[str, Any]) -> None:
+        document["nodes"].append({})  # a node in no scene, joint of the skin
+        document["skins"] = [skin]
+
+    return tweak
+
+
+@pytest.mark.parametrize("value", _BAD_INDICES)
+@pytest.mark.parametrize("field", ["mesh", "skin", "camera"])
+@pytest.mark.parametrize(
+    "where", [_on_node_in_a_second_scene, _on_node_in_no_scene], ids=["second-scene", "no-scene"]
+)
+def test_a_node_reference_out_of_range_anywhere_is_refused(
+    where: Any, field: str, value: object
+) -> None:
+    with pytest.raises(UnreadableModelError, match=f"bad {field} index"):
+        read_glb(build_glb(tweak=where(field, value)))
+
+
+@pytest.mark.parametrize("value", _BAD_INDICES)
+@pytest.mark.parametrize("field", ["joints", "skeleton"])
+def test_a_skin_naming_a_node_out_of_range_is_refused(field: str, value: object) -> None:
+    skin: dict[str, Any] = {"joints": [1]}
+    skin[field] = [value] if field == "joints" else value
+
+    with pytest.raises(UnreadableModelError, match=r"bad (joint|skeleton) index"):
+        read_glb(build_glb(tweak=_with_a_skin(skin)))
+
+
+@pytest.mark.parametrize(
+    "skins", [{"joints": [0]}, [{"joints": 0}], [{"joints": []}], ["skin"]], ids=str
+)
+def test_a_malformed_skin_is_refused(skins: object) -> None:
+    def tweak(document: dict[str, Any]) -> None:
+        document["skins"] = skins
+
+    with pytest.raises(UnreadableModelError):
+        read_glb(build_glb(tweak=tweak))
+
+
+def test_valid_skins_cameras_and_meshes_on_nodes_no_scene_draws_are_accepted() -> None:
+    def tweak(document: dict[str, Any]) -> None:
+        document["nodes"] += [{"children": [2], "skin": 0, "mesh": 0}, {"camera": 0}]
+        document["skins"] = [{"joints": [1, 2], "skeleton": 1}]
+        document["cameras"] = [{"type": "perspective", "perspective": {"yfov": 1, "znear": 0.1}}]
+
+    assert read_glb(build_glb(tweak=tweak)).triangles.shape == (12, 3, 3)

@@ -232,8 +232,9 @@ class SqlAssetRepository:
     def drop_cover(self, version: AssetVersion) -> None:
         """If `version` is the cover, the newest other ready version takes its place (or none).
 
-        One statement on the asset row, so it serialises with `promote_cover`: a newer version a
-        worker makes ready at the same time still ends up the cover.
+        The asset row is locked first, so the fallback is chosen from a snapshot taken after any
+        other writer of this asset's cover committed: two versions failed at once never leave a
+        failed cover, and a newer version a worker makes ready meanwhile still becomes the cover.
         """
         fallback = (
             select(asset_versions.c.id)
@@ -247,6 +248,9 @@ class SqlAssetRepository:
             .scalar_subquery()
         )
         with self._write() as connection:
+            connection.execute(
+                select(assets.c.id).where(assets.c.id == version.asset_id).with_for_update()
+            )
             connection.execute(
                 update(assets)
                 .where(assets.c.id == version.asset_id, assets.c.cover_version_id == version.id)

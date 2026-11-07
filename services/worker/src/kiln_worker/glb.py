@@ -261,7 +261,8 @@ class _Reader:
         The web viewer builds every scene and node the file names, not only the default scene
         drawn here, so the rule holds everywhere: a node has at most one parent, no chain of
         parents loops or runs deeper than `MODEL_MAX_NODE_DEPTH`, and a scene lists only
-        parentless nodes, each once. Linear in the number of nodes and children.
+        parentless nodes, each once. Every reference to or from a node (mesh, skin, camera,
+        skin joints and skeleton) is in range too. Linear in the number of nodes and children.
         """
         parents: list[int | None] = [None] * len(self._nodes)
         for index, node in enumerate(self._nodes):
@@ -270,6 +271,7 @@ class _Reader:
                     msg = "a node is reached twice: it has two parents"
                     raise _fail(msg)
                 parents[child] = index
+        self._check_references()  # every node is an object: `_children` checked it
         self._check_depths(parents)
         for scene in _items(self._doc, "scenes"):
             roots = self._scene_roots(scene)
@@ -279,6 +281,34 @@ class _Reader:
             if any(parents[root] is not None for root in roots):
                 msg = "a node is reached twice: a scene root is also a child"
                 raise _fail(msg)
+
+    def _check_references(self) -> None:
+        """What three.js resolves for every node and skin, drawn or not (KILN-36 review)."""
+        targets = {
+            "mesh": self._meshes,
+            "skin": _items(self._doc, "skins"),
+            "camera": _items(self._doc, "cameras"),
+        }
+        for node in self._nodes:
+            for field, items in targets.items():
+                if field in node:
+                    _index(node[field], items, field)
+        self._check_skins(targets["skin"])
+
+    def _check_skins(self, skins: list[Any]) -> None:
+        """Every skin names at least one joint, and its joints and skeleton are nodes."""
+        for skin in skins:
+            if not isinstance(skin, dict):
+                msg = "skin is not an object"
+                raise _fail(msg)
+            joints = skin.get("joints")
+            if not isinstance(joints, list) or not joints:
+                msg = "skin joints are not a non-empty list"
+                raise _fail(msg)
+            for joint in joints:
+                _index(joint, self._nodes, "joint")
+            if "skeleton" in skin:
+                _index(skin["skeleton"], self._nodes, "skeleton")
 
     @staticmethod
     def _check_depths(parents: list[int | None]) -> None:
