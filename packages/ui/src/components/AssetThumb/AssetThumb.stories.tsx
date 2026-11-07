@@ -41,3 +41,23 @@ export const BrokenImage: Story = {
 };
 
 export const Eager: Story = { args: { isEager: true } };
+
+/** A non-square image with an overlay: the marks sit on the image, not on the letterbox. */
+export const WithOverlay: Story = {
+  args: {
+    src: WIDE,
+    alt: 'banner_wide.png',
+    overlay: (
+      <span
+        style={{
+          position: 'absolute',
+          insetInlineStart: '25%',
+          insetBlockStart: '25%',
+          inlineSize: '50%',
+          blockSize: '50%',
+          outline: '2px solid var(--kiln-color-primary)',
+        }}
+      />
+    ),
+  },
+};

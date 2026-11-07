@@ -105,7 +105,9 @@ for (const theme of THEMES) {
 // description from their JSDoc; Button also passes on native `disabled`/`type` and its stories wire
 // the native `onClick` to an action (React's types have no descriptions for those).
 const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
-  'components-assetthumb--docs': { own: ['src', 'alt', 'placeholder', 'isEager', 'onError'] },
+  'components-assetthumb--docs': {
+    own: ['src', 'alt', 'placeholder', 'isEager', 'onError', 'overlay'],
+  },
   'components-badge--docs': { own: ['tone', 'icon', 'children'] },
   'components-button--docs': {
     own: ['variant', 'icon', 'children', 'ref'],
@@ -146,6 +148,11 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
   'components-textfield--docs': {
     own: ['label', 'hint', 'error', 'ref'],
     native: ['type', 'autoComplete', 'disabled'],
+  },
+  // TextArea passes its stories' native textarea attributes through, like TextField.
+  'components-textarea--docs': {
+    own: ['label', 'isLabelHidden', 'hint', 'error', 'showCount', 'ref'],
+    native: ['placeholder', 'disabled'],
   },
   'components-toolbar--docs': { own: ['label', 'children', 'end'] },
   'components-tooltip--docs': { own: ['content', 'placement', 'isBlock', 'as', 'children'] },

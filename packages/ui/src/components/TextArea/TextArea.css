@@ -1,0 +1,103 @@
+.text-area {
+  display: grid;
+  gap: var(--kiln-space-1);
+  min-inline-size: 0;
+}
+
+.text-area__label {
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+}
+
+/* Read by screen readers, not shown (the composer sits under its own heading). */
+.text-area__label--hidden {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+}
+
+.text-area__hint {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+/* Grows with its text (where supported) between three lines and about twelve. */
+.text-area__input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: calc(3lh + 2 * var(--kiln-space-2));
+  max-block-size: 16rem;
+  padding: var(--kiln-space-2) var(--kiln-space-3);
+  font: inherit;
+  font-size: var(--kiln-text-md);
+  line-height: var(--kiln-leading-normal);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-md);
+  transition: border-color var(--kiln-duration-fast) var(--kiln-ease-standard);
+  field-sizing: content;
+  resize: vertical;
+}
+
+.text-area__input::placeholder {
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.text-area__input:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+.text-area__input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.text-area--invalid .text-area__input {
+  border-color: var(--kiln-color-danger);
+  border-width: var(--kiln-border-focus);
+}
+
+.text-area__footer {
+  display: flex;
+  gap: var(--kiln-space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.text-area__error {
+  display: flex;
+  gap: var(--kiln-space-1);
+  align-items: center;
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-danger);
+}
+
+.text-area__count {
+  font-size: var(--kiln-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--kiln-color-on-surface-muted);
+  margin-inline-start: auto;
+}
+
+@media (hover: hover) {
+  .text-area__input:not(:disabled, :focus-visible):hover {
+    border-color: var(--kiln-color-on-surface-muted);
+  }
+}
+
+@media (forced-colors: active) {
+  .text-area--invalid .text-area__input {
+    border: var(--kiln-border-focus) solid CanvasText;
+  }
+}

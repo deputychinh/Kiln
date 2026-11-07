@@ -38,3 +38,20 @@
   font-size: var(--kiln-text-sm);
   color: var(--kiln-color-on-surface-muted);
 }
+
+/* With an overlay, a frame takes the image's box and the image fills it (KILN-10). */
+.asset-thumb__frame {
+  position: relative;
+  inline-size: min(100cqi, 100cqb * var(--thumb-ratio));
+  aspect-ratio: var(--thumb-ratio);
+}
+
+.asset-thumb__image--framed {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.asset-thumb__overlay {
+  position: absolute;
+  inset: 0;
+}

@@ -11,6 +11,7 @@ export { SegmentedControl } from '#ui/components/SegmentedControl/SegmentedContr
 export { Skeleton } from '#ui/components/Skeleton/Skeleton';
 export { StatusDot } from '#ui/components/StatusDot/StatusDot';
 export { Tabs } from '#ui/components/Tabs/Tabs';
+export { TextArea } from '#ui/components/TextArea/TextArea';
 export { TextField } from '#ui/components/TextField/TextField';
 export { Toolbar } from '#ui/components/Toolbar/Toolbar';
 export { Tooltip } from '#ui/components/Tooltip/Tooltip';

@@ -73,3 +73,48 @@ describe('AssetThumb', () => {
     expect(well.style.getPropertyValue('--thumb-ratio')).toBe('2');
   });
 });
+
+describe('AssetThumb overlay', () => {
+  const loadAs = (image: HTMLElement, width: number, height: number): void => {
+    Object.defineProperty(image, 'naturalWidth', { value: width });
+    Object.defineProperty(image, 'naturalHeight', { value: height });
+    fireEvent.load(image);
+  };
+
+  it('draws the overlay over the image only once it has loaded, in a frame of its ratio', () => {
+    const { container } = render(
+      <AssetThumb src="/a.png" alt="A" placeholder="Image" overlay={<button>Region 1</button>} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Region 1' })).not.toBeInTheDocument();
+
+    loadAs(screen.getByRole('img', { name: 'A' }), 800, 400);
+
+    const frame = container.querySelector('.asset-thumb__frame');
+    expect(frame).toContainElement(screen.getByRole('img', { name: 'A' }));
+    expect(frame).toContainElement(screen.getByRole('button', { name: 'Region 1' }));
+    expect(
+      container.querySelector<HTMLElement>('.asset-thumb')?.style.getPropertyValue('--thumb-ratio'),
+    ).toBe('2');
+  });
+
+  it('hides the overlay again while a new image loads, and never shows it on a placeholder', () => {
+    const { rerender } = render(
+      <AssetThumb src="/a.png" alt="A" placeholder="Image" overlay={<span>Pins</span>} />,
+    );
+    loadAs(screen.getByRole('img'), 10, 10);
+    expect(screen.getByText('Pins')).toBeInTheDocument();
+
+    rerender(<AssetThumb src="/b.png" alt="B" placeholder="Image" overlay={<span>Pins</span>} />);
+    expect(screen.queryByText('Pins')).not.toBeInTheDocument();
+
+    rerender(<AssetThumb src={null} alt="" placeholder="Image" overlay={<span>Pins</span>} />);
+    expect(screen.queryByText('Pins')).not.toBeInTheDocument();
+    expect(screen.getByText('Image')).toBeInTheDocument();
+  });
+
+  it('keeps the plain markup without an overlay', () => {
+    const { container } = render(<AssetThumb src="/a.png" alt="A" placeholder="Image" />);
+
+    expect(container.querySelector('.asset-thumb__frame')).toBeNull();
+  });
+});

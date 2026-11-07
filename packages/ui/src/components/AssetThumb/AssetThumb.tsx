@@ -15,6 +15,11 @@ interface AssetThumbProps {
   isEager?: boolean;
   /** Called once per failing URL, e.g. to fetch fresh signed URLs. */
   onError?: (src: string) => void;
+  /**
+   * Drawn exactly over the image's own box (never the letterbox around it), once the image has
+   * loaded, so coordinates normalised to the image (0 to 1) map straight to percentages.
+   */
+  overlay?: ReactNode;
 }
 
 /**
@@ -28,35 +33,47 @@ export const AssetThumb = ({
   placeholder,
   isEager = false,
   onError,
+  overlay,
 }: AssetThumbProps): ReactElement => {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const showImage = src !== null && src !== failedSrc;
   // The drawn image's width / height, known once it loads (square until then).
   const [ratio, setRatio] = useState(1);
   const style = { '--thumb-ratio': String(ratio) } as CSSProperties;
+  const image = showImage ? (
+    <img
+      className={`asset-thumb__image${overlay === undefined ? '' : ' asset-thumb__image--framed'}`}
+      src={src}
+      alt={alt}
+      width={THUMB_SIZE_PX}
+      height={THUMB_SIZE_PX}
+      loading={isEager ? 'eager' : 'lazy'}
+      decoding="async"
+      onLoad={(event) => {
+        const { naturalWidth, naturalHeight } = event.currentTarget;
+        if (naturalWidth > 0 && naturalHeight > 0) setRatio(naturalWidth / naturalHeight);
+        setLoadedSrc(src);
+      }}
+      onError={() => {
+        setFailedSrc(src);
+        onError?.(src);
+      }}
+    />
+  ) : null;
+  let content: ReactNode = image ?? <span className="asset-thumb__placeholder">{placeholder}</span>;
+  if (image && overlay !== undefined) {
+    // The frame takes the image's size, so the overlay covers its pixels and nothing else.
+    content = (
+      <div className="asset-thumb__frame">
+        {image}
+        {loadedSrc === src ? <div className="asset-thumb__overlay">{overlay}</div> : null}
+      </div>
+    );
+  }
   return (
     <div className="asset-thumb" style={style}>
-      {showImage ? (
-        <img
-          className="asset-thumb__image"
-          src={src}
-          alt={alt}
-          width={THUMB_SIZE_PX}
-          height={THUMB_SIZE_PX}
-          loading={isEager ? 'eager' : 'lazy'}
-          decoding="async"
-          onLoad={(event) => {
-            const { naturalWidth, naturalHeight } = event.currentTarget;
-            if (naturalWidth > 0 && naturalHeight > 0) setRatio(naturalWidth / naturalHeight);
-          }}
-          onError={() => {
-            setFailedSrc(src);
-            onError?.(src);
-          }}
-        />
-      ) : (
-        <span className="asset-thumb__placeholder">{placeholder}</span>
-      )}
+      {content}
     </div>
   );
 };
