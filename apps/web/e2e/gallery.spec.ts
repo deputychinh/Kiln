@@ -153,6 +153,9 @@ test('a preview seen once comes from the browser cache when the gallery opens ag
   // takes seconds; the generous margin also covers a slow seed), and check it afterwards.
   const windowOf = (time: number): number => Math.floor(time / WINDOW_MS);
   const untilNextWindow = WINDOW_MS - (Date.now() % WINDOW_MS);
+  // Waiting out a window boundary takes up to 61 s, longer than the default 30 s test timeout:
+  // the test failed whenever a run started in the last minute of a window.
+  test.setTimeout(120_000);
   if (untilNextWindow < 60_000) await page.waitForTimeout(untilNextWindow + 1_000);
   const startWindow = windowOf(Date.now());
 
