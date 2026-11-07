@@ -100,3 +100,17 @@
     display: none;
   }
 }
+
+.asset-detail__compare {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-block-size: var(--kiln-target-primary);
+  text-underline-offset: 3px;
+  color: var(--kiln-color-primary);
+}
+
+.asset-detail__compare:focus-visible {
+  outline: 2px solid var(--kiln-color-focus);
+  outline-offset: 2px;
+}

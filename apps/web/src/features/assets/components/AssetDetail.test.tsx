@@ -125,6 +125,28 @@ describe('AssetDetail', () => {
     expect(countRequests(fetchMock, `${DETAIL}/versions`)).toBe(0);
   });
 
+  it('offers Compare versions only when there are two versions or more', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+    renderApp(`/assets/${asset.id}`);
+
+    const link = await screen.findByRole('link', { name: 'Compare versions' });
+    expect(link).toHaveAttribute('href', `/assets/${asset.id}/compare`);
+  });
+
+  it('offers no comparison for an asset with one version', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(aDetail())],
+    });
+    renderApp(`/assets/${asset.id}`);
+
+    await screen.findByRole('article', { name: 'rock_albedo' });
+    expect(screen.queryByRole('link', { name: 'Compare versions' })).not.toBeInTheDocument();
+  });
+
   it('makes the asset name the page heading when the detail replaces the list (compact)', async () => {
     fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],

@@ -37,6 +37,28 @@ export interface Copy {
     notFoundTitle: string;
     notFoundBody: string;
   };
+  compare: {
+    link: string;
+    title: (assetName: string) => string;
+    back: string;
+    leftLabel: string;
+    rightLabel: string;
+    option: (number: number, status: string) => string;
+    pane: (number: number) => string;
+    previewAlt: (number: number) => string;
+    modeLabel: string;
+    side: string;
+    swipe: string;
+    swipeStage: (right: number, left: number) => string;
+    swipeLabel: (right: number, left: number) => string;
+    swipeUnavailable: string;
+    larger: (right: number, size: string, left: number) => string;
+    smaller: (right: number, size: string, left: number) => string;
+    sameSize: (right: number, left: number) => string;
+    fewerTitle: string;
+    fewerBody: string;
+    loading: string;
+  };
   uploads: {
     panelLabel: string;
     dropLabel: string;

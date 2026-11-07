@@ -104,6 +104,15 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
         }}
       />
       <Subheading className="asset-detail__subtitle">{copy.assets.versionsTitle}</Subheading>
+      {asset.versions.length >= 2 ? (
+        <Link
+          to="/assets/$assetId/compare"
+          params={{ assetId: asset.id }}
+          className="asset-detail__compare"
+        >
+          {copy.compare.link}
+        </Link>
+      ) : null}
       <ol className="asset-detail__versions">
         {[...asset.versions].reverse().map((version) => (
           <li key={version.id} className="asset-detail__version">
