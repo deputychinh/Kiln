@@ -113,7 +113,13 @@ export const createViewerController = ({
       settle();
     },
     reset: () => {
+      // `reset()` keeps the inertia left by a drag, which would turn the view away again: one
+      // undamped update spends it first (it clears what is left), then the framed view returns.
+      const { enableDamping } = controls;
+      controls.enableDamping = false;
+      controls.update();
       controls.reset();
+      controls.enableDamping = enableDamping;
       invalidate();
     },
   };

@@ -119,6 +119,21 @@ test('a model version opens in 3D, draws, and turns, zooms and resets with the k
     .poll(async () => (await pixels(page, await canvasShot(stage), framed)).changed)
     .toBeLessThan(CHANGED);
 
+  // A pointer drag orbits it (OrbitControls); Reset view brings back the framed view.
+  const box = await stage.locator('canvas').boundingBox();
+  if (!box) throw new Error('the canvas has no box');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await pixels(page, await canvasShot(stage), framed)).changed)
+    .toBeGreaterThan(CHANGED);
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect
+    .poll(async () => (await pixels(page, await canvasShot(stage), framed)).changed)
+    .toBeLessThan(CHANGED);
+
   // The buttons are reachable and work from the keyboard too.
   await page.getByRole('button', { name: 'Zoom out' }).focus();
   await page.keyboard.press('Enter');
