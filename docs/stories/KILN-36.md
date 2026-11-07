@@ -1,6 +1,6 @@
 # KILN-36: Model debt from the KILN-9 review (worker part)
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done (worker part; the web copy moved to KILN-37) · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -80,7 +80,14 @@ Exploratory: `make recheck-models` on the dev database (real SeaweedFS, real san
 | Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1     | 8.5   | (1) node `mesh`/`skin`/`camera` and skin `joints`/`skeleton` were checked only on nodes the default scene reaches, while three.js resolves them all → `_check_references` over every node and skin, with fixtures on nodes in a second scene and in no scene (AC9). (2) Two runs failing two versions of one asset could leave a failed cover (the second drop saw the first one's uncommitted cover and changed nothing) → `drop_cover` locks the asset row first, a deterministic two-transaction test, and an older-cover test that kills the mutant without the `cover_version_id = version.id` guard. (3) ADR 0011, CHANGELOG, README and this story say workers must run the new reader before the re-check. |
+| 2     | 9.0   | Same reviewer: 7 mutants killed (no lock, no cover guard, references, skins, empty joints, skeleton, camera); lock order version → asset is deadlock-free. Remaining, filed as KILN-37: animation-channel targets, `primitive.material` and texture/image/sampler indices are resolved by three.js but not checked (fails safe in the viewer), and the deferred web copy.                                                                                                                                                                                                                                                                                                                                          |
 
 ## Review score
 
 Pending the independent review.
+
+## Score
+
+Round 2 (the round-1 reviewer, resumed): requirements 1, tests 1, reliability 1, security 0.5,
+maintainability 1, UX 0.5 (copy deferred), accessibility 1, performance 1, docs 1, delivery 1 —
+**9.0/10**.

@@ -261,8 +261,9 @@ class _Reader:
         The web viewer builds every scene and node the file names, not only the default scene
         drawn here, so the rule holds everywhere: a node has at most one parent, no chain of
         parents loops or runs deeper than `MODEL_MAX_NODE_DEPTH`, and a scene lists only
-        parentless nodes, each once. Every reference to or from a node (mesh, skin, camera,
-        skin joints and skeleton) is in range too. Linear in the number of nodes and children.
+        parentless nodes, each once. The node references checked here (mesh, skin, camera,
+        skin joints and skeleton) are in range too; animation, material and texture references
+        are not yet (KILN-37). Linear in the number of nodes and children.
         """
         parents: list[int | None] = [None] * len(self._nodes)
         for index, node in enumerate(self._nodes):
