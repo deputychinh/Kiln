@@ -14,6 +14,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 ### Changed
 
 - Visual redesign, design system (KILN-35): dark-first tokens in three tiers (neutral zinc primitives, one ember accent, semantic success/warning/danger/info; light theme follows `prefers-color-scheme` or the chosen theme; every text pair ≥ 4.5:1 and control pair ≥ 3:1 in both), Inter variable font self-hosted (`@fontsource-variable/inter` 5.3.0), radius, elevation, motion and shell-size tokens, and lucide icons (`lucide-react` 1.61.0). New `IconButton`, `Tooltip` (hover and focus, Escape dismisses), `StatusDot`, `Toolbar`, `SegmentedControl` (native radios), `Tabs` (WAI-ARIA, arrow keys), `FilePickerButton` and `DropOverlay` (whole-window drop targets); `Button` takes an icon and lends its look to links, `Badge` is a soft tint with an optional icon, previews are 4:3 over a checkerboard, `Skeleton` has a card shape, `EmptyState` an icon and heading level.
+- Visual redesign, app shell (KILN-35): a top bar with the Kiln mark and wordmark, a search field (labelled, says search arrives later), page actions and a theme switch (dark ↔ light, remembered; the system theme applies until the person chooses); navigation is a bottom bar on compact screens, a rail from 600 px and a sidebar from 1200 px, with Assets marked current. The skip link stays first. New favicon.
 
 ### Fixed
 

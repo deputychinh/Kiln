@@ -9,9 +9,13 @@
   container-type: inline-size;
 }
 
+.list-detail__detail {
+  min-inline-size: 0;
+}
+
 .list-detail__detail:focus-visible {
-  outline: 2px solid var(--kiln-color-focus);
-  outline-offset: 2px;
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
 }
 
 .list-detail--detail .list-detail__list,
@@ -19,16 +23,21 @@
   display: none;
 }
 
+/* Expanded: the inspector sits beside the grid, sticky under the top bar, scrolling on its own. */
 @media (min-width: 840px) {
   .list-detail {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, var(--kiln-shell-inspector));
   }
 
   .list-detail__detail {
     position: sticky;
-    top: calc(var(--kiln-space-8) + var(--kiln-space-5));
+    top: calc(var(--kiln-shell-bar) + var(--kiln-space-5));
     overflow-y: auto;
-    max-block-size: calc(100dvh - var(--kiln-space-8) - 2 * var(--kiln-space-5));
+    max-block-size: calc(100dvh - var(--kiln-shell-bar) - 2 * var(--kiln-space-5));
+    background-color: var(--kiln-color-surface-raised);
+    border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+    border-radius: var(--kiln-radius-xl);
+    scrollbar-gutter: stable;
   }
 
   .list-detail--detail .list-detail__list,

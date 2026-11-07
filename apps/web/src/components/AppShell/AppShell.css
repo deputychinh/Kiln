@@ -1,6 +1,8 @@
+/* Compact first: top bar, content, bottom navigation bar. */
 .app-shell {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--kiln-shell-bar) minmax(0, 1fr);
   min-block-size: 100dvh;
 }
 
@@ -9,35 +11,254 @@
   inset: var(--kiln-space-2) auto auto var(--kiln-space-2);
   z-index: var(--kiln-z-toast);
   padding: var(--kiln-space-2) var(--kiln-space-3);
+  font-weight: var(--kiln-weight-semibold);
   color: var(--kiln-color-on-primary);
   background-color: var(--kiln-color-primary);
-  border-radius: var(--kiln-radius-sm);
+  border-radius: var(--kiln-radius-md);
   transform: translateY(-200%);
 }
 
 .app-shell__skip:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
   transform: none;
 }
 
-.app-shell__header {
+.app-shell__bar {
   position: sticky;
   top: 0;
   z-index: var(--kiln-z-header);
   display: flex;
+  grid-column: 1 / -1;
+  gap: var(--kiln-space-3);
   align-items: center;
-  min-block-size: var(--kiln-space-8);
-  padding: 0 var(--kiln-space-4);
-  background-color: var(--kiln-color-surface-raised);
-  border-block-end: 1px solid var(--kiln-color-outline);
+  padding: 0 var(--kiln-space-3) 0 var(--kiln-space-4);
+  background-color: var(--kiln-color-surface);
+  border-block-end: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
 }
 
 .app-shell__brand {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  min-block-size: var(--kiln-target-primary);
   font-size: var(--kiln-text-lg);
   font-weight: var(--kiln-weight-bold);
-  letter-spacing: 0.02em;
+  letter-spacing: var(--kiln-tracking-title);
+  text-decoration: none;
+  color: var(--kiln-color-on-surface);
+  border-radius: var(--kiln-radius-md);
+  padding-inline-end: var(--kiln-space-2);
+}
+
+.app-shell__brand:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
+}
+
+/* Search needs room: from the medium size class. */
+.app-shell__search {
+  position: relative;
+  display: none;
+  flex: 1;
+  align-items: center;
+  max-inline-size: 28rem;
+  margin-inline: auto;
+}
+
+.app-shell__search-icon {
+  position: absolute;
+  color: var(--kiln-color-on-surface-muted);
+  inset-inline-start: var(--kiln-space-3);
+  pointer-events: none;
+}
+
+.app-shell__search-input {
+  inline-size: 100%;
+  min-block-size: var(--kiln-target-control);
+  padding: 0 var(--kiln-space-3) 0 var(--kiln-space-8);
+  font-family: var(--kiln-font-sans);
+  font-size: var(--kiln-text-ui);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-md);
+}
+
+.app-shell__search-input::placeholder {
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.app-shell__search-input:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+.app-shell__actions {
+  display: flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+/* Compact: a bottom navigation bar. */
+.app-shell__nav {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: var(--kiln-z-nav);
+  block-size: var(--kiln-shell-bottom-nav);
+  background-color: var(--kiln-color-surface-raised);
+  border-block-start: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+}
+
+.app-shell__nav-list {
+  display: flex;
+  justify-content: center;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell__nav-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-1);
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--kiln-shell-rail);
+  block-size: 100%;
+  font-size: var(--kiln-text-xs);
+  font-weight: var(--kiln-weight-medium);
+  text-decoration: none;
+  color: var(--kiln-color-on-surface-muted);
+  border-radius: var(--kiln-radius-lg);
+}
+
+.app-shell__nav-item:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: calc(-1 * var(--kiln-border-focus));
+}
+
+/* The active indicator: a pill behind the icon (Material 3). */
+.app-shell__nav-icon {
+  display: grid;
+  place-items: center;
+  inline-size: var(--kiln-space-9);
+  block-size: var(--kiln-space-6);
+  border-radius: var(--kiln-radius-full);
+  transition: background-color var(--kiln-duration-fast) var(--kiln-ease-standard);
+}
+
+.app-shell__nav-item[aria-current='page'] {
+  font-weight: var(--kiln-weight-semibold);
+  color: var(--kiln-color-on-surface);
+}
+
+.app-shell__nav-item[aria-current='page'] .app-shell__nav-icon {
+  color: var(--kiln-color-on-selected);
+  background-color: var(--kiln-color-surface-selected);
 }
 
 .app-shell__main {
-  flex: 1;
-  padding: var(--kiln-space-5) var(--kiln-space-4);
+  min-inline-size: 0;
+  padding: var(--kiln-space-4) var(--kiln-space-4)
+    calc(var(--kiln-shell-bottom-nav) + var(--kiln-space-5));
+}
+
+.app-shell__main:focus {
+  outline: none;
+}
+
+@media (hover: hover) {
+  .app-shell__nav-item:not([aria-current='page']):hover {
+    color: var(--kiln-color-on-surface);
+  }
+
+  .app-shell__nav-item:not([aria-current='page']):hover .app-shell__nav-icon {
+    background-color: var(--kiln-color-surface-hover);
+  }
+}
+
+/* Medium and expanded: a navigation rail beside the content, search in the bar. */
+@media (min-width: 600px) {
+  .app-shell {
+    grid-template-columns: var(--kiln-shell-rail) minmax(0, 1fr);
+  }
+
+  .app-shell__search {
+    display: flex;
+  }
+
+  .app-shell__nav {
+    position: sticky;
+    top: var(--kiln-shell-bar);
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+    block-size: calc(100dvh - var(--kiln-shell-bar));
+    padding-block: var(--kiln-space-3);
+    background-color: var(--kiln-color-surface);
+    border-block-start: 0;
+    border-inline-end: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+    inset-inline: auto;
+  }
+
+  .app-shell__nav-list {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    block-size: auto;
+  }
+
+  .app-shell__nav-item {
+    block-size: auto;
+    padding-block: var(--kiln-space-1);
+  }
+
+  .app-shell__main {
+    grid-column: 2;
+    grid-row: 2;
+    padding: var(--kiln-space-5) var(--kiln-space-5) var(--kiln-space-6);
+  }
+}
+
+/* Large: an expanded sidebar with labels beside the icons. */
+@media (min-width: 1200px) {
+  .app-shell {
+    grid-template-columns: var(--kiln-shell-sidebar) minmax(0, 1fr);
+  }
+
+  .app-shell__nav {
+    padding: var(--kiln-space-3);
+  }
+
+  .app-shell__nav-list {
+    align-items: stretch;
+  }
+
+  .app-shell__nav-item {
+    flex-direction: row;
+    gap: var(--kiln-space-2);
+    justify-content: flex-start;
+    min-block-size: var(--kiln-target-control);
+    padding: 0 var(--kiln-space-1);
+    font-size: var(--kiln-text-ui);
+    border-radius: var(--kiln-radius-md);
+  }
+
+  .app-shell__nav-icon {
+    inline-size: var(--kiln-space-6);
+    block-size: var(--kiln-space-6);
+    border-radius: var(--kiln-radius-sm);
+  }
+
+  .app-shell__nav-item[aria-current='page'] {
+    background-color: var(--kiln-color-surface-selected);
+  }
+
+  .app-shell__nav-item[aria-current='page'] .app-shell__nav-icon {
+    background-color: transparent;
+  }
 }

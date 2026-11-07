@@ -6,6 +6,13 @@ export const vi: Copy = {
   app: {
     name: 'Kiln',
     skipToContent: 'Bỏ qua tới nội dung',
+    navLabel: 'Điều hướng chính',
+    navAssets: 'Asset',
+    searchLabel: 'Tìm asset',
+    searchPlaceholder: 'Tìm asset',
+    searchNote: 'Tính năng tìm kiếm sẽ có ở bản sau. Hiện tại hãy lọc thư viện asset theo loại.',
+    themeToLight: 'Chuyển sang giao diện sáng',
+    themeToDark: 'Chuyển sang giao diện tối',
   },
   errors: {
     unreachable: 'Kiln không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.',

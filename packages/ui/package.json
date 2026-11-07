@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Kiln design system: tokens and React components.",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens/tokens.css"

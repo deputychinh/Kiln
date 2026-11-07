@@ -5,8 +5,10 @@
 }
 
 html {
-  /* The sticky header (48 px) must never cover the focused element (WCAG 2.4.11). */
-  scroll-padding-block-start: calc(var(--kiln-space-8) + var(--kiln-space-2));
+  /* The sticky top bar (and, on compact screens, the bottom bar and the upload tray) must never
+     cover the focused element (WCAG 2.4.11). */
+  scroll-padding-block: calc(var(--kiln-shell-bar) + var(--kiln-space-2))
+    calc(var(--kiln-shell-bottom-nav) + var(--kiln-space-2));
 }
 
 body {
@@ -16,12 +18,16 @@ body {
   line-height: var(--kiln-leading-normal);
   color: var(--kiln-color-on-surface);
   background-color: var(--kiln-color-surface);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1 {
   margin: 0 0 var(--kiln-space-2);
   font-size: var(--kiln-text-2xl);
   line-height: var(--kiln-leading-tight);
+  letter-spacing: var(--kiln-tracking-title);
 }
 
 p {

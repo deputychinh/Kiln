@@ -6,7 +6,17 @@ import type { AssetKind, FailureReason, VersionStatus } from '@/interfaces/asset
 export interface Copy {
   /** BCP 47 tag for `Intl` formatting. */
   locale: string;
-  app: { name: string; skipToContent: string };
+  app: {
+    name: string;
+    skipToContent: string;
+    navLabel: string;
+    navAssets: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    searchNote: string;
+    themeToLight: string;
+    themeToDark: string;
+  };
   errors: { unreachable: string; unexpected: string };
   assets: {
     title: string;

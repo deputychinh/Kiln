@@ -1,0 +1,18 @@
+.logo-mark {
+  display: block;
+  flex-shrink: 0;
+  inline-size: var(--kiln-icon-lg);
+  block-size: var(--kiln-icon-lg);
+}
+
+.logo-mark__tile {
+  fill: var(--kiln-color-surface-hover);
+}
+
+.logo-mark__kiln {
+  fill: var(--kiln-color-on-surface);
+}
+
+.logo-mark__flame {
+  fill: var(--kiln-color-primary);
+}

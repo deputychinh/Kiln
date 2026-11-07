@@ -1,5 +1,6 @@
 let isExpanded = false;
 let isReducedMotion = false;
+let prefersLight = false;
 
 const install = (): void => {
   Object.defineProperty(window, 'matchMedia', {
@@ -8,7 +9,8 @@ const install = (): void => {
       ({
         matches:
           (query.includes('min-width: 840px') && isExpanded) ||
-          (query.includes('prefers-reduced-motion: reduce') && isReducedMotion),
+          (query.includes('prefers-reduced-motion: reduce') && isReducedMotion) ||
+          (query.includes('prefers-color-scheme: light') && prefersLight),
         media: query,
         onchange: null,
         addEventListener: () => undefined,
@@ -24,11 +26,18 @@ const install = (): void => {
 export const setViewportExpanded = (expanded: boolean): void => {
   isExpanded = expanded;
   isReducedMotion = false;
+  prefersLight = false;
   install();
 };
 
 /** Makes `(prefers-reduced-motion: reduce)` match, as if the person asked for less motion. */
 export const setReducedMotion = (reduced: boolean): void => {
   isReducedMotion = reduced;
+  install();
+};
+
+/** Makes `(prefers-color-scheme: light)` match, as if the system used a light theme. */
+export const setPrefersLight = (light: boolean): void => {
+  prefersLight = light;
   install();
 };

@@ -6,6 +6,13 @@ export const en: Copy = {
   app: {
     name: 'Kiln',
     skipToContent: 'Skip to content',
+    navLabel: 'Main',
+    navAssets: 'Assets',
+    searchLabel: 'Search assets',
+    searchPlaceholder: 'Search assets',
+    searchNote: 'Search arrives in a later release. For now, filter the gallery by kind.',
+    themeToLight: 'Switch to light theme',
+    themeToDark: 'Switch to dark theme',
   },
   errors: {
     unreachable: 'Kiln cannot reach its server. Check your connection, then try again.',
