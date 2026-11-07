@@ -72,6 +72,10 @@ export const vi: Copy = {
     created: 'Tạo lúc',
     updated: 'Cập nhật',
     versionsTitle: 'Phiên bản',
+    sectionsLabel: 'Các mục của asset',
+    infoTab: 'Thông tin',
+    versionCount: 'Số phiên bản',
+    latestFile: 'File mới nhất',
     versionLabel: (number) => `Phiên bản ${String(number)}`,
     stale: 'Không làm mới được, nên thông tin có thể đã cũ.',
     fileSummary: (name, size) => `${name} · ${size}`,
@@ -82,6 +86,7 @@ export const vi: Copy = {
   },
   compare: {
     link: 'So sánh phiên bản',
+    linkShort: 'So sánh',
     title: (assetName) => `So sánh các phiên bản của ${assetName}`,
     back: 'Quay lại asset',
     leftLabel: 'Phiên bản bên trái',
@@ -157,7 +162,6 @@ export const vi: Copy = {
       'Chưa có phiên bản nào của mô hình này sẵn sàng. Phiên bản sẽ mở được ở đây khi xử lý xong.',
   },
   uploads: {
-    panelLabel: 'Tải file lên',
     upload: 'Tải lên',
     uploadFiles: 'Tải file lên',
     trayCollapse: 'Thu gọn danh sách tải lên',
@@ -165,9 +169,7 @@ export const vi: Copy = {
     overlayTitle: 'Thả file để tải lên',
     overlayAssets: 'Asset mới',
     overlayVersion: (assetName) => `Phiên bản mới của ${assetName}`,
-    dropLabel: 'Thả ảnh hoặc file .glb vào đây',
     dropHint: 'PNG, JPEG, WebP hoặc glTF binary (.glb), tối đa 500 MB mỗi file.',
-    choose: 'Chọn file',
     listLabel: 'Đang tải lên',
     summary: (finished, total, failed) =>
       `Đã tải lên ${String(finished)}/${String(total)}${failed > 0 ? `, ${String(failed)} lỗi` : ''}`,
@@ -210,13 +212,12 @@ export const vi: Copy = {
       other: 'Kiln không nhận được file này.',
     },
     version: {
-      title: 'Thêm phiên bản',
-      dropLabel: (assetName) => `Thả phiên bản mới của ${assetName} vào đây`,
+      upload: 'Tải lên phiên bản mới',
+      uploadLabel: (assetName) => `Tải lên phiên bản mới của ${assetName}`,
       hint: {
         image: 'PNG, JPEG hoặc WebP, tối đa 500 MB. Mỗi file thành phiên bản tiếp theo.',
         model: 'glTF binary (.glb), tối đa 500 MB. Mỗi file thành phiên bản tiếp theo.',
       },
-      choose: 'Chọn file',
       listLabel: (assetName) => `Phiên bản mới của ${assetName}`,
     },
   },

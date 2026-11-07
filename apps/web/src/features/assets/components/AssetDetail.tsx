@@ -1,20 +1,32 @@
-import { AssetThumb, Badge, ErrorState, Skeleton, SkeletonShape } from '@kiln/ui';
+import {
+  AssetThumb,
+  Badge,
+  buttonClassName,
+  ButtonVariant,
+  ErrorState,
+  FilePickerButton,
+  ICON_SIZE,
+  Skeleton,
+  SkeletonShape,
+  Tabs,
+} from '@kiln/ui';
 import { Link } from '@tanstack/react-router';
-import { type ReactElement, useEffect, useRef } from 'react';
+import { ArrowLeft, Box, Columns2, Image, Rotate3d, Upload } from 'lucide-react';
+import { type ReactElement, useCallback, useEffect, useRef } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
 import { VERSION_STATUS_TONE } from '@/constants/assets.constant';
 import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
 import { VERSION_ACCEPT } from '@/constants/upload.constant';
 import { useAsset } from '@/features/assets/hooks/useAsset';
-import { UploadPanel } from '@/features/uploads/components/UploadPanel';
+import { UploadList } from '@/features/uploads/components/UploadList';
 import { useUploadQueue } from '@/features/uploads/context/UploadsContext';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
 import { describeError, isNotFound } from '@/utils/error.util';
 import { formatBytes, formatDateTime } from '@/utils/format.util';
-import { isViewable } from '@/utils/viewer.util';
+import { isViewable, pickViewable } from '@/utils/viewer.util';
 
 import './AssetDetail.css';
 
@@ -28,10 +40,60 @@ const BackLink = ({ isCompactOnly = false }: { isCompactOnly?: boolean }): React
   return (
     <Link
       to="/assets"
+      search={true}
       className={`asset-detail__back${isCompactOnly ? ' asset-detail__back--compact' : ''}`}
     >
+      <ArrowLeft size={ICON_SIZE.sm} aria-hidden="true" />
       {copy.assets.back}
     </Link>
+  );
+};
+
+/** The versions, newest first, as a timeline: a status dot on the line, the facts beside it. */
+const VersionTimeline = ({ asset }: { asset: AssetDetailData }): ReactElement => {
+  const copy = useCopy();
+  return (
+    <ol className="asset-detail__versions">
+      {[...asset.versions].reverse().map((version) => {
+        const tone = VERSION_STATUS_TONE[version.status];
+        return (
+          <li key={version.id} className={`asset-detail__version asset-detail__version--${tone}`}>
+            <span className="asset-detail__version-head">
+              <span className="asset-detail__version-number">
+                {copy.assets.versionLabel(version.number)}
+              </span>
+              <span className="asset-detail__status">{copy.assets.status[version.status]}</span>
+              {isViewable(asset.kind, version) ? (
+                <Link
+                  to="/assets/$assetId/view"
+                  params={{ assetId: asset.id }}
+                  search={{ version: version.number }}
+                  className="asset-detail__view"
+                  aria-label={copy.viewer.linkLabel(version.number)}
+                >
+                  <Rotate3d size={ICON_SIZE.sm} aria-hidden="true" />
+                  {copy.viewer.link}
+                </Link>
+              ) : null}
+            </span>
+            <span className="asset-detail__file">
+              {copy.assets.fileSummary(
+                version.file_name,
+                formatBytes(version.size_bytes, copy.locale),
+              )}
+            </span>
+            <span className="asset-detail__when">
+              <RelativeTime iso={version.created_at} />
+            </span>
+            {version.failure_reason ? (
+              <span className="asset-detail__failure">
+                {copy.assets.failure[version.failure_reason]}
+              </span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
   );
 };
 
@@ -47,6 +109,8 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
   const uploads = useUploadQueue();
   const isExpanded = useMediaQuery(EXPANDED_MEDIA_QUERY);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const uploadRef = useRef<HTMLButtonElement>(null);
+  const focusUpload = useCallback(() => uploadRef.current, []);
 
   // Below the expanded size class the detail replaces the list, so the focused card is gone:
   // move focus to the heading so keyboard and screen-reader users land on the new content.
@@ -55,106 +119,140 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
   }, [isExpanded]);
 
   const kind = copy.assets.kind[asset.kind];
+  const KindIcon = asset.kind === 'model' ? Box : Image;
+  const target = { assetId: asset.id, kind: asset.kind };
+  const newestViewable = pickViewable(asset, undefined)?.version;
+  const latest = asset.versions.at(-1);
   const Heading = isExpanded ? 'h2' : 'h1';
-  const Subheading = isExpanded ? 'h3' : 'h2';
   return (
     <article className="asset-detail" aria-labelledby="asset-detail-title">
       <BackLink isCompactOnly />
-      <AssetThumb
-        src={asset.thumbnail_url ?? null}
-        alt={copy.assets.previewAlt(asset.name)}
-        placeholder={kind}
-        onError={onThumbError}
-        isEager
-      />
-      {/* The page's main heading when the detail replaces the list; below the list's h1 otherwise. */}
-      <Heading
-        id="asset-detail-title"
-        className="asset-detail__title"
-        ref={headingRef}
-        tabIndex={-1}
-      >
-        {asset.name}
-      </Heading>
+      <header className="asset-detail__header">
+        {/* The page's main heading when the detail replaces the list; below the list's h1 otherwise. */}
+        <Heading
+          id="asset-detail-title"
+          className="asset-detail__title"
+          ref={headingRef}
+          tabIndex={-1}
+        >
+          {asset.name}
+        </Heading>
+        <span className="asset-detail__kind">
+          <Badge icon={<KindIcon size={ICON_SIZE.sm} />}>{kind}</Badge>
+          <RelativeTime iso={asset.updated_at} />
+        </span>
+      </header>
+      <div className="asset-detail__actions">
+        {newestViewable ? (
+          <Link
+            to="/assets/$assetId/view"
+            params={{ assetId: asset.id }}
+            search={{ version: newestViewable.number }}
+            className={buttonClassName({ variant: ButtonVariant.Secondary })}
+            aria-label={copy.viewer.linkLabel(newestViewable.number)}
+          >
+            <Rotate3d size={ICON_SIZE.sm} aria-hidden="true" />
+            {copy.viewer.link}
+          </Link>
+        ) : null}
+        {asset.versions.length >= 2 ? (
+          <Link
+            to="/assets/$assetId/compare"
+            params={{ assetId: asset.id }}
+            className={buttonClassName({ variant: ButtonVariant.Secondary })}
+            aria-label={copy.compare.link}
+          >
+            <Columns2 size={ICON_SIZE.sm} aria-hidden="true" />
+            {copy.compare.linkShort}
+          </Link>
+        ) : null}
+        <FilePickerButton
+          ref={uploadRef}
+          variant={ButtonVariant.Secondary}
+          icon={<Upload size={ICON_SIZE.sm} />}
+          accessibleName={copy.uploads.version.uploadLabel(asset.name)}
+          accept={VERSION_ACCEPT[asset.kind]}
+          onFiles={(files) => uploads.add(files, target)}
+        >
+          {copy.uploads.version.upload}
+        </FilePickerButton>
+      </div>
+      <div className="asset-detail__preview">
+        <AssetThumb
+          src={asset.thumbnail_url ?? null}
+          alt={copy.assets.previewAlt(asset.name)}
+          placeholder={
+            <>
+              <KindIcon size={ICON_SIZE.lg} aria-hidden="true" />
+              {kind}
+            </>
+          }
+          onError={onThumbError}
+          isEager
+        />
+      </div>
       {isStale ? (
         <p className="asset-detail__stale" role="status">
           {copy.assets.stale}
         </p>
       ) : null}
-      <dl className="asset-detail__facts">
-        <dt>{copy.assets.kindLabel}</dt>
-        <dd>{kind}</dd>
-        <dt>{copy.assets.created}</dt>
-        <dd>{formatDateTime(asset.created_at, copy.locale)}</dd>
-        <dt>{copy.assets.updated}</dt>
-        <dd>
-          <RelativeTime iso={asset.updated_at} />
-        </dd>
-      </dl>
-      <Subheading className="asset-detail__subtitle">{copy.uploads.version.title}</Subheading>
-      <UploadPanel
-        uploads={uploads}
-        target={{ assetId: asset.id, kind: asset.kind }}
-        zone={{
-          panelLabel: copy.uploads.version.title,
-          dropLabel: copy.uploads.version.dropLabel(asset.name),
-          hint: copy.uploads.version.hint[asset.kind],
-          buttonLabel: copy.uploads.version.choose,
-          accept: VERSION_ACCEPT[asset.kind],
-          listLabel: copy.uploads.version.listLabel(asset.name),
-        }}
+      <Tabs
+        label={copy.assets.sectionsLabel}
+        tabs={[
+          {
+            id: 'versions',
+            label: copy.assets.versionsTitle,
+            badge: asset.versions.length,
+            panel: (
+              <div className="asset-detail__panel">
+                <UploadList
+                  uploads={uploads}
+                  target={target}
+                  listLabel={copy.uploads.version.listLabel(asset.name)}
+                  fallbackFocus={focusUpload}
+                />
+                <VersionTimeline asset={asset} />
+              </div>
+            ),
+          },
+          {
+            id: 'info',
+            label: copy.assets.infoTab,
+            panel: (
+              <dl className="asset-detail__facts">
+                <dt className="asset-detail__term">{copy.assets.kindLabel}</dt>
+                <dd className="asset-detail__value">{kind}</dd>
+                <dt className="asset-detail__term">{copy.assets.versionCount}</dt>
+                <dd className="asset-detail__value">{asset.versions.length}</dd>
+                {latest ? (
+                  <>
+                    <dt className="asset-detail__term">{copy.assets.latestFile}</dt>
+                    <dd className="asset-detail__value asset-detail__value--file">
+                      {copy.assets.fileSummary(
+                        latest.file_name,
+                        formatBytes(latest.size_bytes, copy.locale),
+                      )}
+                    </dd>
+                  </>
+                ) : null}
+                <dt className="asset-detail__term">{copy.assets.created}</dt>
+                <dd className="asset-detail__value">
+                  {formatDateTime(asset.created_at, copy.locale)}
+                </dd>
+                <dt className="asset-detail__term">{copy.assets.updated}</dt>
+                <dd className="asset-detail__value">
+                  <RelativeTime iso={asset.updated_at} />
+                </dd>
+              </dl>
+            ),
+          },
+        ]}
       />
-      <Subheading className="asset-detail__subtitle">{copy.assets.versionsTitle}</Subheading>
-      {asset.versions.length >= 2 ? (
-        <Link
-          to="/assets/$assetId/compare"
-          params={{ assetId: asset.id }}
-          className="asset-detail__compare"
-        >
-          {copy.compare.link}
-        </Link>
-      ) : null}
-      <ol className="asset-detail__versions">
-        {[...asset.versions].reverse().map((version) => (
-          <li key={version.id} className="asset-detail__version">
-            <span className="asset-detail__version-head">
-              <span className="asset-detail__version-number">
-                {copy.assets.versionLabel(version.number)}
-              </span>
-              <Badge tone={VERSION_STATUS_TONE[version.status]}>
-                {copy.assets.status[version.status]}
-              </Badge>
-            </span>
-            <span className="asset-detail__file">
-              {copy.assets.fileSummary(
-                version.file_name,
-                formatBytes(version.size_bytes, copy.locale),
-              )}
-            </span>
-            {isViewable(asset.kind, version) ? (
-              <Link
-                to="/assets/$assetId/view"
-                params={{ assetId: asset.id }}
-                search={{ version: version.number }}
-                className="asset-detail__view"
-                aria-label={copy.viewer.linkLabel(version.number)}
-              >
-                {copy.viewer.link}
-              </Link>
-            ) : null}
-            {version.failure_reason ? (
-              <span className="asset-detail__failure">
-                {copy.assets.failure[version.failure_reason]}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ol>
     </article>
   );
 };
 
-/** The selected asset: preview, facts and versions newest first, with all four states. */
+/** The selected asset: header, actions, preview, versions and facts, with all four states. */
 export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
   const copy = useCopy();
   const { query: asset, reportBrokenThumb } = useAsset(assetId);
@@ -178,6 +276,7 @@ export const AssetDetail = ({ assetId }: AssetDetailProps): ReactElement => {
     content = (
       <div className="asset-detail" role="status">
         <span className="visually-hidden">{copy.assets.loadingAsset}</span>
+        <Skeleton />
         <Skeleton shape={SkeletonShape.Tile} />
         <Skeleton />
         <Skeleton />

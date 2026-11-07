@@ -73,6 +73,10 @@ export const en: Copy = {
     created: 'Created',
     updated: 'Updated',
     versionsTitle: 'Versions',
+    sectionsLabel: 'Asset sections',
+    infoTab: 'Info',
+    versionCount: 'Versions',
+    latestFile: 'Latest file',
     versionLabel: (number) => `Version ${String(number)}`,
     stale: 'Could not refresh, so this may be out of date.',
     fileSummary: (name, size) => `${name} · ${size}`,
@@ -83,6 +87,7 @@ export const en: Copy = {
   },
   compare: {
     link: 'Compare versions',
+    linkShort: 'Compare',
     title: (assetName) => `Compare versions of ${assetName}`,
     back: 'Back to the asset',
     leftLabel: 'Left version',
@@ -159,7 +164,6 @@ export const en: Copy = {
     noneModel: 'No version of this model is ready yet. A version opens here once it is processed.',
   },
   uploads: {
-    panelLabel: 'Upload files',
     upload: 'Upload',
     uploadFiles: 'Upload files',
     trayCollapse: 'Collapse uploads',
@@ -167,9 +171,7 @@ export const en: Copy = {
     overlayTitle: 'Drop files to upload',
     overlayAssets: 'New assets',
     overlayVersion: (assetName) => `New version of ${assetName}`,
-    dropLabel: 'Drop images or .glb files here',
     dropHint: 'PNG, JPEG, WebP or glTF binary (.glb), up to 500 MB each.',
-    choose: 'Choose files',
     listLabel: 'Uploads',
     summary: (finished, total, failed) =>
       `${String(finished)} of ${String(total)} uploaded${failed > 0 ? `, ${String(failed)} failed` : ''}`,
@@ -212,13 +214,12 @@ export const en: Copy = {
       other: 'Kiln could not accept this file.',
     },
     version: {
-      title: 'Add a version',
-      dropLabel: (assetName) => `Drop a new version of ${assetName} here`,
+      upload: 'Upload new version',
+      uploadLabel: (assetName) => `Upload new version of ${assetName}`,
       hint: {
         image: 'PNG, JPEG or WebP, up to 500 MB. Each file becomes the next version.',
         model: 'glTF binary (.glb), up to 500 MB. Each file becomes the next version.',
       },
-      choose: 'Choose a file',
       listLabel: (assetName) => `New versions of ${assetName}`,
     },
   },

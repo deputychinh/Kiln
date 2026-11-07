@@ -2,7 +2,6 @@ export { AssetThumb } from '#ui/components/AssetThumb/AssetThumb';
 export { Badge } from '#ui/components/Badge/Badge';
 export { Button, buttonClassName } from '#ui/components/Button/Button';
 export { DropOverlay } from '#ui/components/DropOverlay/DropOverlay';
-export { Dropzone } from '#ui/components/Dropzone/Dropzone';
 export { EmptyState } from '#ui/components/EmptyState/EmptyState';
 export { ErrorState } from '#ui/components/ErrorState/ErrorState';
 export { FilePickerButton } from '#ui/components/FilePickerButton/FilePickerButton';

@@ -1,5 +1,0 @@
-.upload-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kiln-space-2);
-}

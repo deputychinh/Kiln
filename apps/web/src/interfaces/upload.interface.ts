@@ -78,13 +78,3 @@ export interface UploadQueueState {
   outcomes: UploadItem[];
   outcomeCount: number;
 }
-
-/** The words of a panel that adds versions to one asset instead of creating assets. */
-export interface UploadPanelZone {
-  panelLabel: string;
-  dropLabel: string;
-  hint: string;
-  buttonLabel: string;
-  accept: string;
-  listLabel: string;
-}

@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 
 import { UploadStatus } from '@/enums/upload-status.enum';
+import { UploadList } from '@/features/uploads/components/UploadList';
 import { UploadPageEffects } from '@/features/uploads/components/UploadPageEffects';
-import { UploadPanel } from '@/features/uploads/components/UploadPanel';
 import type { UploadItem } from '@/interfaces/upload.interface';
 import { anItem, uploadsWith } from '@/test/upload-items';
 
@@ -121,14 +121,23 @@ describe('UploadPageEffects', () => {
     const { rerender } = render(
       <>
         <UploadPageEffects uploads={uploadsWith([running])} />
-        <UploadPanel uploads={uploadsWith([running])} />
+        <UploadList
+          uploads={uploadsWith([running])}
+          listLabel="Uploads"
+          fallbackFocus={() => null}
+        />
       </>,
     );
     rerender(
       <>
         <UploadPageEffects uploads={uploads} />
-        <UploadPanel uploads={uploads} />
-        <UploadPanel uploads={uploads} target={{ assetId: 'asset-3', kind: 'image' }} />
+        <UploadList uploads={uploads} listLabel="Uploads" fallbackFocus={() => null} />
+        <UploadList
+          uploads={uploads}
+          target={{ assetId: 'asset-3', kind: 'image' }}
+          listLabel="New versions"
+          fallbackFocus={() => null}
+        />
       </>,
     );
 

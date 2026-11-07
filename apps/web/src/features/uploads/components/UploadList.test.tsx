@@ -6,109 +6,94 @@ import {
 } from '@tanstack/react-router';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { type ReactElement, useState } from 'react';
 
 import { UploadStatus } from '@/enums/upload-status.enum';
-import { UploadPanel } from '@/features/uploads/components/UploadPanel';
-import type { UploadItem, UploadsApi } from '@/interfaces/upload.interface';
+import { UploadList } from '@/features/uploads/components/UploadList';
+import type { UploadItem, UploadsApi, UploadTarget } from '@/interfaces/upload.interface';
 import { anItem, uploadsWith } from '@/test/upload-items';
 
-/** The panel inside a router, since a ready row links to its asset. */
-const renderPanel = (uploads: UploadsApi, panel = <UploadPanel uploads={uploads} />) => {
+const focusUploadButton = (): HTMLElement | null => document.getElementById('upload');
+
+/** The list beside the button that adds files, inside a router (a ready row links to its asset). */
+const renderInRouter = (list: ReactElement) => {
   const router = createRouter({
-    routeTree: createRootRoute({ component: () => panel }),
+    routeTree: createRootRoute({
+      component: () => (
+        <>
+          <button id="upload" type="button">
+            Upload
+          </button>
+          {list}
+        </>
+      ),
+    }),
     history: createMemoryHistory({ initialEntries: ['/assets'] }),
   });
   render(<RouterProvider router={router} />);
 };
 
-/** The panel over a tiny in-memory queue, so Cancel, Retry and Remove change the rows. */
-const StatefulPanel = ({ initial }: { initial: UploadItem[] }) => {
+const renderList = (uploads: UploadsApi, target?: UploadTarget, listLabel = 'Uploads') =>
+  renderInRouter(
+    <UploadList
+      uploads={uploads}
+      target={target}
+      listLabel={listLabel}
+      fallbackFocus={focusUploadButton}
+    />,
+  );
+
+/** The list over a tiny in-memory queue, so Cancel, Retry and Remove change the rows. */
+const StatefulList = ({ initial }: { initial: UploadItem[] }) => {
   const [items, setItems] = useState(initial);
   const set = (id: string, status: UploadStatus) =>
     setItems((rows) => rows.map((row) => (row.id === id ? { ...row, status } : row)));
   return (
-    <UploadPanel
+    <UploadList
       uploads={{
         ...uploadsWith(items),
         cancel: (id) => set(id, UploadStatus.Cancelled),
         retry: (id) => set(id, UploadStatus.Queued),
         remove: (id) => setItems((rows) => rows.filter((row) => row.id !== id)),
       }}
+      listLabel="Uploads"
+      fallbackFocus={focusUploadButton}
     />
   );
 };
 
-const renderStateful = (initial: UploadItem[]) => {
-  const router = createRouter({
-    routeTree: createRootRoute({ component: () => <StatefulPanel initial={initial} /> }),
-    history: createMemoryHistory({ initialEntries: ['/assets'] }),
-  });
-  render(<RouterProvider router={router} />);
-};
+describe('UploadList', () => {
+  it('shows nothing while it has no rows of its own', async () => {
+    renderList(uploadsWith([anItem({ targetAssetId: 'asset-9' })]));
 
-describe('UploadPanel', () => {
-  it('passes dropped or picked files on and accepts only the supported types', async () => {
-    const uploads = uploadsWith([]);
-    renderPanel(uploads);
-    const zone = await screen.findByRole('group', { name: 'Drop images or .glb files here' });
-    const input = zone.querySelector<HTMLInputElement>('input[type="file"]')!;
-
-    expect(input.accept).toBe(
-      'image/png,image/jpeg,image/webp,model/gltf-binary,.png,.jpg,.jpeg,.webp,.glb',
-    );
-    await userEvent.upload(input, new File(['x'], 'crate.glb'));
-    expect(uploads.add).toHaveBeenCalledWith(
-      [expect.objectContaining({ name: 'crate.glb' })],
-      undefined,
-    );
-    expect(screen.queryByRole('list', { name: 'Uploads' })).not.toBeInTheDocument();
+    await screen.findByRole('button', { name: 'Upload' });
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
-  it('adds versions to its asset and shows only its own rows', async () => {
+  it('shows only the versions of its asset, with their summary', async () => {
     const target = { assetId: 'asset-9', kind: 'model' } as const;
-    const uploads = uploadsWith([
-      anItem({ id: 'mine', file: new File(['x'], 'crate_v2.glb'), targetAssetId: 'asset-9' }),
-      anItem({ id: 'gallery', file: new File(['x'], 'rock.png') }),
-      anItem({ id: 'other', file: new File(['x'], 'tree_v4.glb'), targetAssetId: 'asset-3' }),
-    ]);
-    renderPanel(
-      uploads,
-      <UploadPanel
-        uploads={uploads}
-        target={target}
-        zone={{
-          panelLabel: 'Add a version',
-          dropLabel: 'Drop a new version of crate here',
-          hint: 'glTF binary (.glb)',
-          buttonLabel: 'Choose a file',
-          accept: '.glb',
-          listLabel: 'New versions of crate',
-        }}
-      />,
+    renderList(
+      uploadsWith([
+        anItem({ id: 'mine', file: new File(['x'], 'crate_v2.glb'), targetAssetId: 'asset-9' }),
+        anItem({ id: 'gallery', file: new File(['x'], 'rock.png') }),
+        anItem({ id: 'other', file: new File(['x'], 'tree_v4.glb'), targetAssetId: 'asset-3' }),
+      ]),
+      target,
+      'New versions of crate',
     );
 
-    const zone = await screen.findByRole('group', { name: 'Drop a new version of crate here' });
-    const list = screen.getByRole('list', { name: 'New versions of crate' });
+    const list = await screen.findByRole('list', { name: 'New versions of crate' });
     expect(
       within(list)
         .getAllByRole('listitem')
         .map((row) => row.textContent),
     ).toEqual([expect.stringContaining('crate_v2.glb')]);
     expect(screen.getByText('0 of 1 uploaded')).toBeVisible();
-
-    const input = zone.querySelector<HTMLInputElement>('input[type="file"]')!;
-    expect(input.accept).toBe('.glb');
-    await userEvent.upload(input, new File(['x'], 'crate_v3.glb'));
-    expect(uploads.add).toHaveBeenCalledWith(
-      [expect.objectContaining({ name: 'crate_v3.glb' })],
-      target,
-    );
   });
 
   it('shows a running upload with its percent, a named progress bar and a named Cancel', async () => {
     const uploads = uploadsWith([anItem({ status: UploadStatus.Uploading, progress: 42.4 })]);
-    renderPanel(uploads);
+    renderList(uploads);
 
     const row = within(await screen.findByRole('list', { name: 'Uploads' })).getByRole('listitem');
     expect(within(row).getByText('Uploading 42 %')).toBeInTheDocument();
@@ -126,7 +111,7 @@ describe('UploadPanel', () => {
     const uploads = uploadsWith([
       anItem({ status: UploadStatus.Failed, error: 'Storage refused the file. Try again.' }),
     ]);
-    renderPanel(uploads);
+    renderList(uploads);
 
     expect(await screen.findByText('Storage refused the file. Try again.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry rock.png' }));
@@ -136,7 +121,7 @@ describe('UploadPanel', () => {
   });
 
   it('offers only Remove when retrying cannot help', async () => {
-    renderPanel(
+    renderList(
       uploadsWith([
         anItem({ status: UploadStatus.Failed, error: 'This file is empty.', canRetry: false }),
       ]),
@@ -146,19 +131,31 @@ describe('UploadPanel', () => {
     expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument();
   });
 
-  it('counts failed files in the summary', async () => {
-    renderPanel(
-      uploadsWith([
-        anItem({ status: UploadStatus.Ready }),
-        anItem({ id: 'row-2', status: UploadStatus.Failed, error: 'x' }),
-      ]),
-    );
-
+  it('counts failed files in the summary, and can leave the summary to its container', async () => {
+    const items = [
+      anItem({ status: UploadStatus.Ready }),
+      anItem({ id: 'row-2', status: UploadStatus.Failed, error: 'x' }),
+    ];
+    renderList(uploadsWith(items));
     expect(await screen.findByText('1 of 2 uploaded, 1 failed')).toBeInTheDocument();
   });
 
+  it('hides its summary when the container shows it', async () => {
+    renderInRouter(
+      <UploadList
+        uploads={uploadsWith([anItem({ status: UploadStatus.Ready })])}
+        listLabel="Uploads"
+        hasSummary={false}
+        fallbackFocus={focusUploadButton}
+      />,
+    );
+
+    await screen.findByRole('list', { name: 'Uploads' });
+    expect(screen.queryByText('1 of 1 uploaded')).not.toBeInTheDocument();
+  });
+
   it('explains the empty asset a cancelled upload leaves behind', async () => {
-    renderPanel(uploadsWith([anItem({ status: UploadStatus.Cancelled, assetId: 'asset-1' })]));
+    renderList(uploadsWith([anItem({ status: UploadStatus.Cancelled, assetId: 'asset-1' })]));
 
     expect(
       await screen.findByText('Cancelled. The empty asset it started is removed within 24 hours.'),
@@ -166,7 +163,7 @@ describe('UploadPanel', () => {
   });
 
   it('keeps keyboard focus in the row when Cancel turns into Retry, and Retry into Cancel', async () => {
-    renderStateful([anItem({ status: UploadStatus.Uploading })]);
+    renderInRouter(<StatefulList initial={[anItem({ status: UploadStatus.Uploading })]} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Cancel rock.png' }));
     expect(await screen.findByRole('button', { name: 'Retry rock.png' })).toHaveFocus();
@@ -175,33 +172,37 @@ describe('UploadPanel', () => {
     expect(await screen.findByRole('button', { name: 'Cancel rock.png' })).toHaveFocus();
   });
 
-  it('moves focus to the next row after Remove, or to Choose files when the list is empty', async () => {
-    renderStateful([
-      anItem({ status: UploadStatus.Failed, error: 'x' }),
-      anItem({
-        id: 'row-2',
-        status: UploadStatus.Failed,
-        error: 'y',
-        file: new File(['x'], 'tree.png'),
-      }),
-    ]);
+  it('moves focus to the next row after Remove, or to the button that adds files when empty', async () => {
+    renderInRouter(
+      <StatefulList
+        initial={[
+          anItem({ status: UploadStatus.Failed, error: 'x' }),
+          anItem({
+            id: 'row-2',
+            status: UploadStatus.Failed,
+            error: 'y',
+            file: new File(['x'], 'tree.png'),
+          }),
+        ]}
+      />,
+    );
 
     await userEvent.click(await screen.findByRole('button', { name: 'Remove rock.png' }));
     expect(await screen.findByRole('button', { name: 'Retry tree.png' })).toHaveFocus();
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove tree.png' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Choose files' })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toHaveFocus());
   });
 
   it('lets a cancelled upload be retried', async () => {
-    renderPanel(uploadsWith([anItem({ status: UploadStatus.Cancelled })]));
+    renderList(uploadsWith([anItem({ status: UploadStatus.Cancelled })]));
 
     expect(await screen.findByRole('button', { name: 'Retry rock.png' })).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
   });
 
   it('shows processing with a full bar and lets the row be dismissed', async () => {
-    renderPanel(uploadsWith([anItem({ status: UploadStatus.Processing, progress: 100 })]));
+    renderList(uploadsWith([anItem({ status: UploadStatus.Processing, progress: 100 })]));
 
     const row = within(await screen.findByRole('list', { name: 'Uploads' })).getByRole('listitem');
     expect(within(row).getByText('Processing preview…')).toBeInTheDocument();
@@ -214,7 +215,7 @@ describe('UploadPanel', () => {
   });
 
   it('links a ready upload to its asset', async () => {
-    renderPanel(uploadsWith([anItem({ status: UploadStatus.Ready, assetId: 'asset-1' })]));
+    renderList(uploadsWith([anItem({ status: UploadStatus.Ready, assetId: 'asset-1' })]));
 
     expect(await screen.findByRole('link', { name: 'rock.png' })).toHaveAttribute(
       'href',

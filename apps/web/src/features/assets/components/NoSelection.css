@@ -1,0 +1,24 @@
+.no-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  align-items: center;
+  padding: var(--kiln-space-9) var(--kiln-space-5);
+  text-align: center;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.no-selection__icon {
+  display: grid;
+  place-items: center;
+  inline-size: var(--kiln-space-9);
+  block-size: var(--kiln-space-9);
+  background-color: var(--kiln-color-surface-hover);
+  border-radius: var(--kiln-radius-xl);
+}
+
+.no-selection__text {
+  max-inline-size: 16rem;
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+}

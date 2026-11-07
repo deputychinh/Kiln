@@ -12,6 +12,7 @@ import {
   signedUrl,
   urlOf,
 } from '@/test/fake-api';
+import { fileInputOf } from '@/test/file-input';
 import { renderApp } from '@/test/render-app';
 import { setViewportExpanded } from '@/test/viewport';
 
@@ -63,7 +64,7 @@ describe('AssetDetail', () => {
     expect(versions[1]).toHaveTextContent('1.5 MB');
   });
 
-  it('offers a version zone for the asset and refuses a file of the other kind before sending', async () => {
+  it('offers Upload new version for the asset and refuses a file of the other kind before sending', async () => {
     const fetchMock = fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],
       [DETAIL]: [json(withVersions)],
@@ -71,12 +72,12 @@ describe('AssetDetail', () => {
     renderApp(`/assets/${asset.id}`);
 
     const detail = await screen.findByRole('article', { name: 'rock_albedo' });
-    const zone = within(detail).getByRole('group', {
-      name: 'Drop a new version of rock_albedo here',
+    const button = within(detail).getByRole('button', {
+      name: 'Upload new version of rock_albedo',
     });
-    const input = zone.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(button).toHaveTextContent('Upload new version');
+    const input = fileInputOf(button);
     expect(input.accept).toBe('image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp');
-    expect(within(zone).getByRole('button', { name: 'Choose a file' })).toBeVisible();
 
     await userEvent.upload(input, new File(['glb'], 'crate.glb'), { applyAccept: false });
 
@@ -106,16 +107,16 @@ describe('AssetDetail', () => {
     expect(drop.defaultPrevented).toBe(true);
   });
 
-  it('refuses an empty file in the version zone with the gallery wording', async () => {
+  it('refuses an empty new version with the gallery wording', async () => {
     const fetchMock = fakeApi({
       [LIST]: [json({ items: [asset], next_cursor: null })],
       [DETAIL]: [json(withVersions)],
     });
     renderApp(`/assets/${asset.id}`);
     const detail = await screen.findByRole('article', { name: 'rock_albedo' });
-    const input = within(detail)
-      .getByRole('group', { name: 'Drop a new version of rock_albedo here' })
-      .querySelector<HTMLInputElement>('input[type="file"]')!;
+    const input = fileInputOf(
+      within(detail).getByRole('button', { name: 'Upload new version of rock_albedo' }),
+    );
 
     await userEvent.upload(input, new File([], 'rock_v2.png', { type: 'image/png' }));
 
@@ -134,6 +135,7 @@ describe('AssetDetail', () => {
 
     const link = await screen.findByRole('link', { name: 'Compare versions' });
     expect(link).toHaveAttribute('href', `/assets/${asset.id}/compare`);
+    expect(link).toHaveTextContent('Compare');
   });
 
   it('offers no comparison for an asset with one version', async () => {
@@ -166,10 +168,14 @@ describe('AssetDetail', () => {
     });
     renderApp(`/assets/${asset.id}`);
 
-    const link = await screen.findByRole('link', { name: 'View version 1 in 3D' });
-    expect(link).toHaveAttribute('href', `/assets/${asset.id}/view?version=1`);
-    expect(link).toHaveTextContent('View in 3D');
-    expect(screen.getAllByRole('link', { name: /in 3D/ })).toHaveLength(1);
+    // The header's action opens the newest ready version; each ready version has its own link.
+    const links = await screen.findAllByRole('link', { name: 'View version 1 in 3D' });
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link).toHaveAttribute('href', `/assets/${asset.id}/view?version=1`);
+      expect(link).toHaveTextContent('View in 3D');
+    }
+    expect(screen.getAllByRole('link', { name: /in 3D/ })).toHaveLength(2);
   });
 
   it('offers no 3D view for an image', async () => {
@@ -468,5 +474,39 @@ describe('AssetDetail', () => {
 
     const detail = await screen.findByRole('article', { name: 'rock_albedo' });
     expect(detail).toHaveTextContent('The upload was never completed. Upload the file again.');
+  });
+
+  it('shows the versions tab with its count, and the facts on the Info tab', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+    renderApp(`/assets/${asset.id}`);
+    const detail = await screen.findByRole('article', { name: 'rock_albedo' });
+
+    const versionsTab = within(detail).getByRole('tab', { name: 'Versions 2' });
+    expect(versionsTab).toHaveAttribute('aria-selected', 'true');
+    expect(within(detail).getByText('Image', { selector: '.badge' })).toBeInTheDocument();
+    await userEvent.click(within(detail).getByRole('tab', { name: 'Info' }));
+
+    const info = within(detail).getByRole('tabpanel', { name: 'Info' });
+    expect(info).toHaveTextContent('KindImage');
+    expect(info).toHaveTextContent('Versions2');
+    expect(info).toHaveTextContent('Latest filerock_albedo_8k.png · 480 MB');
+    expect(within(detail).queryByRole('tabpanel', { name: 'Versions 2' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the gallery view options on the way back', async () => {
+    fakeApi({
+      [LIST]: [json({ items: [asset], next_cursor: null })],
+      [DETAIL]: [json(withVersions)],
+    });
+
+    renderApp(`/assets/${asset.id}?kind=image&size=small`);
+
+    expect(await screen.findByRole('link', { name: 'All assets' })).toHaveAttribute(
+      'href',
+      '/assets?kind=image&size=small',
+    );
   });
 });

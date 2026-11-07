@@ -57,6 +57,10 @@ export interface Copy {
     created: string;
     updated: string;
     versionsTitle: string;
+    sectionsLabel: string;
+    infoTab: string;
+    versionCount: string;
+    latestFile: string;
     versionLabel: (number: number) => string;
     stale: string;
     fileSummary: (name: string, size: string) => string;
@@ -67,6 +71,7 @@ export interface Copy {
   };
   compare: {
     link: string;
+    linkShort: string;
     title: (assetName: string) => string;
     back: string;
     leftLabel: string;
@@ -125,7 +130,6 @@ export interface Copy {
     noneModel: string;
   };
   uploads: {
-    panelLabel: string;
     upload: string;
     uploadFiles: string;
     trayCollapse: string;
@@ -133,9 +137,7 @@ export interface Copy {
     overlayTitle: string;
     overlayAssets: string;
     overlayVersion: (assetName: string) => string;
-    dropLabel: string;
     dropHint: string;
-    choose: string;
     listLabel: string;
     summary: (finished: number, total: number, failed: number) => string;
     cancelledAfterCreate: string;
@@ -154,12 +156,11 @@ export interface Copy {
     busy: string;
     stalled: string;
     refused: { name: string; size: string; other: string };
-    /** The version zone in an asset's detail. */
+    /** The "Upload new version" button and list in an asset's detail. */
     version: {
-      title: string;
-      dropLabel: (assetName: string) => string;
+      upload: string;
+      uploadLabel: (assetName: string) => string;
       hint: Record<AssetKind, string>;
-      choose: string;
       listLabel: (assetName: string) => string;
     };
   };

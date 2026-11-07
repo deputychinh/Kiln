@@ -1,5 +1,6 @@
 /* A 4:3 well; transparent pixels show over a checkerboard, as in image editors. */
 .asset-thumb {
+  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -20,7 +21,10 @@
   background-image: none;
 }
 
+/* Out of flow, so the image is contained in the 4:3 well instead of sizing it. */
 .asset-thumb__image {
+  position: absolute;
+  inset: 0;
   display: block;
   inline-size: 100%;
   block-size: 100%;

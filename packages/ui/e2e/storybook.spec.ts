@@ -112,7 +112,6 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
     native: ['disabled', 'type', 'onClick'],
   },
   'components-dropoverlay--docs': { own: ['title', 'targets', 'onDrop', 'isEnabled'] },
-  'components-dropzone--docs': { own: ['label', 'hint', 'buttonLabel', 'accept', 'onFiles'] },
   'components-emptystate--docs': { own: ['title', 'titleAs', 'icon', 'children', 'action'] },
   'components-errorstate--docs': {
     own: ['title', 'titleAs', 'message', 'retryLabel', 'onRetry', 'isRetrying', 'action'],
