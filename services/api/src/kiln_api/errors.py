@@ -4,10 +4,15 @@ from http import HTTPStatus
 from uuid import UUID
 
 from kiln_api.constants import (
+    ACCESS_TOKEN_MAX_PER_USER,
+    ACCESS_TOKEN_NAME_MAX_LENGTH,
     ASSET_NAME_MAX_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
     FILE_NAME_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
     MEDIA_TYPES,
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
 )
 from kiln_api.enums import ErrorCode, VersionStatus
 
@@ -188,3 +193,119 @@ class IdempotencyKeyInUseError(DomainError):
     status = HTTPStatus.CONFLICT
     code = ErrorCode.IDEMPOTENCY_KEY_IN_USE
     default_detail = "A request with this Idempotency-Key is still in progress; retry unchanged."
+
+
+class UnauthenticatedError(DomainError):
+    """No valid session or token: missing, unknown, expired or revoked (never says which)."""
+
+    status = HTTPStatus.UNAUTHORIZED
+    code = ErrorCode.UNAUTHENTICATED
+    default_detail = "Sign in, or send a valid personal access token."
+
+
+class InvalidCredentialsError(DomainError):
+    """Unknown email or wrong password; one answer for both, so accounts cannot be probed."""
+
+    status = HTTPStatus.UNAUTHORIZED
+    code = ErrorCode.INVALID_CREDENTIALS
+    default_detail = "The email or password is not correct."
+
+
+class SignInThrottledError(DomainError):
+    """Too many failed sign-ins for this account or from this address."""
+
+    status = HTTPStatus.TOO_MANY_REQUESTS
+    code = ErrorCode.SIGN_IN_THROTTLED
+    default_detail = "Too many failed attempts. Wait a few minutes, then try again."
+
+    def __init__(self, retry_after_seconds: int) -> None:
+        """`retry_after_seconds` becomes the `Retry-After` header."""
+        super().__init__()
+        self.retry_after_seconds = retry_after_seconds
+
+
+class CsrfCheckFailedError(DomainError):
+    """A cookie-authenticated write without the CSRF header or from an origin not allowed."""
+
+    status = HTTPStatus.FORBIDDEN
+    code = ErrorCode.CSRF_CHECK_FAILED
+    default_detail = "The request did not come from the Kiln app."
+
+
+class InsufficientScopeError(DomainError):
+    """The token lacks the scope this action needs."""
+
+    status = HTTPStatus.FORBIDDEN
+    code = ErrorCode.INSUFFICIENT_SCOPE
+    default_detail = "This token does not have the scope this action needs."
+
+
+class SessionRequiredError(DomainError):
+    """Managing tokens needs a signed-in browser session, not a token."""
+
+    status = HTTPStatus.FORBIDDEN
+    code = ErrorCode.SESSION_REQUIRED
+    default_detail = "Manage access tokens from a signed-in browser session."
+
+
+class AccessTokenNotFoundError(NotFoundError):
+    """No token with that id belongs to the caller."""
+
+    code = ErrorCode.ACCESS_TOKEN_NOT_FOUND
+    default_detail = "The access token does not exist."
+
+
+class AccessTokenLimitError(DomainError):
+    """A user may hold a bounded number of active tokens."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.ACCESS_TOKEN_LIMIT
+    default_detail = (
+        f"You already have {ACCESS_TOKEN_MAX_PER_USER} active tokens; revoke one first."
+    )
+
+
+class InvalidTokenNameError(DomainError):
+    """A token name is blank, too long or has hidden characters."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.INVALID_TOKEN_NAME
+    default_detail = (
+        f"A token name needs 1 to {ACCESS_TOKEN_NAME_MAX_LENGTH} characters,"
+        " without hidden or control characters."
+    )
+
+
+class InvalidEmailError(DomainError):
+    """Not an email address Kiln accepts."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.INVALID_EMAIL
+    default_detail = "Enter an email address such as name@studio.com."
+
+
+class InvalidDisplayNameError(DomainError):
+    """A display name is blank, too long or has hidden characters."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.INVALID_DISPLAY_NAME
+    default_detail = (
+        f"A name needs 1 to {DISPLAY_NAME_MAX_LENGTH} characters,"
+        " without hidden or control characters."
+    )
+
+
+class WeakPasswordError(DomainError):
+    """The password is outside the allowed length."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.WEAK_PASSWORD
+    default_detail = f"A password needs {PASSWORD_MIN_LENGTH} to {PASSWORD_MAX_LENGTH} characters."
+
+
+class EmailTakenError(DomainError):
+    """A user with that email exists (only the operator's CLI can see this)."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.EMAIL_TAKEN
+    default_detail = "A user with this email already exists."

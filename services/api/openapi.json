@@ -1187,7 +1187,20 @@
           "PAYLOAD_TOO_LARGE",
           "INVALID_IDEMPOTENCY_KEY",
           "IDEMPOTENCY_KEY_REUSED",
-          "IDEMPOTENCY_KEY_IN_USE"
+          "IDEMPOTENCY_KEY_IN_USE",
+          "UNAUTHENTICATED",
+          "INVALID_CREDENTIALS",
+          "SIGN_IN_THROTTLED",
+          "CSRF_CHECK_FAILED",
+          "INSUFFICIENT_SCOPE",
+          "SESSION_REQUIRED",
+          "ACCESS_TOKEN_NOT_FOUND",
+          "ACCESS_TOKEN_LIMIT",
+          "INVALID_EMAIL",
+          "INVALID_DISPLAY_NAME",
+          "WEAK_PASSWORD",
+          "EMAIL_TAKEN",
+          "INVALID_TOKEN_NAME"
         ],
         "title": "ErrorCode",
         "type": "string"

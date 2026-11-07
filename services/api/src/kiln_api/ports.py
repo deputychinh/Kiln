@@ -8,6 +8,7 @@ from typing import IO, Protocol
 from uuid import UUID
 
 from kiln_api.domain.assets import Asset, AssetVersion
+from kiln_api.domain.identity import AccessToken, Session, User
 from kiln_api.domain.jobs import Job
 from kiln_api.enums import PromotionResult, VersionStatus
 
@@ -115,8 +116,13 @@ class AssetRepository(Protocol):
         """Return an asset or raise `AssetNotFoundError`."""
         ...
 
-    def list_page(self, *, cursor: str | None, limit: int) -> Page[Asset]:
-        """Return assets newest first after `cursor`; `limit` is clamped to 1 to 100."""
+    def list_page(
+        self, *, cursor: str | None, limit: int, owner_id: UUID | None = None
+    ) -> Page[Asset]:
+        """Return assets newest first after `cursor` (of `owner_id` only when given).
+
+        `limit` is clamped to 1 to 100.
+        """
         ...
 
     def add_next_version(
@@ -260,4 +266,106 @@ class MaintenanceStore(Protocol):
 
     def ready_model_versions(self, *, after: UUID | None, limit: int) -> list[UUID]:
         """Ids of ready versions of model assets after `after`, by id (KILN-36 re-check)."""
+        ...
+
+
+class PasswordHasher(Protocol):
+    """Slow, salted password hashing (Argon2id); never raises on a wrong password."""
+
+    def hash(self, password: str) -> str:
+        """A PHC string with the current parameters."""
+        ...
+
+    def verify(self, password_hash: str, password: str) -> bool:
+        """True when `password` matches; False for a wrong password or a malformed hash."""
+        ...
+
+    def needs_rehash(self, password_hash: str) -> bool:
+        """True when the hash was made with other parameters than the current ones."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class FailureCounts:
+    """Failed sign-ins in the window, per account and per client IP, with the oldest of each."""
+
+    account: int
+    ip: int
+    oldest_account: datetime | None
+    oldest_ip: datetime | None
+
+
+class IdentityStore(Protocol):
+    """Users, sessions, access tokens and sign-in failures (KILN-12)."""
+
+    def add_user(self, user: User) -> None:
+        """Store a new user; raise `EmailTakenError` when the email is in use."""
+        ...
+
+    def user_by_email(self, email: str) -> User | None:
+        """The user with this normalised email, if any."""
+        ...
+
+    def set_password_hash(self, user_id: UUID, password_hash: str, *, now: datetime) -> None:
+        """Replace a user's password hash (re-hash on sign-in after a parameter change)."""
+        ...
+
+    def add_session(self, session: Session) -> None:
+        """Store a new session."""
+        ...
+
+    def session_user(self, id_hash: bytes) -> tuple[Session, User] | None:
+        """The session with this id hash and its user, in one query."""
+        ...
+
+    def touch_session(self, id_hash: bytes, *, now: datetime) -> None:
+        """Record activity (moves the idle bound)."""
+        ...
+
+    def delete_session(self, id_hash: bytes) -> None:
+        """End a session; a missing one is not an error."""
+        ...
+
+    def purge_sessions(self, *, now: datetime, idle: timedelta) -> int:
+        """Delete sessions past their absolute bound or idle for longer than `idle`."""
+        ...
+
+    def add_token(self, token: AccessToken) -> None:
+        """Store a new access token."""
+        ...
+
+    def token_user(self, token_hash: bytes) -> tuple[AccessToken, User] | None:
+        """The token with this hash and its user, in one query."""
+        ...
+
+    def tokens_of(self, user_id: UUID, *, limit: int) -> list[AccessToken]:
+        """A user's tokens that are not revoked, newest first."""
+        ...
+
+    def count_live_tokens(self, user_id: UUID, *, now: datetime) -> int:
+        """How many of a user's tokens are neither revoked nor expired."""
+        ...
+
+    def revoke_token(self, user_id: UUID, token_id: UUID, *, now: datetime) -> bool:
+        """Revoke one of `user_id`'s tokens; False when it is not theirs or already revoked."""
+        ...
+
+    def touch_token(self, token_id: UUID, *, now: datetime) -> None:
+        """Record when a token was last used."""
+        ...
+
+    def record_failure(
+        self, *, failure_id: UUID, account_key: bytes, client_ip: str, now: datetime
+    ) -> None:
+        """Remember a failed sign-in; also drops failures that have left every window."""
+        ...
+
+    def failures_since(
+        self, *, account_key: bytes, client_ip: str, since: datetime
+    ) -> FailureCounts:
+        """Count failures after `since` for the account and for the IP."""
+        ...
+
+    def clear_failures(self, account_key: bytes) -> None:
+        """Forget an account's failures after it signs in."""
         ...

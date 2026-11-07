@@ -5,6 +5,7 @@ description = "Kiln HTTP API: assets, review and catalog."
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.16",
+    "argon2-cffi>=25.1.0",
     "boto3>=1.40",
     "fastapi>=0.162.0",
     "psycopg[binary]>=3.2",

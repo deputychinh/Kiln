@@ -1,6 +1,7 @@
 """Tables; invariants are enforced here as well as in the domain."""
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     CheckConstraint,
     Column,
@@ -18,12 +19,15 @@ from sqlalchemy import (
 )
 
 from kiln_api.constants import (
+    ACCESS_TOKEN_NAME_MAX_LENGTH,
     ASSET_NAME_MAX_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
+    EMAIL_MAX_LENGTH,
     FILE_NAME_MAX_LENGTH,
     IDEMPOTENCY_KEY_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
 )
-from kiln_api.enums import AssetKind, FailureReason, JobKind, JobStatus, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, JobKind, JobStatus, Scope, VersionStatus
 
 metadata = MetaData(
     naming_convention={
@@ -41,6 +45,82 @@ def _one_of(column: str, values: list[str]) -> str:
     return f"{column} IN ({quoted})"
 
 
+users = Table(
+    "users",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("email", Text, nullable=False),  # normalised (trimmed, lower case)
+    Column("display_name", Text, nullable=False),
+    Column("password_hash", Text, nullable=False),  # Argon2id PHC string
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("email"),
+    CheckConstraint(f"char_length(email) BETWEEN 3 AND {EMAIL_MAX_LENGTH}", name="email_length"),
+    CheckConstraint("email = lower(email)", name="email_lower_case"),
+    CheckConstraint(
+        f"char_length(display_name) BETWEEN 1 AND {DISPLAY_NAME_MAX_LENGTH}",
+        name="display_name_length",
+    ),
+    CheckConstraint("password_hash LIKE '$argon2id$%'", name="password_hash_argon2id"),
+)
+
+sessions = Table(
+    "sessions",
+    metadata,
+    Column("id_hash", LargeBinary, primary_key=True),  # SHA-256 of the cookie value
+    Column("user_id", Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("last_seen_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("octet_length(id_hash) = 32", name="id_hash_length"),
+    CheckConstraint("expires_at > created_at", name="expires_after_creation"),
+    Index(None, "user_id"),
+    Index(None, "expires_at"),
+)
+
+access_tokens = Table(
+    "access_tokens",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("user_id", Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("name", Text, nullable=False),
+    Column("prefix", Text, nullable=False),
+    Column("token_hash", LargeBinary, nullable=False),  # SHA-256 of the token
+    Column("scopes", ARRAY(Text), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("last_used_at", DateTime(timezone=True), nullable=True),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+    UniqueConstraint("token_hash"),
+    CheckConstraint("octet_length(token_hash) = 32", name="token_hash_length"),
+    CheckConstraint(
+        f"char_length(name) BETWEEN 1 AND {ACCESS_TOKEN_NAME_MAX_LENGTH}", name="name_length"
+    ),
+    CheckConstraint(
+        "cardinality(scopes) >= 1 AND scopes <@ ARRAY["
+        + ", ".join(f"'{scope.value}'" for scope in Scope)
+        + "]::text[]",
+        name="scopes",
+    ),
+    CheckConstraint("expires_at > created_at", name="expires_after_creation"),
+    Index(None, "user_id", "created_at"),
+)
+
+# Failed sign-ins in the throttling window; the account is a hash, never the typed email.
+sign_in_failures = Table(
+    "sign_in_failures",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("account_key", LargeBinary, nullable=False),
+    Column("client_ip", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("octet_length(account_key) = 32", name="account_key_length"),
+    Index(None, "account_key", "created_at"),
+    Index(None, "client_ip", "created_at"),
+    Index(None, "created_at"),
+)
+
+
 assets = Table(
     "assets",
     metadata,
@@ -55,6 +135,8 @@ assets = Table(
         ForeignKey("asset_versions.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
     ),
+    # Who created the asset (KILN-12); NULL only for assets made before sign-in existed.
+    Column("owner_id", Uuid, ForeignKey("users.id"), nullable=True),
     CheckConstraint(f"char_length(name) BETWEEN 1 AND {ASSET_NAME_MAX_LENGTH}", name="name_length"),
     CheckConstraint(_one_of("kind", [k.value for k in AssetKind]), name="kind"),
     Index(None, "created_at", "id"),
@@ -75,6 +157,7 @@ asset_versions = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
     Column("etag", Text, nullable=True),
     Column("failure_reason", Text, nullable=True),
+    Column("uploaded_by", Uuid, ForeignKey("users.id"), nullable=True),  # KILN-12, as owner_id
     UniqueConstraint("asset_id", "number"),
     UniqueConstraint("object_key"),
     CheckConstraint("number >= 1", name="number_positive"),

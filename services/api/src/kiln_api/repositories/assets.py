@@ -33,6 +33,7 @@ def _asset(row: Row[Any]) -> Asset:
         created_at=row.created_at,
         updated_at=row.updated_at,
         cover_version_id=row.cover_version_id,
+        owner_id=row.owner_id,
     )
 
 
@@ -50,6 +51,7 @@ def _version(row: Row[Any]) -> AssetVersion:
         updated_at=row.updated_at,
         etag=row.etag,
         failure_reason=None if row.failure_reason is None else FailureReason(row.failure_reason),
+        uploaded_by=row.uploaded_by,
     )
 
 
@@ -67,6 +69,7 @@ def _version_values(version: AssetVersion) -> dict[str, object]:
         "updated_at": version.updated_at,
         "etag": version.etag,
         "failure_reason": None if version.failure_reason is None else version.failure_reason.value,
+        "uploaded_by": version.uploaded_by,
     }
 
 
@@ -107,6 +110,7 @@ class SqlAssetRepository:
                     kind=asset.kind.value,
                     created_at=asset.created_at,
                     updated_at=asset.updated_at,
+                    owner_id=asset.owner_id,
                 )
             )
             connection.execute(insert(asset_versions).values(**_version_values(first_version)))
@@ -119,10 +123,17 @@ class SqlAssetRepository:
             raise AssetNotFoundError(asset_id)
         return _asset(row)
 
-    def list_page(self, *, cursor: str | None, limit: int) -> Page[Asset]:
-        """Keyset pagination on `(created_at, id)`, newest first; no OFFSET, no COUNT."""
+    def list_page(
+        self, *, cursor: str | None, limit: int, owner_id: UUID | None = None
+    ) -> Page[Asset]:
+        """Keyset pagination on `(created_at, id)`, newest first; no OFFSET, no COUNT.
+
+        `owner_id` limits the page to one owner's assets (the policy decides; ADR 0012).
+        """
         size = max(PAGE_LIMIT_MIN, min(PAGE_LIMIT_MAX, limit))
         query = select(assets).order_by(assets.c.created_at.desc(), assets.c.id.desc())
+        if owner_id is not None:
+            query = query.where(assets.c.owner_id == owner_id)
         if cursor is not None:
             created_at, asset_id = decode_cursor(cursor)
             query = query.where(tuple_(assets.c.created_at, assets.c.id) < (created_at, asset_id))

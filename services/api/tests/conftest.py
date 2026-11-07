@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 
 import pytest
-from db_fixtures import alembic_config, database_url, engine
+from db_fixtures import alembic_config, database_url, engine, principal, user
 from fakes import FakeStorage, FixedClock
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -11,7 +11,8 @@ from kiln_api.container import build_container
 from kiln_api.enums import Environment
 from kiln_api.main import create_app
 
-__all__ = ["alembic_config", "database_url", "engine"]  # fixtures re-exported for pytest
+# Fixtures re-exported for pytest.
+__all__ = ["alembic_config", "database_url", "engine", "principal", "user"]
 
 
 @pytest.fixture

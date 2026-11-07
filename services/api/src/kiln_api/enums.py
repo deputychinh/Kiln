@@ -36,6 +36,19 @@ class ErrorCode(StrEnum):
     INVALID_IDEMPOTENCY_KEY = "INVALID_IDEMPOTENCY_KEY"
     IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED"
     IDEMPOTENCY_KEY_IN_USE = "IDEMPOTENCY_KEY_IN_USE"
+    UNAUTHENTICATED = "UNAUTHENTICATED"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    SIGN_IN_THROTTLED = "SIGN_IN_THROTTLED"
+    CSRF_CHECK_FAILED = "CSRF_CHECK_FAILED"
+    INSUFFICIENT_SCOPE = "INSUFFICIENT_SCOPE"
+    SESSION_REQUIRED = "SESSION_REQUIRED"
+    ACCESS_TOKEN_NOT_FOUND = "ACCESS_TOKEN_NOT_FOUND"  # noqa: S105 - an error code, not a secret
+    ACCESS_TOKEN_LIMIT = "ACCESS_TOKEN_LIMIT"  # noqa: S105 - an error code, not a secret
+    INVALID_EMAIL = "INVALID_EMAIL"
+    INVALID_DISPLAY_NAME = "INVALID_DISPLAY_NAME"
+    WEAK_PASSWORD = "WEAK_PASSWORD"  # noqa: S105 - an error code, not a secret
+    EMAIL_TAKEN = "EMAIL_TAKEN"
+    INVALID_TOKEN_NAME = "INVALID_TOKEN_NAME"  # noqa: S105 - an error code, not a secret
 
 
 class HealthStatus(StrEnum):
@@ -108,3 +121,25 @@ class FastFailCause(StrEnum):
 
     CIRCUIT_OPEN = "CIRCUIT_OPEN"
     BULKHEAD_FULL = "BULKHEAD_FULL"
+
+
+class Scope(StrEnum):
+    """What a personal access token may do; a browser session has every scope (KILN-12)."""
+
+    READ = "read"
+    WRITE = "write"
+
+
+class AuthMethod(StrEnum):
+    """How a request proved who it is."""
+
+    SESSION = "session"
+    TOKEN = "token"  # noqa: S105 - a method name, not a secret
+
+
+class Action(StrEnum):
+    """Everything the authorization policy decides on; one place for every check (ADR 0012)."""
+
+    READ_ASSETS = "read_assets"
+    WRITE_ASSETS = "write_assets"
+    MANAGE_TOKENS = "manage_tokens"

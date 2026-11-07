@@ -106,3 +106,43 @@ MAX_FILE_NAME_FIELD_LENGTH = 2_000
 MAX_CONTENT_TYPE_FIELD_LENGTH = 255
 # Bound for reading one asset's history; review UIs page beyond this (KILN-8).
 MAX_VERSIONS_PER_READ = 500
+
+# --- identity (KILN-12) ------------------------------------------------------------------------
+# Argon2id with the OWASP Password Storage Cheat Sheet's second configuration (19 MiB, t=2, p=1);
+# about 20 ms per hash on a laptop. Changing these re-hashes each password at its next sign-in.
+ARGON2_MEMORY_KIB = 19_456
+ARGON2_TIME_COST = 2
+ARGON2_PARALLELISM = 1
+PASSWORD_MIN_LENGTH = 12  # ASVS 5.0 V6.2.1 (at least 8; 15 recommended without MFA in NIST 63B)
+PASSWORD_MAX_LENGTH = 128  # ASVS V6.2.9: at least 64 must be allowed; bounds the hash work
+EMAIL_MAX_LENGTH = 254
+DISPLAY_NAME_MAX_LENGTH = 80
+# Sessions: opaque 256-bit ids stored only as SHA-256; OWASP Session Management Cheat Sheet:
+# 15-30 min idle for low-risk apps, an absolute bound of a working day (4-8 h).
+SESSION_ID_BYTES = 32
+SESSION_IDLE_MINUTES = 30
+SESSION_ABSOLUTE_HOURS = 8
+# A session's last-seen time is written at most this often (not on every request).
+SESSION_TOUCH_SECONDS = 60
+SESSION_COOKIE_LOCAL = "kiln_session"
+# The `__Host-` prefix needs Secure, Path=/ and no Domain, so it is used only over HTTPS.
+SESSION_COOKIE_SECURE = "__Host-kiln_session"
+# Cookie-authenticated writes must carry this header (a cross-site page cannot add it without a
+# CORS preflight the API refuses) and an allowed Origin (OWASP CSRF Prevention Cheat Sheet).
+CSRF_HEADER = "X-Kiln-Csrf"
+CSRF_HEADER_VALUE = "1"
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+# Personal access tokens: `kiln_pat_` + 43 URL-safe characters (256 random bits), SHA-256 stored.
+ACCESS_TOKEN_PREFIX = "kiln_pat_"  # noqa: S105 - a public marker, not a secret
+ACCESS_TOKEN_BYTES = 32
+ACCESS_TOKEN_SHOWN_PREFIX_LENGTH = len(ACCESS_TOKEN_PREFIX) + 6
+ACCESS_TOKEN_NAME_MAX_LENGTH = 80
+ACCESS_TOKEN_EXPIRY_DAYS = (7, 30, 90, 365)
+ACCESS_TOKEN_MAX_PER_USER = 50
+ACCESS_TOKEN_TOUCH_SECONDS = 60
+# Sign-in throttling: failures counted per account (normalised email, existing or not) and per
+# client IP in a sliding window; past either limit the API answers 429 without checking.
+SIGN_IN_WINDOW_MINUTES = 15
+SIGN_IN_MAX_FAILURES_PER_ACCOUNT = 10
+SIGN_IN_MAX_FAILURES_PER_IP = 50
+AUTH_REALM = "kiln"

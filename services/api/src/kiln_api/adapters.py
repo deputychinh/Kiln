@@ -1,10 +1,11 @@
-"""Adapters for ports that talk to external systems (object storage)."""
+"""Adapters for ports that talk to external systems (object storage) or wrap a library (Argon2)."""
 
 from collections.abc import Iterator
 from datetime import datetime
 from http import HTTPStatus
 from typing import IO, TYPE_CHECKING
 
+import argon2
 from botocore.exceptions import BotoCoreError, ClientError
 
 from kiln_api.enums import PromotionResult
@@ -196,3 +197,31 @@ class S3ObjectStorage:
             expires_seconds=ttl_seconds,
             response_cache_control=cache_control,
         )
+
+
+class Argon2PasswordHasher:
+    """Argon2id through argon2-cffi with the parameters in `constants` (OWASP; KILN-12)."""
+
+    def __init__(self, *, memory_kib: int, time_cost: int, parallelism: int) -> None:
+        """Configure the hasher; tests may pass cheaper parameters."""
+        self._hasher = argon2.PasswordHasher(
+            time_cost=time_cost,
+            memory_cost=memory_kib,
+            parallelism=parallelism,
+            type=argon2.Type.ID,
+        )
+
+    def hash(self, password: str) -> str:
+        """Hash with a fresh 16-byte salt."""
+        return self._hasher.hash(password)
+
+    def verify(self, password_hash: str, password: str) -> bool:
+        """Constant-time comparison inside libargon2; any failure is a plain False."""
+        try:
+            return self._hasher.verify(password_hash, password)
+        except (argon2.exceptions.VerificationError, argon2.exceptions.InvalidHashError):
+            return False
+
+    def needs_rehash(self, password_hash: str) -> bool:
+        """True when the stored parameters differ from the configured ones."""
+        return self._hasher.check_needs_rehash(password_hash)

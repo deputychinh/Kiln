@@ -59,6 +59,7 @@ class Asset:
     created_at: datetime
     updated_at: datetime
     cover_version_id: UUID | None = None  # newest ready version, shown in the gallery
+    owner_id: UUID | None = None  # who created it (KILN-12); None for assets made before sign-in
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,9 +78,11 @@ class AssetVersion:
     updated_at: datetime
     etag: str | None = None  # of the final object, recorded at completion (ADR 0005)
     failure_reason: FailureReason | None = None
+    uploaded_by: UUID | None = None  # who declared this version (KILN-12); None before sign-in
 
 
-def _is_unreadable(text: str) -> bool:
+def is_unreadable(text: str) -> bool:
+    """True when `text` shows nothing visible or hides characters (shared by every name rule)."""
     has_visible = any(
         unicodedata.category(char)[0] in _VISIBLE_CATEGORY_CLASSES
         and char not in _INVISIBLE_CHARACTERS
@@ -107,14 +110,14 @@ def _require_aware(now: datetime) -> None:
 
 def _clean_name(name: str) -> str:
     cleaned = name.strip()
-    if not cleaned or len(cleaned) > ASSET_NAME_MAX_LENGTH or _is_unreadable(cleaned):
+    if not cleaned or len(cleaned) > ASSET_NAME_MAX_LENGTH or is_unreadable(cleaned):
         raise InvalidAssetNameError
     return cleaned
 
 
 def _clean_file_name(file_name: str) -> str:
     base = re.split(r"[\\/]", file_name)[-1].strip()
-    if not base or set(base) == {"."} or len(base) > FILE_NAME_MAX_LENGTH or _is_unreadable(base):
+    if not base or set(base) == {"."} or len(base) > FILE_NAME_MAX_LENGTH or is_unreadable(base):
         raise InvalidFileNameError
     return base
 
@@ -126,8 +129,14 @@ def _media_type(content_type: str) -> str:
     return media_type
 
 
-def _build_version(
-    asset: Asset, number: int, spec: UploadSpec, *, now: datetime, new_id: IdFactory
+def _build_version(  # noqa: PLR0913 - keyword-only facts of one version
+    asset: Asset,
+    number: int,
+    spec: UploadSpec,
+    *,
+    now: datetime,
+    new_id: IdFactory,
+    uploaded_by: UUID | None,
 ) -> AssetVersion:
     _require_aware(now)
     media_type = _media_type(spec.content_type)
@@ -148,11 +157,17 @@ def _build_version(
         object_key=f"{OBJECT_KEY_PREFIX}/{asset.id}/v{number}/{version_id}.{extension}",
         created_at=now,
         updated_at=now,
+        uploaded_by=uploaded_by,
     )
 
 
 def new_asset(
-    name: str, spec: UploadSpec, *, now: datetime, new_id: IdFactory
+    name: str,
+    spec: UploadSpec,
+    *,
+    now: datetime,
+    new_id: IdFactory,
+    owner_id: UUID | None = None,
 ) -> tuple[Asset, AssetVersion]:
     """Create an asset and its first version, waiting for the upload.
 
@@ -167,19 +182,26 @@ def new_asset(
         kind=MEDIA_TYPES[_media_type(spec.content_type)][0],
         created_at=now,
         updated_at=now,
+        owner_id=owner_id,
     )
-    return asset, _build_version(asset, 1, spec, now=now, new_id=new_id)
+    return asset, _build_version(asset, 1, spec, now=now, new_id=new_id, uploaded_by=owner_id)
 
 
-def new_version(
-    asset: Asset, number: int, spec: UploadSpec, *, now: datetime, new_id: IdFactory
+def new_version(  # noqa: PLR0913 - keyword-only facts of one version
+    asset: Asset,
+    number: int,
+    spec: UploadSpec,
+    *,
+    now: datetime,
+    new_id: IdFactory,
+    uploaded_by: UUID | None = None,
 ) -> AssetVersion:
     """Create version `number` of `asset`; the repository chooses the number.
 
     Raises:
         AssetKindMismatchError: The file is of another kind than the asset.
     """
-    return _build_version(asset, number, spec, now=now, new_id=new_id)
+    return _build_version(asset, number, spec, now=now, new_id=new_id, uploaded_by=uploaded_by)
 
 
 def transition(
