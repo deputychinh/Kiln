@@ -1,7 +1,7 @@
 import { ViewerError } from '@/enums/viewer-error.enum';
 
 /** The viewer page's route id (outside the `/assets` list-detail layout). */
-export const VIEWER_ROUTE_ID = '/assets_/$assetId/view';
+export const VIEWER_ROUTE_ID = '/_app/assets_/$assetId/view';
 // The worker's model limits (services/worker kiln_worker/constants.py), so the viewer opens only
 // what the worker could check; `test_viewer_limits.py` keeps the two files equal.
 /** `MODEL_MAX_BYTES`: the worker refuses larger models, so no ready file is bigger. */

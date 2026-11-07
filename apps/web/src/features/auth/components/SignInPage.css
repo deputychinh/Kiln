@@ -1,0 +1,113 @@
+/* A calm, centred card on the page surface; the brand above it, the theme switch in the corner. */
+.sign-in-page {
+  position: relative;
+  display: grid;
+  min-block-size: 100dvh;
+  padding: var(--kiln-space-4);
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, var(--kiln-color-surface-selected), transparent 70%),
+    var(--kiln-color-surface);
+}
+
+.sign-in-page__theme {
+  position: absolute;
+  inset: var(--kiln-space-3) var(--kiln-space-3) auto auto;
+}
+
+.sign-in-page__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-5);
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  max-inline-size: 26rem;
+  margin: auto;
+  padding-block: var(--kiln-space-8) var(--kiln-space-6);
+}
+
+.sign-in-page__brand {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  font-size: var(--kiln-text-xl);
+  font-weight: var(--kiln-weight-bold);
+  letter-spacing: var(--kiln-tracking-title);
+}
+
+.sign-in-page__card {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  padding: var(--kiln-space-6) var(--kiln-space-5);
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-xl);
+  box-shadow: var(--kiln-shadow-2);
+}
+
+.sign-in-page__title {
+  margin: 0 0 var(--kiln-space-1);
+  font-size: var(--kiln-text-xl);
+  font-weight: var(--kiln-weight-semibold);
+}
+
+/* Focused by the app (tabindex -1) so reading starts here: not a control, so no ring. */
+.sign-in-page__title:focus {
+  outline: none;
+}
+
+.sign-in-page__lead {
+  margin: 0 0 var(--kiln-space-5);
+  font-size: var(--kiln-text-ui);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.sign-in-page__notice,
+.sign-in-page__alert {
+  display: flex;
+  gap: var(--kiln-space-2);
+  align-items: flex-start;
+  margin: 0 0 var(--kiln-space-4);
+  padding: var(--kiln-space-3);
+  font-size: var(--kiln-text-ui);
+  border-radius: var(--kiln-radius-md);
+}
+
+.sign-in-page__notice {
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+}
+
+.sign-in-page__alert {
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-danger);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-danger);
+}
+
+.sign-in-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+}
+
+.sign-in-page__submit {
+  inline-size: 100%;
+  margin-block-start: var(--kiln-space-2);
+}
+
+.sign-in-page__note {
+  max-inline-size: var(--kiln-measure);
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  text-align: center;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+@media (min-width: 600px) {
+  .sign-in-page__card {
+    padding: var(--kiln-space-6);
+  }
+}

@@ -3,6 +3,9 @@ import type { ApiError } from '@/interfaces/api-error.interface';
 import type { ProblemBody } from '@/interfaces/problem.interface';
 
 const PROBLEM_MEDIA_TYPE = 'application/problem+json';
+const HTTP_NO_CONTENT = 204;
+/** Every write carries it; a cross-site page cannot add it without a refused preflight. */
+const CSRF_HEADERS = { 'X-Kiln-Csrf': '1' } as const;
 
 export const apiError = (status: number, message: string, code: string | null = null): ApiError =>
   Object.assign(new Error(message), { name: 'ApiError' as const, status, code });
@@ -32,12 +35,18 @@ const send = async <T>(
 ): Promise<T> => {
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, { ...init, signal: signal ?? null });
+    // Same origin: the browser sends the session cookie; never to another origin.
+    response = await fetch(`${apiBaseUrl()}${path}`, {
+      ...init,
+      credentials: 'same-origin',
+      signal: signal ?? null,
+    });
   } catch (cause) {
     if (signal?.aborted) throw cause; // a cancelled request, not a failure
     throw apiError(0, cause instanceof Error ? cause.message : String(cause));
   }
   if (!response.ok) throw await problemOf(response);
+  if (response.status === HTTP_NO_CONTENT) return undefined as T;
   return (await response.json()) as T;
 };
 
@@ -58,9 +67,14 @@ export const apiPost = <T>(
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        ...CSRF_HEADERS,
         ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
       },
       body: JSON.stringify(body),
     },
     options.signal,
   );
+
+/** DELETE a resource of the Kiln API (204 No Content). */
+export const apiDelete = (path: string, signal?: AbortSignal): Promise<void> =>
+  send<undefined>(path, { method: 'DELETE', headers: { ...CSRF_HEADERS } }, signal);

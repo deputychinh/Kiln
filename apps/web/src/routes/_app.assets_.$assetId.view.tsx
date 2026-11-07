@@ -10,7 +10,7 @@ const ViewerRoute = (): ReactElement => {
 };
 
 /** Full width, outside the list-detail layout: the model needs the room (KILN-9). */
-export const Route = createFileRoute('/assets_/$assetId/view')({
+export const Route = createFileRoute('/_app/assets_/$assetId/view')({
   validateSearch: parseViewerSearch,
   component: ViewerRoute,
 });

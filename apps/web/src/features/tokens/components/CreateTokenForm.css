@@ -1,0 +1,40 @@
+.create-token-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+  padding: var(--kiln-space-5);
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+}
+
+.create-token-form__title {
+  margin: 0;
+  font-size: var(--kiln-text-md);
+  font-weight: var(--kiln-weight-semibold);
+}
+
+.create-token-form__name {
+  max-inline-size: 28rem;
+}
+
+/* Each choice keeps its legend above its segments, side by side once there is room. */
+.create-token-form__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-4) var(--kiln-space-6);
+}
+
+.create-token-form__alert {
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-danger);
+}
+
+.create-token-form__alert:empty {
+  display: none;
+}
+
+.create-token-form__submit {
+  align-self: flex-start;
+}

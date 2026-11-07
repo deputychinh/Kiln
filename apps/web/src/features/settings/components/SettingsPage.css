@@ -1,0 +1,43 @@
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-5);
+  max-inline-size: 60rem;
+  padding: var(--kiln-space-5) var(--kiln-space-4) var(--kiln-space-8);
+}
+
+.settings-page__title {
+  margin: 0;
+  font-size: var(--kiln-text-2xl);
+  font-weight: var(--kiln-weight-semibold);
+}
+
+/* Focused by the app (tabindex -1) so reading starts here: not a control, so no ring. */
+.settings-page__title:focus {
+  outline: none;
+}
+
+.settings-page__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+}
+
+.settings-page__heading {
+  margin: 0;
+  font-size: var(--kiln-text-lg);
+  font-weight: var(--kiln-weight-semibold);
+}
+
+.settings-page__lead {
+  max-inline-size: var(--kiln-measure);
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+@media (min-width: 600px) {
+  .settings-page {
+    padding-inline: var(--kiln-space-6);
+  }
+}

@@ -1,7 +1,9 @@
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 
 import { isApiError } from '@/api/client';
+import { ME_QUERY_KEY } from '@/constants/auth.constant';
 import { QUERY_MAX_RETRIES, QUERY_STALE_MS } from '@/constants/query.constant';
+import { isSignedOut } from '@/utils/auth.util';
 
 const HTTP_CLIENT_ERROR_MIN = 400;
 const HTTP_SERVER_ERROR_MIN = 500;
@@ -15,8 +17,27 @@ export const shouldRetry = (failureCount: number, error: unknown): boolean => {
   return !isClientError && failureCount < QUERY_MAX_RETRIES;
 };
 
-export const createQueryClient = (retryDelayMs?: number): QueryClient =>
-  new QueryClient({
+/**
+ * The app's query client. `onSignedOut` runs when any request answers 401 `UNAUTHENTICATED`
+ * (the session expired or was ended elsewhere), so the person lands on sign-in (KILN-12).
+ */
+export const createQueryClient = (
+  retryDelayMs?: number,
+  onSignedOut: () => void = () => undefined,
+): QueryClient => {
+  const onError = (error: unknown): void => {
+    if (isSignedOut(error)) onSignedOut();
+  };
+  return new QueryClient({
+    // Who-is-signed-in itself is the route guard's business (a first visit is not an expiry).
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        if (query.queryKey !== ME_QUERY_KEY && query.queryKey.join() !== ME_QUERY_KEY.join()) {
+          onError(error);
+        }
+      },
+    }),
+    mutationCache: new MutationCache({ onError }),
     defaultOptions: {
       queries: {
         staleTime: QUERY_STALE_MS,
@@ -25,3 +46,4 @@ export const createQueryClient = (retryDelayMs?: number): QueryClient =>
       },
     },
   });
+};

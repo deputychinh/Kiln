@@ -3,22 +3,14 @@ import '@kiln/ui/tokens.css';
 import '@/styles/base.css';
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { createQueryClient } from '@/config/query-client';
-import { routeTree } from '@/routeTree.gen';
+import { createAppRouter } from '@/config/router';
 import { applyStoredTheme } from '@/utils/theme.util';
 
-const router = createRouter({ routeTree, scrollRestoration: true });
-const queryClient = createQueryClient();
-
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router;
-  }
-}
+const { router, queryClient } = createAppRouter();
 
 // A theme chosen earlier applies before the first render (no inline script: the CSP forbids it).
 applyStoredTheme();

@@ -14,6 +14,8 @@ interface AppShellProps {
   actions?: ReactNode;
   /** Fixed layers that belong to the whole app (the upload tray, the drop overlay). */
   overlays?: ReactNode;
+  /** Who is signed in, last in the top bar (KILN-12). */
+  account?: ReactNode;
   children: ReactNode;
 }
 
@@ -21,7 +23,7 @@ interface AppShellProps {
  * The app frame (Material 3 adaptive): a top bar with the brand, search and actions; navigation
  * as a bottom bar on compact screens, a rail from 600 px and a sidebar from 1200 px.
  */
-export const AppShell = ({ actions, overlays, children }: AppShellProps): ReactElement => {
+export const AppShell = ({ actions, overlays, account, children }: AppShellProps): ReactElement => {
   const copy = useCopy();
   const searchId = useId();
   return (
@@ -60,6 +62,7 @@ export const AppShell = ({ actions, overlays, children }: AppShellProps): ReactE
         <div className="app-shell__actions">
           {actions}
           <ThemeToggle />
+          {account}
         </div>
       </header>
       <nav className="app-shell__nav" aria-label={copy.app.navLabel}>

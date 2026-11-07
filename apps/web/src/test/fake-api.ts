@@ -1,6 +1,7 @@
 import type { MockInstance } from 'vitest';
 
 import type { Asset, AssetDetail, AssetVersion } from '@/interfaces/asset.interface';
+import type { AccessToken, Me } from '@/interfaces/auth.interface';
 
 type Reply = Response | (() => Response) | Error;
 type FetchMock = MockInstance<typeof fetch>;
@@ -46,6 +47,26 @@ export const fakeApi = (routes: Record<string, Reply[]>): FetchMock => {
 };
 
 const STAMP = '2026-11-06T08:00:00Z';
+
+export const aMe = (overrides: Partial<Me> = {}): Me => ({
+  id: '0190f1c2-0000-7000-8000-0000000000f1',
+  email: 'ada@kiln.test',
+  display_name: 'Ada Artist',
+  auth_method: 'session',
+  scopes: ['read', 'write'],
+  ...overrides,
+});
+
+export const aToken = (overrides: Partial<AccessToken> = {}): AccessToken => ({
+  id: '0190f1c2-0000-7000-8000-0000000000c1',
+  name: 'Blender laptop',
+  prefix: 'kiln_pat_Ab3dEf',
+  scopes: ['read', 'write'],
+  created_at: STAMP,
+  expires_at: '2027-02-04T08:00:00Z',
+  last_used_at: null,
+  ...overrides,
+});
 
 /** A SigV4-style presigned URL of `key`, signed at `amzDate` for 15 minutes. */
 export const signedUrl = (key: string, amzDate: string): string =>

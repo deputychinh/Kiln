@@ -1,0 +1,63 @@
+.new-token-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  padding: var(--kiln-space-5);
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-focus) solid var(--kiln-color-success);
+  border-radius: var(--kiln-radius-lg);
+}
+
+.new-token-notice__title {
+  display: flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--kiln-text-md);
+  font-weight: var(--kiln-weight-semibold);
+  overflow-wrap: anywhere;
+  color: var(--kiln-color-success);
+}
+
+/* Focused by the app (tabindex -1) so reading starts here: not a control, so no ring. */
+.new-token-notice__title:focus {
+  outline: none;
+}
+
+.new-token-notice__warning {
+  display: flex;
+  gap: var(--kiln-space-2);
+  align-items: flex-start;
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+  color: var(--kiln-color-on-surface);
+}
+
+.new-token-notice__value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+  align-items: flex-end;
+}
+
+.new-token-notice__field {
+  flex: 1 1 18rem;
+}
+
+.new-token-notice__copy {
+  min-block-size: var(--kiln-target-primary);
+}
+
+.new-token-notice__status {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.new-token-notice__status:empty {
+  display: none;
+}
+
+.new-token-notice__done {
+  align-self: flex-start;
+}

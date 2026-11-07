@@ -9,4 +9,4 @@ const AssetRoute = (): ReactElement => {
   return <AssetDetail key={assetId} assetId={assetId} />;
 };
 
-export const Route = createFileRoute('/assets/$assetId')({ component: AssetRoute });
+export const Route = createFileRoute('/_app/assets/$assetId')({ component: AssetRoute });

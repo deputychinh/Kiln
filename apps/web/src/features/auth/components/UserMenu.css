@@ -1,0 +1,153 @@
+.user-menu {
+  position: relative;
+}
+
+.user-menu__trigger {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  min-block-size: var(--kiln-target-primary);
+  padding: 0 var(--kiln-space-1);
+  font: inherit;
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+  background-color: transparent;
+  border: 0;
+  border-radius: var(--kiln-radius-full);
+  cursor: pointer;
+}
+
+.user-menu__trigger:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
+}
+
+.user-menu__avatar {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--kiln-target-control);
+  block-size: var(--kiln-target-control);
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-semibold);
+  color: var(--kiln-color-on-selected);
+  background-color: var(--kiln-color-surface-selected);
+  border-radius: var(--kiln-radius-full);
+}
+
+/* The name shows from the medium size class; on a phone it stays the button's accessible name. */
+.user-menu__name {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 1px;
+  block-size: 1px;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.user-menu__chevron {
+  display: none;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.user-menu__panel {
+  position: absolute;
+  inset: calc(100% + var(--kiln-space-1)) 0 auto auto;
+  z-index: var(--kiln-z-dialog);
+  min-inline-size: 15rem;
+  max-inline-size: calc(100vw - 2 * var(--kiln-space-4));
+  padding: var(--kiln-space-2);
+  background-color: var(--kiln-color-surface-overlay);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+  box-shadow: var(--kiln-shadow-3);
+}
+
+.user-menu__panel[hidden] {
+  display: none;
+}
+
+.user-menu__who {
+  padding: var(--kiln-space-2) var(--kiln-space-3) var(--kiln-space-3);
+  border-block-end: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  margin-block-end: var(--kiln-space-2);
+}
+
+.user-menu__who-name {
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.user-menu__who-email {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  overflow-wrap: anywhere;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.user-menu__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.user-menu__item {
+  display: flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--kiln-target-primary);
+  padding: 0 var(--kiln-space-3);
+  font: inherit;
+  font-size: var(--kiln-text-ui);
+  text-align: start;
+  text-decoration: none;
+  color: var(--kiln-color-on-surface);
+  background-color: transparent;
+  border: 0;
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+}
+
+.user-menu__item:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: calc(-1 * var(--kiln-border-focus));
+}
+
+.user-menu__alert:not(:empty) {
+  padding: var(--kiln-space-2) var(--kiln-space-3);
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-danger);
+}
+
+@media (hover: hover) {
+  .user-menu__trigger:hover .user-menu__avatar {
+    box-shadow: 0 0 0 var(--kiln-border-focus) var(--kiln-color-outline);
+  }
+
+  .user-menu__item:hover {
+    background-color: var(--kiln-color-surface-hover);
+  }
+}
+
+@media (min-width: 840px) {
+  .user-menu__trigger {
+    padding-inline-end: var(--kiln-space-2);
+  }
+
+  .user-menu__name {
+    position: static;
+    overflow: visible;
+    inline-size: auto;
+    max-inline-size: 12rem;
+    block-size: auto;
+    clip-path: none;
+    text-overflow: ellipsis;
+  }
+
+  .user-menu__chevron {
+    display: block;
+  }
+}

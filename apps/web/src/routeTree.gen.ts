@@ -10,72 +10,98 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AssetsRouteImport } from './routes/assets'
-import { Route as AssetsIndexRouteImport } from './routes/assets.index'
-import { Route as AssetsAssetIdRouteImport } from './routes/assets.$assetId'
-import { Route as AssetsAssetIdCompareRouteImport } from './routes/assets_.$assetId.compare'
-import { Route as AssetsAssetIdViewRouteImport } from './routes/assets_.$assetId.view'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as AppAssetsRouteImport } from './routes/_app.assets'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppAssetsIndexRouteImport } from './routes/_app.assets.index'
+import { Route as AppAssetsAssetIdRouteImport } from './routes/_app.assets.$assetId'
+import { Route as AppAssetsAssetIdCompareRouteImport } from './routes/_app.assets_.$assetId.compare'
+import { Route as AppAssetsAssetIdViewRouteImport } from './routes/_app.assets_.$assetId.view'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AssetsRoute = AssetsRouteImport.update({
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppAssetsRoute = AppAssetsRouteImport.update({
   id: '/assets',
   path: '/assets',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
 } as any)
-const AssetsIndexRoute = AssetsIndexRouteImport.update({
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAssetsIndexRoute = AppAssetsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AssetsRoute,
+  getParentRoute: () => AppAssetsRoute,
 } as any)
-const AssetsAssetIdRoute = AssetsAssetIdRouteImport.update({
+const AppAssetsAssetIdRoute = AppAssetsAssetIdRouteImport.update({
   id: '/$assetId',
   path: '/$assetId',
-  getParentRoute: () => AssetsRoute,
+  getParentRoute: () => AppAssetsRoute,
 } as any)
-const AssetsAssetIdCompareRoute = AssetsAssetIdCompareRouteImport.update({
+const AppAssetsAssetIdCompareRoute = AppAssetsAssetIdCompareRouteImport.update({
   id: '/assets_/$assetId/compare',
   path: '/assets/$assetId/compare',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
 } as any)
-const AssetsAssetIdViewRoute = AssetsAssetIdViewRouteImport.update({
+const AppAssetsAssetIdViewRoute = AppAssetsAssetIdViewRouteImport.update({
   id: '/assets_/$assetId/view',
   path: '/assets/$assetId/view',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/assets': typeof AssetsRouteWithChildren
-  '/assets/$assetId': typeof AssetsAssetIdRoute
-  '/assets/': typeof AssetsIndexRoute
-  '/assets/$assetId/compare': typeof AssetsAssetIdCompareRoute
-  '/assets/$assetId/view': typeof AssetsAssetIdViewRoute
+  '/sign-in': typeof SignInRoute
+  '/assets': typeof AppAssetsRouteWithChildren
+  '/settings': typeof AppSettingsRoute
+  '/assets/$assetId': typeof AppAssetsAssetIdRoute
+  '/assets/': typeof AppAssetsIndexRoute
+  '/assets/$assetId/compare': typeof AppAssetsAssetIdCompareRoute
+  '/assets/$assetId/view': typeof AppAssetsAssetIdViewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/assets/$assetId': typeof AssetsAssetIdRoute
-  '/assets': typeof AssetsIndexRoute
-  '/assets/$assetId/compare': typeof AssetsAssetIdCompareRoute
-  '/assets/$assetId/view': typeof AssetsAssetIdViewRoute
+  '/sign-in': typeof SignInRoute
+  '/settings': typeof AppSettingsRoute
+  '/assets/$assetId': typeof AppAssetsAssetIdRoute
+  '/assets': typeof AppAssetsIndexRoute
+  '/assets/$assetId/compare': typeof AppAssetsAssetIdCompareRoute
+  '/assets/$assetId/view': typeof AppAssetsAssetIdViewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/assets': typeof AssetsRouteWithChildren
-  '/assets/$assetId': typeof AssetsAssetIdRoute
-  '/assets/': typeof AssetsIndexRoute
-  '/assets_/$assetId/compare': typeof AssetsAssetIdCompareRoute
-  '/assets_/$assetId/view': typeof AssetsAssetIdViewRoute
+  '/_app': typeof AppRouteWithChildren
+  '/sign-in': typeof SignInRoute
+  '/_app/assets': typeof AppAssetsRouteWithChildren
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/assets/$assetId': typeof AppAssetsAssetIdRoute
+  '/_app/assets/': typeof AppAssetsIndexRoute
+  '/_app/assets_/$assetId/compare': typeof AppAssetsAssetIdCompareRoute
+  '/_app/assets_/$assetId/view': typeof AppAssetsAssetIdViewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/sign-in'
     | '/assets'
+    | '/settings'
     | '/assets/$assetId'
     | '/assets/'
     | '/assets/$assetId/compare'
@@ -83,6 +109,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/sign-in'
+    | '/settings'
     | '/assets/$assetId'
     | '/assets'
     | '/assets/$assetId/compare'
@@ -90,18 +118,20 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/assets'
-    | '/assets/$assetId'
-    | '/assets/'
-    | '/assets_/$assetId/compare'
-    | '/assets_/$assetId/view'
+    | '/_app'
+    | '/sign-in'
+    | '/_app/assets'
+    | '/_app/settings'
+    | '/_app/assets/$assetId'
+    | '/_app/assets/'
+    | '/_app/assets_/$assetId/compare'
+    | '/_app/assets_/$assetId/view'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AssetsRoute: typeof AssetsRouteWithChildren
-  AssetsAssetIdCompareRoute: typeof AssetsAssetIdCompareRoute
-  AssetsAssetIdViewRoute: typeof AssetsAssetIdViewRoute
+  AppRoute: typeof AppRouteWithChildren
+  SignInRoute: typeof SignInRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -113,62 +143,99 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/assets': {
-      id: '/assets'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/assets': {
+      id: '/_app/assets'
       path: '/assets'
       fullPath: '/assets'
-      preLoaderRoute: typeof AssetsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppAssetsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/assets/': {
-      id: '/assets/'
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/assets/': {
+      id: '/_app/assets/'
       path: '/'
       fullPath: '/assets/'
-      preLoaderRoute: typeof AssetsIndexRouteImport
-      parentRoute: typeof AssetsRoute
+      preLoaderRoute: typeof AppAssetsIndexRouteImport
+      parentRoute: typeof AppAssetsRoute
     }
-    '/assets/$assetId': {
-      id: '/assets/$assetId'
+    '/_app/assets/$assetId': {
+      id: '/_app/assets/$assetId'
       path: '/$assetId'
       fullPath: '/assets/$assetId'
-      preLoaderRoute: typeof AssetsAssetIdRouteImport
-      parentRoute: typeof AssetsRoute
+      preLoaderRoute: typeof AppAssetsAssetIdRouteImport
+      parentRoute: typeof AppAssetsRoute
     }
-    '/assets_/$assetId/compare': {
-      id: '/assets_/$assetId/compare'
+    '/_app/assets_/$assetId/compare': {
+      id: '/_app/assets_/$assetId/compare'
       path: '/assets/$assetId/compare'
       fullPath: '/assets/$assetId/compare'
-      preLoaderRoute: typeof AssetsAssetIdCompareRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppAssetsAssetIdCompareRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/assets_/$assetId/view': {
-      id: '/assets_/$assetId/view'
+    '/_app/assets_/$assetId/view': {
+      id: '/_app/assets_/$assetId/view'
       path: '/assets/$assetId/view'
       fullPath: '/assets/$assetId/view'
-      preLoaderRoute: typeof AssetsAssetIdViewRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppAssetsAssetIdViewRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
-interface AssetsRouteChildren {
-  AssetsAssetIdRoute: typeof AssetsAssetIdRoute
-  AssetsIndexRoute: typeof AssetsIndexRoute
+interface AppAssetsRouteChildren {
+  AppAssetsAssetIdRoute: typeof AppAssetsAssetIdRoute
+  AppAssetsIndexRoute: typeof AppAssetsIndexRoute
 }
 
-const AssetsRouteChildren: AssetsRouteChildren = {
-  AssetsAssetIdRoute: AssetsAssetIdRoute,
-  AssetsIndexRoute: AssetsIndexRoute,
+const AppAssetsRouteChildren: AppAssetsRouteChildren = {
+  AppAssetsAssetIdRoute: AppAssetsAssetIdRoute,
+  AppAssetsIndexRoute: AppAssetsIndexRoute,
 }
 
-const AssetsRouteWithChildren =
-  AssetsRoute._addFileChildren(AssetsRouteChildren)
+const AppAssetsRouteWithChildren = AppAssetsRoute._addFileChildren(
+  AppAssetsRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppAssetsRoute: typeof AppAssetsRouteWithChildren
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppAssetsAssetIdCompareRoute: typeof AppAssetsAssetIdCompareRoute
+  AppAssetsAssetIdViewRoute: typeof AppAssetsAssetIdViewRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAssetsRoute: AppAssetsRouteWithChildren,
+  AppSettingsRoute: AppSettingsRoute,
+  AppAssetsAssetIdCompareRoute: AppAssetsAssetIdCompareRoute,
+  AppAssetsAssetIdViewRoute: AppAssetsAssetIdViewRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AssetsRoute: AssetsRouteWithChildren,
-  AssetsAssetIdCompareRoute: AssetsAssetIdCompareRoute,
-  AssetsAssetIdViewRoute: AssetsAssetIdViewRoute,
+  AppRoute: AppRouteWithChildren,
+  SignInRoute: SignInRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,4 +1,4 @@
-import { apiError, apiGet, apiPost, isApiError } from '@/api/client';
+import { apiDelete, apiError, apiGet, apiPost, isApiError } from '@/api/client';
 import { json, problem } from '@/test/fake-api';
 
 describe('apiGet', () => {
@@ -10,6 +10,7 @@ describe('apiGet', () => {
     await expect(apiGet('/api/v1/assets')).resolves.toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledWith('http://api.test/api/v1/assets', {
       headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
       signal: null,
     });
   });
@@ -96,9 +97,11 @@ describe('apiPost', () => {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'X-Kiln-Csrf': '1',
         'Idempotency-Key': 'key-1',
       },
       body: '{"name":"rock"}',
+      credentials: 'same-origin',
       signal: null,
     });
   });
@@ -130,6 +133,35 @@ describe('apiPost', () => {
 
     await expect(apiPost('/x', {}, { signal: controller.signal })).rejects.toMatchObject({
       name: 'AbortError',
+    });
+  });
+});
+
+describe('apiDelete', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('sends the CSRF header with the cookie and resolves on 204 without a body', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(apiDelete('/api/v1/me/tokens/t1')).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith('http://api.test/api/v1/me/tokens/t1', {
+      method: 'DELETE',
+      headers: { 'X-Kiln-Csrf': '1' },
+      credentials: 'same-origin',
+      signal: null,
+    });
+  });
+
+  it('maps a problem to an ApiError like the other verbs', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      problem(404, 'Not Found', 'ACCESS_TOKEN_NOT_FOUND'),
+    );
+
+    await expect(apiDelete('/x')).rejects.toMatchObject({
+      status: 404,
+      code: 'ACCESS_TOKEN_NOT_FOUND',
     });
   });
 });

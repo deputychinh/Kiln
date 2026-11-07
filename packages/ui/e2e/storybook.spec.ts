@@ -142,6 +142,11 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
   'components-tabs--docs': {
     own: ['label', 'tabs', 'defaultSelectedId', 'selectedId', 'onSelect'],
   },
+  // TextField also passes its stories' native input attributes through to the input.
+  'components-textfield--docs': {
+    own: ['label', 'hint', 'error', 'ref'],
+    native: ['type', 'autoComplete', 'disabled'],
+  },
   'components-toolbar--docs': { own: ['label', 'children', 'end'] },
   'components-tooltip--docs': { own: ['content', 'placement', 'isBlock', 'as', 'children'] },
 };

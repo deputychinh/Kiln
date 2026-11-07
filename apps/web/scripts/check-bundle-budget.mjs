@@ -31,7 +31,7 @@ const only = (pattern) => {
 
 const measured = {
   initial: initialFiles.reduce((sum, file) => sum + gzipOf(file), 0),
-  viewerRoute: gzipOf(only(/^assets\/assets_\._assetId\.view-[\w-]+\.js$/)),
+  viewerRoute: gzipOf(only(/^assets\/_app\.assets_\._assetId\.view-[\w-]+\.js$/)),
   scene: gzipOf(only(/^assets\/ModelScene-[\w-]+\.js$/)),
 };
 const problems = Object.entries(BUDGET)

@@ -10,7 +10,7 @@ const CompareRoute = (): ReactElement => {
 };
 
 /** Full width, outside the list-detail layout: two previews need the room. */
-export const Route = createFileRoute('/assets_/$assetId/compare')({
+export const Route = createFileRoute('/_app/assets_/$assetId/compare')({
   validateSearch: parseCompareSearch,
   component: CompareRoute,
 });

@@ -120,7 +120,7 @@ export const AssetGallery = (): ReactElement => {
   const copy = useCopy();
   const pages = useAssetPages();
   // The router merges unknown raw params back into the validated ones: parse again to be sure.
-  const search = parseGallerySearch(useSearch({ from: '/assets' }));
+  const search = parseGallerySearch(useSearch({ from: '/_app/assets' }));
   const navigate = useNavigate({ from: '/assets' });
   const { refetch } = pages;
   const galleryRef = useRef<HTMLDivElement>(null);

@@ -41,7 +41,7 @@ const AssetsLayout = (): ReactElement => {
 };
 
 /** The gallery's kind filter, sort and card size live in the URL; the detail keeps them. */
-export const Route = createFileRoute('/assets')({
+export const Route = createFileRoute('/_app/assets')({
   validateSearch: parseGallerySearch,
   component: AssetsLayout,
 });
