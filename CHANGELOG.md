@@ -8,6 +8,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 - A hung job no longer blocks its worker (KILN-28): a watchdog ends the worker process (exit 76) when a job reaches its 30-minute maximum runtime, before its lease can expire, or has not finished 60 s after a stop (`KILN_JOB_STOP_GRACE_SECONDS`, at most 120); the supervisor starts a fresh process at once, kills a child that showed no sign of life for 60 s in a job (native code holding the GIL, a frozen process — before its lease can lapse) or is still in one job 5 s past the runtime (ADR 0009) and kills a child that outlives its stop grace, so shutdowns are bounded too. Give the worker a stop timeout of at least 70 s.
 
+### Fixed
+
+- The local web app on `http://localhost:5173` (the URL `make web` prints) could not reach the API: the default CORS allow-list now has `localhost` next to `127.0.0.1` for the dev and preview ports.
+
 ## [0.1.0] - 2026-11-06
 
 Phase 1, upload and gallery: images and glTF binaries go from the browser (or the API) through presigned uploads to worker-made previews, shown in an adaptive gallery with an asset detail; the design system has Storybook with an axe pass.

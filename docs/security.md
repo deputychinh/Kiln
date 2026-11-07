@@ -22,7 +22,7 @@ Target: OWASP ASVS 5.0 Level 1, following `references/security.md` (OWASP Top 10
 ## Baseline
 
 - Headers: CSP (no `unsafe-inline` scripts), HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`.
-- CORS allow-list from `KILN_CORS_ORIGINS`; the API allows `Content-Type`, `Idempotency-Key` and `X-Request-Id` request headers (browser uploads, KILN-26).
+- CORS allow-list from `KILN_CORS_ORIGINS` (the local default lists the dev and preview ports on `127.0.0.1` and `localhost`; deployed environments set their own origins); the API allows `Content-Type`, `Idempotency-Key` and `X-Request-Id` request headers (browser uploads, KILN-26).
 - Browser uploads go straight to storage with the signed POST form (policy pins key, type and exact size, ADR 0004). The bucket's CORS rules must allow `POST` only from the app origins in every deployed environment; local SeaweedFS reflects any origin, which is acceptable only on a developer machine. The browser's own checks (type by extension, 1 byte–500 MiB) are for feedback; the API and the worker (magic bytes) stay the gate.
 - Limits: request body 1 MB (`413 PAYLOAD_TOO_LARGE`, chunked bodies counted too); asset 500 MB; pagination `limit` 1 to 100 (`422` outside).
 - Every error, including database and unexpected ones, is RFC 9457 problem details without internals; `503` carries `Retry-After`.

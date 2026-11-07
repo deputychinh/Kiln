@@ -27,7 +27,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://kiln:kiln@127.0.0.1:5432/kiln"
     db_lock_timeout_ms: int = DB_LOCK_TIMEOUT_MS
     db_statement_timeout_ms: int = DB_STATEMENT_TIMEOUT_MS
-    cors_origins: list[str] = ["http://127.0.0.1:5173", "http://127.0.0.1:4173"]
+    # `make web` prints localhost, browsers may also use 127.0.0.1: allow both for local work.
+    cors_origins: list[str] = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173",
+    ]
     s3_endpoint: str = "http://127.0.0.1:8333"
     s3_region: str = "us-east-1"
     s3_bucket: str = "kiln-assets"

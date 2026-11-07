@@ -279,6 +279,16 @@ def test_a_browser_may_send_an_idempotency_key_across_origins(client: TestClient
     assert "content-type" in allowed
 
 
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+def test_the_local_web_app_may_call_the_api_from_either_host_name(
+    client: TestClient, origin: str
+) -> None:
+    """`make web` prints `localhost`; a browser on either name must not be blocked by CORS."""
+    response = client.get("/health", headers={"Origin": origin})
+
+    assert response.headers["access-control-allow-origin"] == origin
+
+
 def test_a_413_keeps_cors_and_the_request_id(client: TestClient) -> None:
     response = client.post(
         "/api/v1/assets",
