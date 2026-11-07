@@ -1,6 +1,6 @@
 # KILN-9: 3D viewer
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -75,7 +75,26 @@ Exploratory checks: keyboard only (Tab order: back link → stage → controls);
 | Round | Score            | Findings → fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ----- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | 7.0 (security 0) | A 768-byte `.glb` adding `COLOR_0` with 200,000,000 VEC4 and no bufferView passed the worker (it reads only what it draws) and made the viewer allocate 3.3 GB → the worker's `check_document` and the web's `checkGeometry` bound every accessor by its bufferView, refuse sparse or view-less accessors, require one count per primitive and cap vertices, indices and elements over all meshes with the worker's budgets; a worker test keeps the web limits equal; the reviewer's ready bomb now ends at 21 MB of heap with "not a glTF binary". The lazy scene had no boundary and parse errors became `download` → `useSceneModule` (`scene-load`, retryable), `SceneBoundary` and `sceneErrorOf` (`unreadable`); context loss is listened to only while a model is shown; the WebGL probe releases its context. A JSON chunk over 16 MB said "larger than 256 MB" → new `too-complex` message. Open: files made ready before this change are not re-checked by the worker (the viewer's check refuses them). |
+| 2     | 9.5              | Same reviewer: the stored round-1 bomb now gets 31 MB heap and a refusal in 425 ms, a fresh upload fails as UNREADABLE_MODEL, nine other hostile files fail safely with no foreign request; chunk failure retries with the preview; mutants (element budget, count match, first error kept, worker totals) killed. Left as KILN-36: strict-tree check for every scene in the worker, "not a glTF binary" copy for malformed files, re-checking models made ready before the fix.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## Review score
 
 Pending the independent review.
+
+## Score
+
+Round 2 (the round-1 reviewer, resumed):
+
+| #   | Criterion             | Score   |
+| --- | --------------------- | ------- |
+| 1   | Requirements fit      | 1       |
+| 2   | Test depth            | 1       |
+| 3   | Reliability           | 1       |
+| 4   | Security              | 1       |
+| 5   | Maintainability       | 1       |
+| 6   | UX                    | 0.5     |
+| 7   | Accessibility         | 1       |
+| 8   | Performance           | 1       |
+| 9   | Docs and traceability | 1       |
+| 10  | Delivery              | 1       |
+|     | **Total**             | **9.5** |
