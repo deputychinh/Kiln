@@ -1,6 +1,6 @@
 # KILN-35: Visual redesign — app shell, dark-first design system, gallery and detail polish
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -103,3 +103,13 @@ Gates after round 1: `make lint` 0; `make test` 802 Python (own `KILN_TEST_DATAB
 ## Review score
 
 Pending the independent review (round 2).
+
+## Review rounds
+
+| Round | Score | Findings → fixes                                                                                                                                                                                                                                                                                                                |
+| ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2     | 10    | Same reviewer, real app at 1440/1024/768/390 in both themes: card size narrows at every width, no clipping or horizontal scroll, square wells without bars, inspector only from 1200 px, ember focus and hover, behaviour unchanged (keyboard, tabs, tooltips, drop overlay, Load more with a filter). Polish filed as KILN-38. |
+
+## Score
+
+Round 2 (the round-1 reviewer, resumed): every criterion 1 — **10/10**.
