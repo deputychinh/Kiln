@@ -38,3 +38,6 @@ storybook-static/
 # coverage data
 .coverage
 .coverage.*
+
+# Playwright signed-in state and the e2e seeding token (KILN-12)
+apps/web/e2e/.auth/

@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { AUTH_STATE } from './e2e/support/user.constant';
+
 const WEB_URL = 'http://127.0.0.1:4173';
 
 // Journeys run against the production build (`vite preview`), the real API and the worker
@@ -9,9 +11,19 @@ export default defineConfig({
   fullyParallel: true,
   reporter: 'list',
   use: { baseURL: WEB_URL, trace: 'retain-on-failure' },
+  // Every journey runs signed in: the setup project signs in once through the UI (KILN-12).
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    { name: 'setup', testMatch: /auth\.setup\.ts/u },
+    {
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile',
+      use: { ...devices['Pixel 7'], storageState: AUTH_STATE },
+      dependencies: ['setup'],
+    },
   ],
   webServer: [
     {

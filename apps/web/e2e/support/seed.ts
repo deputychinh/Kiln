@@ -4,6 +4,8 @@ import type { APIRequestContext } from '@playwright/test';
 
 import type { components } from '@/api/kiln.schema';
 
+import { AUTH_TOKEN } from './user.constant';
+
 const API_URL = 'http://127.0.0.1:8000';
 const fixture = (name: string): Buffer =>
   readFileSync(new URL(`../fixtures/${name}`, import.meta.url));
@@ -15,6 +17,11 @@ const CRATE = {
 };
 
 type SeedFile = typeof SWATCH;
+
+/** The setup project's personal access token: seeding calls the API as the CLI will. */
+const asCli = (): Record<string, string> => ({
+  Authorization: `Bearer ${readFileSync(AUTH_TOKEN, 'utf8').trim()}`,
+});
 type PendingUpload = components['schemas']['PendingUploadOut'];
 
 const declarationOf = (file: SeedFile) => ({
@@ -40,6 +47,7 @@ const uploadAndComplete = async (
 
   const completed = await request.post(
     `${API_URL}/api/v1/asset-versions/${pending.version.id}/completions`,
+    { headers: asCli() },
   );
   if (!completed.ok()) throw new Error(`completion failed: ${String(completed.status())}`);
 };
@@ -51,6 +59,7 @@ const seedAsset = async (
   file: SeedFile,
 ): Promise<{ id: string; name: string }> => {
   const created = await request.post(`${API_URL}/api/v1/assets`, {
+    headers: asCli(),
     data: { name, ...declarationOf(file) },
   });
   if (!created.ok()) throw new Error(`create failed: ${String(created.status())}`);
@@ -85,6 +94,7 @@ export const seedImageVersion = async (
   assetId: string,
 ): Promise<void> => {
   const created = await request.post(`${API_URL}/api/v1/assets/${assetId}/versions`, {
+    headers: asCli(),
     data: declarationOf(SWATCH),
   });
   if (!created.ok()) throw new Error(`version failed: ${String(created.status())}`);

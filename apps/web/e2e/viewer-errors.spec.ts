@@ -86,7 +86,10 @@ test('a file three.js cannot parse after the checks is called unreadable, not a 
   await openViewer(page, id);
 
   const alert = page.getByRole('alert');
-  await expect(alert).toContainText('This file is not a glTF binary (.glb) the viewer can read.');
+  // Download, scene chunk and parse run first; under a parallel run that passes the default 5 s.
+  await expect(alert).toContainText('This file is not a glTF binary (.glb) the viewer can read.', {
+    timeout: 20_000,
+  });
   await expect(alert.getByRole('button', { name: 'Try again' })).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'Still preview of version 1' })).toBeVisible();
 });
