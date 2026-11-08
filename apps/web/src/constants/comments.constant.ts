@@ -15,3 +15,8 @@ export const REGION_MIN_SIZE = 0.02;
 export const REGION_START = { shape: 'rect', x: 0.3, y: 0.3, width: 0.4, height: 0.4 } as const;
 /** How much of a comment names its region ("Region 2: The rim is too…"). */
 export const REGION_LABEL_EXCERPT = 40;
+/** A mark's numbered target on the image: 24 px (WCAG 2.5.8), kept this far apart. */
+export const BADGE_SIZE_PX = 24;
+export const BADGE_GAP_PX = 2;
+/** How many rings of neighbouring places a crowded badge tries before staying put. */
+export const BADGE_SEARCH_RINGS = 6;

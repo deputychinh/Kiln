@@ -143,3 +143,71 @@ describe('region.util', () => {
     expect(excerpt('🎨'.repeat(12), 10)).toBe(`${'🎨'.repeat(10)}…`);
   });
 });
+
+/** A small seeded generator (mulberry32), so a failing case can be replayed. */
+const seeded = (seed: number): (() => number) => {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+/** What the API checks, after the region went through JSON as the browser sends it. */
+const breaksTheApiRules = (region: DraftRegion): string | null => {
+  const sent = JSON.parse(JSON.stringify(region)) as DraftRegion;
+  const { x, y, width, height } = sent;
+  if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) return 'position';
+  if (sent.shape === 'point') return width === 0 && height === 0 ? null : 'point size';
+  if (width < 0.01 || height < 0.01) return 'too small';
+  if (x + width > 1 || y + height > 1) return 'past an edge';
+  return null;
+};
+
+describe('region.util drags (seeded properties)', () => {
+  const EDGE_ENDS: ((random: () => number) => { x: number; y: number })[] = [
+    (random) => ({ x: 1, y: random() }),
+    (random) => ({ x: 0, y: random() }),
+    (random) => ({ x: random(), y: 1 }),
+    (random) => ({ x: random(), y: 0 }),
+    () => ({ x: 1, y: 1 }),
+    (random) => ({ x: 1 - random() * 0.004, y: random() }), // a narrow drag hugging the edge
+  ];
+
+  it.each([1, 2, 3, 42, 2026])(
+    'every drag ending on an edge gives a region the API accepts (seed %i, 6,000 drags)',
+    (seed) => {
+      const random = seeded(seed);
+      for (let index = 0; index < 1000; index += 1) {
+        for (const end of EDGE_ENDS) {
+          const start =
+            index % 3 === 0
+              ? { x: 1 - random() * 0.003, y: random() } // starts right at the edge too
+              : { x: random(), y: random() };
+          const region = regionFromDrag(start, end(random));
+          expect(breaksTheApiRules(region), JSON.stringify({ seed, start, region })).toBeNull();
+        }
+      }
+    },
+  );
+
+  it('keeps a narrow drag at the right edge inside the image at the smallest width', () => {
+    expect(regionFromDrag({ x: 0.997, y: 0.2 }, { x: 0.999, y: 0.6 })).toEqual(
+      rect(0.98, 0.2, 0.02, 0.4),
+    );
+  });
+
+  it('keeps keyboard moves and resizes inside the image, whatever the steps', () => {
+    const random = seeded(7);
+    const keys = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
+    let region: DraftRegion = rect(0.3, 0.3, 0.4, 0.4);
+    for (let step = 0; step < 5000; step += 1) {
+      const key = keys[Math.floor(random() * keys.length)] ?? 'ArrowRight';
+      region =
+        regionAfterKey(region, key, { shiftKey: random() < 0.5, altKey: random() < 0.3 }) ?? region;
+      expect(breaksTheApiRules(region), JSON.stringify({ step, region })).toBeNull();
+    }
+  });
+});

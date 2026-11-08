@@ -1,7 +1,7 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { loadImage, serveComments } from '@/test/comment-api';
+import { aThread, loadImage, serveComments } from '@/test/comment-api';
 import { aDetail, anAsset, aVersion } from '@/test/fake-api';
 import { renderApp } from '@/test/render-app';
 import { setViewportExpanded } from '@/test/viewport';
@@ -244,5 +244,57 @@ describe('Marking a region', () => {
 
     expect(document.querySelector('.region-overlay')).toBeNull();
     expect(screen.getByRole('img', { name: 'Preview of rock_albedo' })).toBeInTheDocument();
+  });
+});
+
+describe('Badges on a measured image', () => {
+  beforeEach(() => setViewportExpanded(true));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('places each badge in px inside the image and moves one that would cover another', async () => {
+    let measure: ResizeObserverCallback = () => undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      // eslint-disable-next-line prefer-arrow-callback -- arrow functions cannot be constructed
+      vi.fn(function ResizeObserverStub(callback: ResizeObserverCallback) {
+        measure = callback;
+        return { observe: vi.fn(), disconnect: vi.fn() };
+      }),
+    );
+    const near = (number: number, x: number, y: number) =>
+      aThread({
+        id: `t-${String(number)}`,
+        version_id: 'v-1',
+        number,
+        body: `Mark ${String(number)}`,
+        region: { shape: 'point', x, y, width: null, height: null },
+      });
+    serveComments(detail, {
+      threads: { 'v-1': [near(1, 0.5, 0.5), near(2, 0.51, 0.51), near(3, 1, 1)] },
+    });
+    renderApp(`/assets/${asset.id}`);
+    const article = await screen.findByRole('article', { name: 'rock_albedo' });
+    await userEvent.click(within(article).getByRole('tab', { name: 'Comments' }));
+    await screen.findByText('Mark 2');
+    await userEvent.click(screen.getByRole('button', { name: 'Show more comments' }));
+    await screen.findByText('Mark 3');
+    loadImage(within(article).getByRole('img', { name: 'Preview of rock_albedo, version 1' }));
+    await screen.findByRole('button', { name: 'Region 3: Mark 3' });
+
+    act(() => {
+      measure(
+        [{ contentRect: { width: 400, height: 200 } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      );
+    });
+
+    const at = (name: string): string | null =>
+      screen.getByRole('button', { name }).getAttribute('style');
+    expect(at('Region 1: Mark 1')).toBe('left: 188px; top: 88px;');
+    expect(at('Region 2: Mark 2')).not.toBe('left: 190px; top: 90px;'); // moved off badge 1
+    expect(at('Region 3: Mark 3')).toBe('left: 376px; top: 176px;'); // the corner, inside
   });
 });

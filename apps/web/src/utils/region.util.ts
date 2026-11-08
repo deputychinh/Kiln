@@ -10,8 +10,22 @@ const PERCENT = 100;
 /** Rounded so a region survives the trip through JSON without float noise. */
 const DECIMALS = 1e6;
 
+const STEP = 1 / DECIMALS;
+
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 const round = (value: number): number => Math.round(value * DECIMALS) / DECIMALS;
+/** Down to six decimals (the epsilon absorbs 0.333333 × 1e6 = 333332.99999999994). */
+const floor = (value: number): number => Math.floor(value * DECIMALS + 1e-6) / DECIMALS;
+
+/**
+ * The largest size, at most `size`, that keeps `start + size ≤ 1` in floating point — the exact
+ * sum the API checks after JSON (IEEE doubles in both, and six-decimal values survive JSON).
+ */
+const fitTo = (start: number, size: number): number => {
+  let fitted = size;
+  while (start + fitted > 1) fitted = round(fitted - STEP);
+  return fitted;
+};
 
 /** Where a pointer is on an element, normalised to it and kept inside it. */
 export const pointIn = (rect: DOMRect, clientX: number, clientY: number): ImagePoint => ({
@@ -19,35 +33,42 @@ export const pointIn = (rect: DOMRect, clientX: number, clientY: number): ImageP
   y: rect.height > 0 ? clamp01((clientY - rect.top) / rect.height) : 0,
 });
 
+/**
+ * Keeps a draft inside the image and inside the API's rules: a point on the image; a rectangle at
+ * least `REGION_MIN_SIZE` on each side whose right and bottom edges never pass 1, also after
+ * rounding to six decimals.
+ */
+export const fitRegion = (region: DraftRegion): DraftRegion => {
+  if (region.shape === 'point') {
+    return {
+      shape: 'point',
+      x: round(clamp01(region.x)),
+      y: round(clamp01(region.y)),
+      width: 0,
+      height: 0,
+    };
+  }
+  const width = floor(Math.min(1, Math.max(REGION_MIN_SIZE, region.width)));
+  const height = floor(Math.min(1, Math.max(REGION_MIN_SIZE, region.height)));
+  const x = floor(Math.min(Math.max(0, region.x), 1 - width));
+  const y = floor(Math.min(Math.max(0, region.y), 1 - height));
+  return { shape: 'rect', x, y, width: fitTo(x, width), height: fitTo(y, height) };
+};
+
 /** The region a drag from `start` to `end` marks: a rectangle, or a point for a short drag. */
 export const regionFromDrag = (start: ImagePoint, end: ImagePoint): DraftRegion => {
   const width = Math.abs(end.x - start.x);
   const height = Math.abs(end.y - start.y);
   if (width < REGION_MIN_DRAG && height < REGION_MIN_DRAG) {
-    return { shape: 'point', x: round(start.x), y: round(start.y), width: 0, height: 0 };
+    return fitRegion({ shape: 'point', x: start.x, y: start.y, width: 0, height: 0 });
   }
-  return {
+  return fitRegion({
     shape: 'rect',
-    x: round(Math.min(start.x, end.x)),
-    y: round(Math.min(start.y, end.y)),
-    width: round(Math.max(width, REGION_MIN_SIZE)),
-    height: round(Math.max(height, REGION_MIN_SIZE)),
-  };
-};
-
-/** Keeps a draft inside the image: a rectangle never passes the right or bottom edge. */
-export const fitRegion = (region: DraftRegion): DraftRegion => {
-  if (region.shape === 'point')
-    return { ...region, x: round(clamp01(region.x)), y: round(clamp01(region.y)) };
-  const width = Math.min(1, Math.max(REGION_MIN_SIZE, region.width));
-  const height = Math.min(1, Math.max(REGION_MIN_SIZE, region.height));
-  return {
-    shape: 'rect',
-    x: round(Math.min(Math.max(0, region.x), 1 - width)),
-    y: round(Math.min(Math.max(0, region.y), 1 - height)),
-    width: round(width),
-    height: round(height),
-  };
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width,
+    height,
+  });
 };
 
 const ARROWS: Record<string, [number, number]> = {

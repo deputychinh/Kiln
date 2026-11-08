@@ -9,13 +9,16 @@ import {
 
 import { REGION_LABEL_EXCERPT } from '@/constants/comments.constant';
 import { useCopy } from '@/hooks/useCopy';
+import { useElementSize } from '@/hooks/useElementSize';
 import type {
   Annotation,
   CommentThread,
   DraftRegion,
   ImagePoint,
+  Region,
 } from '@/interfaces/comment.interface';
 import type { Copy } from '@/interfaces/copy.interface';
+import { layoutBadges } from '@/utils/badge-layout.util';
 import {
   excerpt,
   pointIn,
@@ -43,20 +46,11 @@ export const regionLabel = (thread: CommentThread, copy: Copy): string => {
   return copy.comments.regionButton(thread.number, excerpt(text, REGION_LABEL_EXCERPT));
 };
 
-const RegionMark = ({
-  thread,
-  annotation,
-}: {
-  thread: CommentThread;
-  annotation: Annotation;
-}): ReactElement | null => {
-  const copy = useCopy();
+/** A thread's region as drawn: a rectangle's outline, or a dot on a pin's point (decorative). */
+const RegionShape = ({ thread, isSelected }: { thread: CommentThread; isSelected: boolean }) => {
   if (!thread.region) return null;
   const region = toDraft(thread.region);
-  const isSelected = annotation.selectedThreadId === thread.id;
-  const label = regionLabel(thread, copy);
-  const onPress = (): void => annotation.select(thread.id, { moveFocus: true });
-  const block = region.shape === 'point' ? 'region-overlay__pin' : 'region-overlay__rect';
+  const block = region.shape === 'point' ? 'region-overlay__dot' : 'region-overlay__rect';
   const className = [
     block,
     isSelected ? `${block}--selected` : '',
@@ -64,35 +58,49 @@ const RegionMark = ({
   ]
     .join(' ')
     .trim();
-  if (region.shape === 'point') {
-    return (
-      <button
-        type="button"
-        id={regionMarkId(thread.id)}
-        className={className}
-        style={regionStyle(region)}
-        aria-label={label}
-        aria-current={isSelected ? 'true' : undefined}
-        onClick={onPress}
-      >
-        {thread.number}
-      </button>
-    );
-  }
+  return <span className={className} style={regionStyle(region)} aria-hidden="true" />;
+};
+
+/**
+ * A thread's numbered target. With the image measured, `position` is its place in px from the
+ * badge layout (inside the image, never covering another badge); without, it sits on its region.
+ */
+const RegionBadge = ({
+  thread,
+  annotation,
+  position,
+}: {
+  thread: CommentThread;
+  annotation: Annotation;
+  position: [number, number] | undefined;
+}): ReactElement | null => {
+  const copy = useCopy();
+  if (!thread.region) return null;
+  const region = toDraft(thread.region);
+  const isSelected = annotation.selectedThreadId === thread.id;
+  const style = position
+    ? { left: `${String(position[0])}px`, top: `${String(position[1])}px` }
+    : regionStyle(region);
+  const className = [
+    'region-overlay__badge',
+    !position && region.shape === 'point' ? 'region-overlay__badge--centred' : '',
+    isSelected ? 'region-overlay__badge--selected' : '',
+    thread.resolved_at ? 'region-overlay__badge--resolved' : '',
+  ]
+    .join(' ')
+    .trim();
   return (
-    <div id={regionMarkId(thread.id)} className={className} style={regionStyle(region)}>
-      <span className="region-overlay__box" aria-hidden="true" />
-      <button
-        type="button"
-        className="region-overlay__badge"
-        aria-label={label}
-        aria-current={isSelected ? 'true' : undefined}
-        onClick={onPress}
-        title={copy.comments.showOnImage(thread.number)}
-      >
-        {thread.number}
-      </button>
-    </div>
+    <button
+      type="button"
+      id={regionMarkId(thread.id)}
+      className={className}
+      style={{ left: style.left, top: style.top }}
+      aria-label={regionLabel(thread, copy)}
+      aria-current={isSelected ? 'true' : undefined}
+      onClick={() => annotation.select(thread.id, { moveFocus: true })}
+    >
+      {thread.number}
+    </button>
   );
 };
 
@@ -168,7 +176,19 @@ export const RegionOverlay = ({ threads, annotation }: RegionOverlayProps): Reac
   const copy = useCopy();
   const hintId = useId();
   const startRef = useRef<ImagePoint | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const size = useElementSize(overlayRef);
   const { isMarking, draft } = annotation;
+  const marked = threads.filter(
+    (thread): thread is CommentThread & { region: Region } => thread.region !== null,
+  );
+  const positions = size
+    ? layoutBadges(
+        marked.map((thread) => toDraft(thread.region)),
+        size.width,
+        size.height,
+      )
+    : undefined;
 
   const pointOf = (event: PointerEvent<HTMLDivElement>): ImagePoint =>
     pointIn(event.currentTarget.getBoundingClientRect(), event.clientX, event.clientY);
@@ -196,6 +216,7 @@ export const RegionOverlay = ({ threads, annotation }: RegionOverlayProps): Reac
   return (
     // A drawing surface for pointers; the keyboard marks the same region with the draft button.
     <div
+      ref={overlayRef}
       className={`region-overlay${isMarking ? ' region-overlay--marking' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -204,10 +225,22 @@ export const RegionOverlay = ({ threads, annotation }: RegionOverlayProps): Reac
         startRef.current = null;
       }}
     >
-      {threads.length > 0 ? (
+      {marked.length > 0 ? (
         <div className="region-overlay__marks" role="group" aria-label={copy.comments.regionsLabel}>
-          {threads.map((thread) => (
-            <RegionMark key={thread.id} thread={thread} annotation={annotation} />
+          {marked.map((thread) => (
+            <RegionShape
+              key={`shape-${thread.id}`}
+              thread={thread}
+              isSelected={annotation.selectedThreadId === thread.id}
+            />
+          ))}
+          {marked.map((thread, index) => (
+            <RegionBadge
+              key={thread.id}
+              thread={thread}
+              annotation={annotation}
+              position={positions?.[index]}
+            />
           ))}
         </div>
       ) : null}

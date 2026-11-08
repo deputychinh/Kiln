@@ -405,12 +405,16 @@ describe('Comments tab', () => {
       'Region 1: The rim is too bright and the edge glows',
       'Region 2: Pin here',
     ]);
-    expect(buttons[0]?.parentElement).toHaveStyle({
+    // The outline is drawn at the region; the badge sits on its corner until the image is
+    // measured (then the badge layout places it in px: badge-layout.util.test.ts).
+    expect(article.querySelector('.region-overlay__rect')).toHaveStyle({
       left: '25%',
       top: '50%',
       width: '50%',
       height: '25%',
     });
+    expect(buttons[0]).toHaveStyle({ left: '25%', top: '50%' });
+    expect(article.querySelector('.region-overlay__dot')).toHaveStyle({ left: '10%', top: '90%' });
     expect(buttons[1]).toHaveStyle({ left: '10%', top: '90%' });
 
     await userEvent.click(buttons[1] as HTMLElement);
