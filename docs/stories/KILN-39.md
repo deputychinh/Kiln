@@ -1,6 +1,6 @@
 # KILN-39 + KILN-51: A password policy against common and breached passwords; a review history nobody can truncate
 
-- Release: v0.3 · Status: doing · Owner: Claude (deliver-loop) · Security debt from the KILN-12 and KILN-11 reviews (one story for both items)
+- Release: v0.3 · Status: done (score 9.5/10 after three improve rounds) · Owner: Claude (deliver-loop) · Security debt from the KILN-12 and KILN-11 reviews (one story for both items)
 
 ## Story
 
@@ -145,3 +145,39 @@ Gates, review round 3, password commit (KILN-39): `make lint` 0; `make test` 140
 | V2 (low) a lone surrogate was accepted, then Argon2 raised `UnicodeEncodeError` and the CLI crashed                                        | yes: `correct-staple-horse` + U+DC80 passed `check_new_password`; piping `correct-staple-horse\xff` into `python -m kiln_api.cli create-user --password-stdin` ended in a traceback | Cs refused first, with `WEAK_PASSWORD` and its own reason (not the length message); JSON sign-in already refuses a lone surrogate (`json_invalid`), so the property holds for JSON too and the property test now checks it that way                                                                                                                                                                                                                                                   | `test_a_lone_surrogate_is_refused_as_weak_with_its_own_reason` (3), the two CLI tests (one a real subprocess), the property test with JSON; mutant T1 killed                                                                                                                                                             |
 | M8 the sign-in bound pinned exactly                                                                                                        | yes: only the creation side had 512/513 tests                                                                                                                                       | an API test: 512 characters reach the password check (401), 513 are refused before it (422)                                                                                                                                                                                                                                                                                                                                                                                           | `test_sign_in_takes_a_password_of_exactly_512_characters_and_refuses_513`; mutant S5 killed                                                                                                                                                                                                                              |
 | ASVS 5.0 V6.2.8 (verify the password exactly as received): Kiln hashes its NFKC form, since KILN-12                                        | yes, it predates this cycle                                                                                                                                                         | filed as KILN-59 (decide NFC with a re-hash, or record the deviation)                                                                                                                                                                                                                                                                                                                                                                                                                 | `docs/backlog.md`                                                                                                                                                                                                                                                                                                        |
+
+## Known gaps (filed)
+
+- The table owner (and a superuser) can still disable the history's triggers with DDL until the runtime role is split; deleting and re-inserting a version erases its history even then (KILN-58).
+- ASVS 5.0 V6.2.8: the password is hashed and verified in its NFKC form, since KILN-12 (KILN-59).
+- `--password-stdin` keeps a trailing `\r` from a CRLF line ending, so such a user cannot sign in (KILN-60, first in the next batch).
+- The generic search_path test does not require `pg_catalog` first (KILN-61); the `dml_role` fixture leaves its role behind (KILN-62).
+- The context remainder is untested for a word whose folding changes under the second NFKC (KILN-63); U+2800, private-use and unassigned code points count as visible, and spaces at either end and homoglyphs get past the list (KILN-64).
+- Context words are matched only as written, not reversed, split by separators or in leet form (ADR 0021).
+
+## Review rounds
+
+| Round      | Reviewer          | Score  | Outcome                                                                                                                                                                                                        |
+| ---------- | ----------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1          | independent       | 8.5/10 | length counted after NFKC, invisible characters past the list, the V6.2.4 claim, replica mode, the HIBP licence claim (rejected), context words and lazy loading — all fixed (round 1 table)                   |
+| 2          | gate reviewer     | 8.0/10 | an account that could never sign in, four range and bound survivors, controls padding the length, replica-mode orphans — all fixed (round 2 table)                                                             |
+| 3          | gate reviewer     | 8.0/10 | `search_path` shadowing opened by 0015 (high), lone surrogates, the sign-in bound — all fixed (round 3 table)                                                                                                  |
+| Final gate | fresh independent | 9.5/10 | shipped; no exploitable gap after attacker probes (temp tables and views, `pg_temp` operators, per-role search_path, isolation races, replica mode); debt filed as KILN-60 to KILN-64 and the KILN-58 residual |
+
+## Score
+
+| #   | Criterion           | Score                                                                                                                              |
+| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Requirements fit    | 1                                                                                                                                  |
+| 2   | Test depth          | 0.5 (the search_path order, CRLF on stdin, the second-NFKC remainder and the `dml_role` teardown are untested: KILN-60 to KILN-63) |
+| 3   | Reliability         | 1                                                                                                                                  |
+| 4   | Security            | 1                                                                                                                                  |
+| 5   | Maintainability     | 1                                                                                                                                  |
+| 6   | UX / API ergonomics | 1                                                                                                                                  |
+| 7   | Accessibility       | 1 (no UI change; the web app only gained two error codes in its generated types)                                                   |
+| 8   | Performance         | 1                                                                                                                                  |
+| 9   | Docs                | 1                                                                                                                                  |
+| 10  | Delivery            | 1                                                                                                                                  |
+|     | **Total**           | **9.5**                                                                                                                            |
+
+Retro: relaxing a guard (dropping the nesting condition in 0015) must be re-attacked as an unprivileged role in the same round, because the remaining check then stands alone; trigger functions pin `search_path` with `pg_temp` last and qualify tables; a password rule needs one bound shared with the sign-in field and a property test across both; count what a user sees, and treat invisible, control and surrogate code points on purpose.
