@@ -53,9 +53,11 @@
   min-inline-size: 0;
 }
 
-/* Focused by the app (tabindex -1) after a resolved thread leaves the list: no ring. */
-.comments-panel__list:focus {
-  outline: none;
+/* Focused by the app (tabindex -1) after a resolved thread leaves the list: the usual ring by
+   keyboard, so focus is never invisible (KILN-48, WCAG 2.4.7). */
+.comments-panel__list:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
 }
 
 .comments-panel__loading {

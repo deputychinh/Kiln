@@ -5,6 +5,7 @@ import { type ReactElement, useRef, useState } from 'react';
 import { COMMENT_BODY_MAX_LENGTH, REGION_START } from '@/constants/comments.constant';
 import { useStartThread } from '@/features/comments/hooks/useComments';
 import { useCopy } from '@/hooks/useCopy';
+import { useFocusAfterCommit } from '@/hooks/useFocusAfterCommit';
 import type { Annotation, DraftKey } from '@/interfaces/comment.interface';
 import { commentErrorMessage } from '@/utils/comment-error.util';
 import { draftKey } from '@/utils/comment.util';
@@ -35,12 +36,14 @@ export const CommentComposer = ({
   const start = useStartThread(versionId);
   const keyRef = useRef<DraftKey | null>(null);
   const { draft, isMarking, setComposer, setMarkButton } = annotation;
+  // The field describes its error once it is in the DOM; focus it then, so it is read (KILN-48).
+  const focusComposerAfterError = useFocusAfterCommit(annotation.focusComposer);
 
   const submit = (): void => {
     if (start.isPending) return;
     if (!body.trim()) {
       setError(copy.comments.bodyRequired);
-      annotation.focusComposer();
+      focusComposerAfterError();
       return;
     }
     const region = draft && canMark ? toRegionInput(draft) : null;
@@ -56,7 +59,7 @@ export const CommentComposer = ({
         },
         onError: (failure) => {
           setError(commentErrorMessage(failure, copy));
-          annotation.focusComposer();
+          focusComposerAfterError();
         },
       },
     );

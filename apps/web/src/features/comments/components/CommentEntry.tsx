@@ -1,10 +1,11 @@
 import { Button, ButtonVariant, TextArea } from '@kiln/ui';
-import { type ReactElement, useEffect, useRef, useState } from 'react';
+import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
 import { COMMENT_BODY_MAX_LENGTH } from '@/constants/comments.constant';
 import { useDeleteComment, useEditComment } from '@/features/comments/hooks/useComments';
 import { useCopy } from '@/hooks/useCopy';
+import { useFocusAfterCommit } from '@/hooks/useFocusAfterCommit';
 import type { Comment } from '@/interfaces/comment.interface';
 import { commentErrorMessage } from '@/utils/comment-error.util';
 
@@ -53,6 +54,10 @@ export const CommentEntry = ({
     returnFocusRef.current = null;
   }, [mode]);
 
+  // The field describes its error once it is in the DOM; focus it then, so it is read (KILN-48).
+  const focusEdit = useCallback(() => editRef.current?.focus(), []);
+  const focusEditAfterError = useFocusAfterCommit(focusEdit);
+
   const close = (returnTo: 'edit' | 'delete'): void => {
     returnFocusRef.current = returnTo;
     setError(undefined);
@@ -62,7 +67,7 @@ export const CommentEntry = ({
     if (edit.isPending) return;
     if (!text.trim()) {
       setError(copy.comments.bodyRequired);
-      editRef.current?.focus();
+      focusEditAfterError();
       return;
     }
     edit.mutate(
@@ -73,9 +78,8 @@ export const CommentEntry = ({
           close('edit');
         },
         onError: (failure) => {
-          // The field describes its error: focusing it is the one way it is read (KILN-48).
           setError(commentErrorMessage(failure, copy));
-          editRef.current?.focus();
+          focusEditAfterError();
         },
       },
     );

@@ -165,6 +165,44 @@ test('with the keyboard, deleting my comment leaves focus on its thread', async 
   });
 });
 
+test('with the keyboard, resolving a thread puts a visible focus on the list', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  // KILN-48 review round 2: the thread leaves the list, so focus goes to the list region, which
+  // must show the focus ring (WCAG 2.4.7) in both themes.
+  const asset = await seedImageAsset(request, uniqueName('comments_resolve', testInfo));
+  const [versionId = ''] = await versionIdsOf(request, asset.id);
+  await seedThread(request, versionId, { body: 'Fix the rim.' });
+  await openComments(page, asset.id);
+  const thread = page.getByRole('article', { name: /^Comment 1 by / });
+
+  await thread.getByRole('button', { name: 'Resolve' }).focus();
+  await page.keyboard.press('Enter');
+
+  const list = page.getByRole('region', { name: /^Comments on version / });
+  await expect(thread).toBeHidden();
+  await expect(list).toBeFocused();
+  for (const theme of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+    expect(
+      await list.evaluate(
+        (node) =>
+          node.matches(':focus-visible') &&
+          getComputedStyle(node).outlineStyle === 'solid' &&
+          parseFloat(getComputedStyle(node).outlineWidth) >= 2,
+      ),
+    ).toBe(true);
+    const box = await list.boundingBox();
+    if (!box) throw new Error('the list has no box');
+    await page.screenshot({
+      path: `test-results/screens/kiln-48-list-focused-${testInfo.project.name}-${theme}.png`,
+      clip: { x: box.x - 8, y: box.y - 8, width: box.width + 16, height: box.height + 16 },
+    });
+  }
+});
+
 test('with the keyboard, reopening a resolved thread keeps focus on its button', async ({
   page,
   request,

@@ -206,33 +206,79 @@ describe('Comments tab', () => {
     }
   });
 
-  it('puts focus on the field that describes a failed reply or edit, read once', async () => {
-    server = serveComments(detail, { threads: { 'v-2': [aThread({ id: 't-1', body: 'Mine' })] } });
-    server.failNext(
-      'POST',
-      '/api/v1/comment-threads/t-1/comments',
-      new TypeError('Failed to fetch'),
-    );
-    await openComments();
-    const thread = await screen.findByRole('article', { name: 'Comment 1 by Ada Artist' });
-    await userEvent.click(within(thread).getByRole('button', { name: 'Reply to comment 1' }));
-    const reply = within(thread).getByRole('textbox', { name: 'Reply to comment 1' });
-    await userEvent.type(reply, 'Lost');
-    await userEvent.click(within(thread).getByRole('button', { name: 'Post reply' }));
+  describe('focus on a field that describes its error (KILN-48)', () => {
+    /** What a screen reader meets at `focusin`: the field must already describe its error. */
+    const recordFocusIn = (field: HTMLElement): string[] => {
+      const seen: string[] = [];
+      field.addEventListener('focusin', () => {
+        const describedBy = field.getAttribute('aria-describedby') ?? '';
+        const description = describedBy
+          .split(' ')
+          .map((id) => document.getElementById(id)?.textContent ?? '')
+          .join(' ');
+        seen.push(`${String(field.getAttribute('aria-invalid'))} | ${description}`);
+      });
+      return seen;
+    };
+    const unreachable = /^true \| .*Kiln cannot reach its server/;
 
-    await waitFor(() => expect(reply).toHaveFocus());
-    expect(reply).toHaveAccessibleDescription(/Kiln cannot reach its server/);
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    it('a failed new comment', async () => {
+      server = serveComments(detail);
+      server.failNext('POST', THREADS, new TypeError('Failed to fetch'));
+      await openComments();
+      const composer = await screen.findByRole('textbox', { name: 'New comment' });
+      await userEvent.type(composer, 'Lost');
+      const seen = recordFocusIn(composer);
+      await userEvent.click(screen.getByRole('button', { name: 'Post comment' }));
 
-    await userEvent.keyboard('{Escape}');
-    server.failNext('PATCH', '/api/v1/comments/', new TypeError('Failed to fetch'));
-    await userEvent.click(within(thread).getByRole('button', { name: 'Edit' }));
-    const edit = within(thread).getByRole('textbox', { name: 'Edit comment' });
-    await userEvent.type(edit, ' again');
-    await userEvent.click(within(thread).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(composer).toHaveFocus());
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toMatch(unreachable);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
 
-    await waitFor(() => expect(edit).toHaveAccessibleDescription(/Kiln cannot reach its server/));
-    expect(edit).toHaveFocus();
+    it('a failed reply, and a blank one', async () => {
+      server = serveComments(detail, { threads: { 'v-2': [aThread({ id: 't-1' })] } });
+      server.failNext(
+        'POST',
+        '/api/v1/comment-threads/t-1/comments',
+        new TypeError('Failed to fetch'),
+      );
+      await openComments();
+      const thread = await screen.findByRole('article', { name: 'Comment 1 by Ada Artist' });
+      await userEvent.click(within(thread).getByRole('button', { name: 'Reply to comment 1' }));
+      const reply = within(thread).getByRole('textbox', { name: 'Reply to comment 1' });
+      await userEvent.type(reply, 'Lost');
+      const seen = recordFocusIn(reply);
+      await userEvent.click(within(thread).getByRole('button', { name: 'Post reply' }));
+      await waitFor(() => expect(reply).toHaveFocus());
+
+      await userEvent.clear(reply);
+      await userEvent.click(within(thread).getByRole('button', { name: 'Post reply' }));
+      await waitFor(() => expect(seen).toHaveLength(2));
+
+      expect(seen[0]).toMatch(unreachable);
+      expect(seen[1]).toMatch(/^true \| .*Write a comment first/);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('a failed edit', async () => {
+      server = serveComments(detail, {
+        threads: { 'v-2': [aThread({ id: 't-1', body: 'Mine' })] },
+      });
+      server.failNext('PATCH', '/api/v1/comments/', new TypeError('Failed to fetch'));
+      await openComments();
+      const thread = await screen.findByRole('article', { name: 'Comment 1 by Ada Artist' });
+      await userEvent.click(within(thread).getByRole('button', { name: 'Edit' }));
+      const edit = within(thread).getByRole('textbox', { name: 'Edit comment' });
+      await userEvent.type(edit, ' again');
+      const seen = recordFocusIn(edit);
+      await userEvent.click(within(thread).getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(edit).toHaveFocus());
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toMatch(unreachable);
+    });
   });
 
   it('explains a refusal from the API in words', async () => {

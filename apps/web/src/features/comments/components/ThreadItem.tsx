@@ -1,12 +1,13 @@
 import { Badge, BadgeTone, Button, ButtonVariant, ICON_SIZE, TextArea } from '@kiln/ui';
 import { Check, ChevronDown, ChevronUp, MessageSquare, RotateCcw } from 'lucide-react';
-import { type ReactElement, useEffect, useId, useRef, useState } from 'react';
+import { type ReactElement, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { COMMENT_BODY_MAX_LENGTH } from '@/constants/comments.constant';
 import { CommentEntry } from '@/features/comments/components/CommentEntry';
 import { regionMarkId } from '@/features/comments/components/RegionOverlay';
 import { useReplies, useReply, useResolve } from '@/features/comments/hooks/useComments';
 import { useCopy } from '@/hooks/useCopy';
+import { useFocusAfterCommit } from '@/hooks/useFocusAfterCommit';
 import type { Annotation, CommentThread, DraftKey } from '@/interfaces/comment.interface';
 import { commentErrorMessage } from '@/utils/comment-error.util';
 import { draftKey } from '@/utils/comment.util';
@@ -71,6 +72,9 @@ export const ThreadItem = ({
   // A deleted comment keeps its place but loses its buttons: the thread, named by its number and
   // author, is the stable place for focus; the polite status says "Comment deleted" once.
   const focusThread = (): void => articleRef.current?.focus();
+  // The field describes its error once it is in the DOM; focus it then, so it is read (KILN-48).
+  const focusReplyField = useCallback(() => replyFieldRef.current?.focus(), []);
+  const focusReplyAfterError = useFocusAfterCommit(focusReplyField);
   const closeReply = (): void => {
     setIsReplying(false);
     setReply('');
@@ -80,7 +84,7 @@ export const ThreadItem = ({
     if (postReply.isPending) return;
     if (!reply.trim()) {
       setReplyError(copy.comments.bodyRequired);
-      replyFieldRef.current?.focus();
+      focusReplyAfterError();
       return;
     }
     keyRef.current = draftKey(keyRef.current, reply);
@@ -94,9 +98,8 @@ export const ThreadItem = ({
           closeReply();
         },
         onError: (failure) => {
-          // The field describes its error: focusing it is the one way it is read (KILN-48).
           setReplyError(commentErrorMessage(failure, copy));
-          replyFieldRef.current?.focus();
+          focusReplyAfterError();
         },
       },
     );
