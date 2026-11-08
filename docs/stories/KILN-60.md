@@ -1,6 +1,6 @@
 # KILN-60 + KILN-61 + KILN-62: A CRLF password signs in; a stricter search_path check; no test role left behind
 
-- Release: v0.3 · Status: doing · Owner: Claude (deliver-loop) · Debt from the KILN-39/51 final review ([KILN-39](KILN-39.md)); one story for three small items
+- Release: v0.3 · Status: done (score 9.0/10, one review round) · Owner: Claude (deliver-loop) · Debt from the KILN-39/51 final review ([KILN-39](KILN-39.md)); one story for three small items
 
 ## Story
 
@@ -94,4 +94,33 @@ Exploratory checks: Python's `sys.stdin.readline()` keeps `\r\n` and a lone `\r`
 - A lone CR counts as a terminator (ADR 0024 §1): it is a real line ending, and an account whose password ends in CR could never sign in from the web anyway.
 - The prompt path is fixed too: without a terminal, getpass reads stdin and keeps the CR of a CRLF. With a terminal, ICRNL turns Enter into LF and getpass drops it, so nothing changes there.
 - KILN-61 trusts exactly `pg_catalog`, `public` and `pg_temp`, and allows `pg_catalog` to be left out (PostgreSQL then searches it first). A bare `pg_temp` passes the order rule; table names must still be qualified (ADR 0023).
-- No `Score:` line: the independent review comes after this builder's commits.
+
+## Known gaps (filed)
+
+- KILN-65: a bare `pg_temp` or `pg_catalog, pg_temp` pin passes the check although unqualified relations then resolve to `pg_temp`; `''` needs a clearer reason.
+- KILN-66: a role left by a SIGKILLed run fails a later run that never uses `dml_role` (drop it at session start); no test proves the leftover check fires (mutant 62-a survived).
+- KILN-67: EOF at the prompt gives a raw `EOFError` traceback; `make create-user` cannot pass `--password-stdin`.
+
+## Review rounds
+
+| Round | Reviewer           | Score | Outcome                                                       |
+| ----- | ------------------ | ----- | ------------------------------------------------------------- |
+| 1     | independent, fresh | 9.0   | shipped; reliability and security gaps filed as KILN-65 to 67 |
+
+## Score
+
+| #   | Criterion           | Score                                                                                         |
+| --- | ------------------- | --------------------------------------------------------------------------------------------- |
+| 1   | Requirements fit    | 1                                                                                             |
+| 2   | Test depth          | 1                                                                                             |
+| 3   | Reliability         | 0.5 (a role left by a killed run fails a later unrelated run; EOF at the prompt: KILN-66, 67) |
+| 4   | Security            | 0.5 (a bare `pg_temp` or `pg_catalog, pg_temp` pin passes the check: KILN-65)                 |
+| 5   | Maintainability     | 1                                                                                             |
+| 6   | UX / API ergonomics | 1                                                                                             |
+| 7   | Accessibility       | 1 (no UI change)                                                                              |
+| 8   | Performance         | 1                                                                                             |
+| 9   | Docs                | 1                                                                                             |
+| 10  | Delivery            | 1                                                                                             |
+|     | **Total**           | **9.0**                                                                                       |
+
+Retro: a cluster-wide test object (a role) must be cleaned at session start as well as at teardown, or one killed run breaks every later run on that database; a leftover check needs its own mutant (point it at the wrong name).
