@@ -17,6 +17,8 @@ interface CommentEntryProps {
   isOwn: boolean;
   /** Says what happened, in the panel's status region. */
   announce: (message: string) => void;
+  /** Called once this comment is deleted: its buttons are gone, so focus must move on purpose. */
+  onDeleted: () => void;
 }
 
 type Mode = 'view' | 'edit' | 'confirm-delete';
@@ -27,6 +29,7 @@ export const CommentEntry = ({
   versionId,
   isOwn,
   announce,
+  onDeleted,
 }: CommentEntryProps): ReactElement => {
   const copy = useCopy();
   const [mode, setMode] = useState<Mode>('view');
@@ -78,6 +81,8 @@ export const CommentEntry = ({
       onSuccess: () => {
         announce(copy.comments.announce.deleted);
         setMode('view');
+        // "Delete comment" and the author's buttons unmount (KILN-48, WCAG 2.4.3).
+        onDeleted();
       },
       onError: (failure) => setError(commentErrorMessage(failure, copy)),
     });

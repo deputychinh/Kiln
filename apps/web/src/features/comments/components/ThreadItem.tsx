@@ -68,6 +68,9 @@ export const ThreadItem = ({
     }
   }, [isReplying]);
 
+  // A deleted comment keeps its place but loses its buttons: the thread, named by its number and
+  // author, is the stable place for focus; the polite status says "Comment deleted" once.
+  const focusThread = (): void => articleRef.current?.focus();
   const closeReply = (): void => {
     setIsReplying(false);
     setReply('');
@@ -146,6 +149,7 @@ export const ThreadItem = ({
           versionId={versionId}
           isOwn={thread.comment.author.id === meId}
           announce={announce}
+          onDeleted={focusThread}
         />
         {thread.reply_count > 0 ? (
           <button
@@ -193,6 +197,7 @@ export const ThreadItem = ({
                     versionId={versionId}
                     isOwn={comment.author.id === meId}
                     announce={announce}
+                    onDeleted={focusThread}
                   />
                 </li>
               ))}

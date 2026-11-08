@@ -171,6 +171,41 @@ describe('Comments tab', () => {
     expect(server.requests('POST', THREADS)[2]?.idempotencyKey).not.toBe(first?.idempotencyKey);
   });
 
+  it('gives a retry with another body a new key, for a comment and a reply (KILN-49)', async () => {
+    server = serveComments(detail, { threads: { 'v-2': [aThread({ id: 't-1' })] } });
+    const replies = '/api/v1/comment-threads/t-1/comments';
+    server.failNext('POST', THREADS, new TypeError('Failed to fetch'));
+    server.failNext('POST', replies, new TypeError('Failed to fetch'));
+    await openComments();
+    const composer = await screen.findByRole('textbox', { name: 'New comment' });
+    await userEvent.type(composer, 'Draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+    await screen.findAllByText(/Kiln cannot reach its server/);
+    await userEvent.type(composer, ', edited');
+    await userEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+    await screen.findByText('Draft, edited');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reply to comment 1' }));
+    const reply = screen.getByRole('textbox', { name: 'Reply to comment 1' });
+    await userEvent.type(reply, 'Reply');
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }));
+    await waitFor(() => expect(server.requests('POST', replies)).toHaveLength(1));
+    await screen.findAllByText(/Kiln cannot reach its server/);
+    await userEvent.type(reply, ', edited');
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }));
+    await waitFor(() => expect(server.requests('POST', replies)).toHaveLength(2));
+
+    for (const [path, words] of [
+      [THREADS, 'Draft'],
+      [replies, 'Reply'],
+    ] as const) {
+      const [lost, retry] = server.requests('POST', path);
+      expect(lost?.body).toMatchObject({ body: words });
+      expect(retry?.body).toMatchObject({ body: `${words}, edited` });
+      expect(retry?.idempotencyKey).not.toBe(lost?.idempotencyKey);
+    }
+  });
+
   it('explains a refusal from the API in words', async () => {
     server = serveComments(detail);
     server.failNext('POST', THREADS, problem(403, 'Forbidden', 'INSUFFICIENT_SCOPE'));
@@ -278,6 +313,29 @@ describe('Comments tab', () => {
     expect(await within(mine).findByText('Comment deleted')).toBeInTheDocument();
     expect(within(mine).queryByText('Oops')).not.toBeInTheDocument();
     expect(within(mine).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    // "Delete comment" is gone: focus goes to the thread, not to <body> (KILN-48, WCAG 2.4.3).
+    await waitFor(() => expect(document.activeElement).toBe(mine));
+  });
+
+  it('puts focus on the thread after deleting a reply, whose buttons are gone', async () => {
+    server = serveComments(detail, {
+      threads: { 'v-2': [aThread({ id: 't-1', reply_count: 1 })] },
+      replies: { 't-1': [aComment({ thread_id: 't-1', body: 'Wrong reply' })] },
+    });
+    await openComments();
+    const thread = await screen.findByRole('article', { name: 'Comment 1 by Ada Artist' });
+    await userEvent.click(within(thread).getByRole('button', { name: 'Show 1 reply' }));
+    const replies = await within(thread).findByRole('list', { name: 'Replies to comment 1' });
+    await within(replies).findByText('Wrong reply');
+
+    await userEvent.click(within(replies).getByRole('button', { name: 'Delete' }));
+    await userEvent.keyboard('{Enter}');
+
+    expect(await within(replies).findByText('Comment deleted')).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(thread));
+    expect(
+      screen.getByText('Comment deleted', { selector: '[role="status"] *' }),
+    ).toBeInTheDocument();
   });
 
   it('resolves a thread out of the list, shows it again on request, and reopens it', async () => {

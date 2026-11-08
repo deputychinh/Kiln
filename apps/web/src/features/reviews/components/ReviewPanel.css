@@ -43,6 +43,12 @@
   font-weight: var(--kiln-weight-medium);
 }
 
+/* Focus lands here after a decision that leaves no action (KILN-48). */
+.review-panel__state:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
 .review-panel__form {
   display: flex;
   flex-direction: column;

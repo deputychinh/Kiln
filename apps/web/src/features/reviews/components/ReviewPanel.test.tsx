@@ -1,7 +1,8 @@
 import { focusManager } from '@tanstack/react-query';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { assetDetailQueryKey } from '@/constants/assets.constant';
 import type { AssetDetail } from '@/interfaces/asset.interface';
 import { aDetail, anAsset, aVersion, problem } from '@/test/fake-api';
 import { renderApp } from '@/test/render-app';
@@ -146,6 +147,9 @@ describe('Review tab', () => {
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
     expect(await screen.findByText('Version 2 approved')).toBeInTheDocument();
     expect(server.requests('POST', TRANSITIONS)[1]?.body).toMatchObject({ expected_revision: 2 });
+    // Only the revision changed, and it is in the key's signature: a new key (KILN-49).
+    const [first, second] = server.requests('POST', TRANSITIONS).map((r) => r.idempotencyKey);
+    expect(second).not.toBe(first);
   });
 
   it('starts each version with an empty form, and a new key, after a lost answer', async () => {
@@ -185,6 +189,34 @@ describe('Review tab', () => {
   });
 
   it.each([
+    ['note', 'Approve', 'Rim fixed, edges too.'],
+    ['action', 'Request changes', 'Rim fixed.'],
+  ])(
+    'gives a retry with another %s a new key, so it is never refused as a reused key (KILN-49)',
+    async (_changed, button, note) => {
+      server = serveReviews(detail);
+      server.failNext('POST', TRANSITIONS, new TypeError('Failed to fetch'));
+      await openReview();
+      const field = (): HTMLElement => within(form()).getByRole('textbox', { name: /Note/ });
+      await userEvent.type(field(), 'Rim fixed.');
+      await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
+      const alert = await screen.findByRole('alert');
+      await waitFor(() => expect(alert).toHaveFocus());
+
+      await userEvent.clear(field());
+      await userEvent.type(field(), note);
+      expect(field()).toHaveValue(note);
+      await userEvent.click(within(form()).getByRole('button', { name: button }));
+
+      await waitFor(() => expect(server.requests('POST', TRANSITIONS)).toHaveLength(2));
+      const [lost, retry] = server.requests('POST', TRANSITIONS);
+      expect(retry?.body).toMatchObject({ note });
+      expect(retry?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+      expect(retry?.idempotencyKey).not.toBe(lost?.idempotencyKey);
+    },
+  );
+
+  it.each([
     ['INVALID_REVIEW_NOTE', 422, 'The note is too long or has hidden characters.'],
     ['INSUFFICIENT_SCOPE', 403, 'Your access is read-only, so you cannot review.'],
     ['VERSION_NOT_READY', 409, 'This version is not ready to be reviewed'],
@@ -195,7 +227,91 @@ describe('Review tab', () => {
 
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(message);
+    // Approve is still offered, but focus goes to the message so it is read first (KILN-48).
+    await waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  describe('focus after a decision (KILN-48, WCAG 2.4.3)', () => {
+    const status = (): HTMLElement =>
+      screen.getAllByRole('status').find((node) => node.getAttribute('aria-live') === 'polite') ??
+      screen.getByRole('status');
+
+    it('moves to Reopen once Approve is gone, and back to Approve after reopening', async () => {
+      server = serveReviews(detail);
+      await openReview();
+
+      await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
+      const reopen = await within(form()).findByRole('button', { name: 'Reopen' });
+      await waitFor(() => expect(document.activeElement).toBe(reopen));
+      // Said once, by the polite status; the focused button adds only its own name.
+      expect(status()).toHaveTextContent(/^Version 2 approved$/);
+
+      await userEvent.keyboard('{Enter}');
+      const approve = await within(form()).findByRole('button', { name: 'Approve' });
+      await waitFor(() => expect(document.activeElement).toBe(approve));
+      expect(status()).toHaveTextContent(/^Version 2 approvedVersion 2 is back in review$/);
+    });
+
+    it('moves to Reopen after changes are requested', async () => {
+      server = serveReviews(detail);
+      await openReview();
+
+      await userEvent.click(within(form()).getByRole('button', { name: 'Request changes' }));
+
+      const reopen = await within(form()).findByRole('button', { name: 'Reopen' });
+      await waitFor(() => expect(document.activeElement).toBe(reopen));
+    });
+
+    it('moves to the state line when the new state offers no action', async () => {
+      const failed = aVersion({
+        id: 'v-2',
+        number: 1,
+        status: 'failed',
+        review_state: 'approved',
+        review_revision: 1,
+      });
+      server = serveReviews(aDetail({ versions: [failed] }));
+      await openReview();
+
+      await userEvent.click(within(form(1)).getByRole('button', { name: 'Reopen' }));
+
+      expect(await screen.findByText('Version 1 is back in review')).toBeInTheDocument();
+      const stateLine = screen.getByText('Version 1 is').parentElement;
+      await waitFor(() => expect(document.activeElement).toBe(stateLine));
+      expect(stateLine).toHaveAttribute('tabindex', '-1');
+      expect(stateLine).toHaveTextContent('In review');
+    });
+
+    it('moves focus once per decision, never again when someone else decides later', async () => {
+      server = serveReviews(detail);
+      const { queryClient } = renderApp(`/assets/${asset.id}`);
+      const article = await screen.findByRole('article', { name: 'rock_albedo' });
+      await userEvent.click(within(article).getByRole('tab', { name: 'Review' }));
+      await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
+      const reopen = await within(form()).findByRole('button', { name: 'Reopen' });
+      await waitFor(() => expect(reopen).toHaveFocus());
+      const note = within(form()).getByRole('textbox', { name: /Note/ });
+      await userEvent.click(note);
+
+      // Someone else reopens; the page learns it on its next fetch of the asset (stale data).
+      server.decideAsSomeoneElse('v-2', 'reopen');
+      await act(() => queryClient.invalidateQueries({ queryKey: assetDetailQueryKey(asset.id) }));
+
+      await within(form()).findByRole('button', { name: 'Approve' });
+      expect(note).toHaveFocus();
+    });
+
+    it('ignores a held Enter, so it never presses the action that took focus', async () => {
+      server = serveReviews(detail);
+      await openReview();
+      const approve = within(form()).getByRole('button', { name: 'Approve' });
+
+      // fireEvent returns false when the default (the button's activation) was prevented.
+      expect(fireEvent.keyDown(approve, { key: 'Enter', repeat: true })).toBe(false);
+      expect(fireEvent.keyDown(approve, { key: 'Enter' })).toBe(true);
+    });
   });
 
   it('offers only Reopen on a decided version, and reopens it', async () => {

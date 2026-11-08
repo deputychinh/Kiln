@@ -1,6 +1,6 @@
 import { Button, ButtonVariant, ICON_SIZE, TextArea } from '@kiln/ui';
 import { CircleAlert, CircleCheck, RotateCcw } from 'lucide-react';
-import { type ReactElement, useRef, useState } from 'react';
+import { type KeyboardEvent, type ReactElement, useEffect, useRef, useState } from 'react';
 
 import { ReviewBadge } from '@/components/ReviewBadge/ReviewBadge';
 import { REVIEW_NOTE_MAX_LENGTH } from '@/constants/reviews.constant';
@@ -13,6 +13,11 @@ import { draftKey } from '@/utils/comment.util';
 import { availableActions, reviewErrorMessage } from '@/utils/review.util';
 
 const ICONS = { approve: CircleCheck, request_changes: CircleAlert, reopen: RotateCcw } as const;
+
+/** A held Enter repeats: once focus has moved to the next action, it must not press that too. */
+const ignoreRepeatedEnter = (event: KeyboardEvent<HTMLButtonElement>): void => {
+  if (event.key === 'Enter' && event.repeat) event.preventDefault();
+};
 
 interface ReviewDecisionProps {
   assetId: string;
@@ -33,10 +38,28 @@ export const ReviewDecision = ({
   const [note, setNote] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const problemRef = useRef<HTMLParagraphElement>(null);
+  const stateRef = useRef<HTMLParagraphElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const keyRef = useRef<DraftKey | null>(null);
+  // The revision this form's last decision made: once the page shows it, focus moves (KILN-48,
+  // WCAG 2.4.3); `movedForRef` remembers the revision focus already moved for.
+  const [decidedRevision, setDecidedRevision] = useState<number | null>(null);
+  const movedForRef = useRef<number | null>(null);
   const transition = useReviewTransition(assetId, version.id);
   const actions = availableActions(version);
   const isDecided = version.review_state !== 'in_review';
+
+  // The pressed button unmounts once the new state is shown (Approve → Reopen), so focus goes on
+  // purpose to the first action the new state offers, as a toggle button keeps it; with none
+  // (a reopened version that is not ready), to the state line. The polite status still announces
+  // the outcome, so the focused control adds its own name only.
+  useEffect(() => {
+    if (decidedRevision === null || movedForRef.current === decidedRevision) return;
+    if (version.review_revision < decidedRevision) return;
+    movedForRef.current = decidedRevision;
+    const next = actionsRef.current?.querySelector('button');
+    (next ?? stateRef.current)?.focus();
+  }, [decidedRevision, version.review_revision]);
 
   const decide = (action: ReviewAction): void => {
     if (transition.isPending) return;
@@ -52,9 +75,10 @@ export const ReviewDecision = ({
     transition.mutate(
       { action, expectedState, expectedRevision, note, idempotencyKey: keyRef.current.key },
       {
-        onSuccess: () => {
+        onSuccess: (event) => {
           setNote('');
           keyRef.current = null;
+          setDecidedRevision(event.sequence);
           announce(copy.reviews.announce[action](version.number));
         },
         onError: (failure) => {
@@ -72,7 +96,7 @@ export const ReviewDecision = ({
 
   return (
     <>
-      <p className="review-panel__state">
+      <p ref={stateRef} className="review-panel__state" tabIndex={-1}>
         <span>{copy.reviews.currentLabel(version.number)}</span>
         <ReviewBadge state={version.review_state} />
       </p>
@@ -98,7 +122,7 @@ export const ReviewDecision = ({
           </p>
         ) : null}
         {actions.length > 0 ? (
-          <div className="review-panel__actions">
+          <div ref={actionsRef} className="review-panel__actions">
             {actions.map((action) => {
               const Icon = ICONS[action];
               return (
@@ -109,6 +133,7 @@ export const ReviewDecision = ({
                   icon={<Icon size={ICON_SIZE.sm} />}
                   // aria-disabled, not disabled: the pressed button keeps focus while saving.
                   aria-disabled={transition.isPending}
+                  onKeyDown={ignoreRepeatedEnter}
                   onClick={() => decide(action)}
                 >
                   {transition.isPending && transition.variables?.action === action
