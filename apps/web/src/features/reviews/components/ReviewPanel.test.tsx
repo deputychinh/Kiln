@@ -336,6 +336,26 @@ describe('Review tab', () => {
     });
   });
 
+  it('a second identical refusal takes focus again (KILN-48)', async () => {
+    server = serveReviews(detail);
+    server.failNext('POST', TRANSITIONS, problem(500, 'Down', 'INTERNAL'));
+    server.failNext('POST', TRANSITIONS, problem(500, 'Down', 'INTERNAL'));
+    await openReview();
+    const approve = within(form()).getByRole('button', { name: 'Approve' });
+    await userEvent.click(approve);
+    const first = await findRefusal();
+    await waitFor(() => expect(first).toHaveFocus());
+    const text = first.textContent;
+
+    // Pressed from the button: focus leaves the refusal, and must come back to it.
+    await userEvent.click(approve);
+
+    await waitFor(() => expect(server.requests('POST', TRANSITIONS)).toHaveLength(2));
+    const second = await findRefusal();
+    expect(second.textContent).toBe(text);
+    await waitFor(() => expect(second).toHaveFocus());
+  });
+
   it('offers only Reopen on a decided version, and reopens it', async () => {
     server = serveReviews(detail, { 'v-1': [aReviewEvent({ version_id: 'v-1' })] });
     await openReview();

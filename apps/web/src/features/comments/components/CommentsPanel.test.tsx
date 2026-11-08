@@ -29,6 +29,20 @@ const openComments = async (): Promise<HTMLElement> => {
   return article;
 };
 
+/** What a screen reader meets at `focusin`: the field must already describe its error. */
+const recordFocusIn = (field: HTMLElement): string[] => {
+  const seen: string[] = [];
+  field.addEventListener('focusin', () => {
+    const describedBy = field.getAttribute('aria-describedby') ?? '';
+    const description = describedBy
+      .split(' ')
+      .map((id) => document.getElementById(id)?.textContent ?? '')
+      .join(' ');
+    seen.push(`${String(field.getAttribute('aria-invalid'))} | ${description}`);
+  });
+  return seen;
+};
+
 describe('Comments tab', () => {
   let server: ReturnType<typeof serveComments>;
 
@@ -139,11 +153,14 @@ describe('Comments tab', () => {
     await openComments();
     await screen.findByRole('heading', { name: 'No comments yet' });
 
+    const field = screen.getByRole('textbox', { name: 'New comment' });
+    const seen = recordFocusIn(field);
     await userEvent.click(screen.getByRole('button', { name: 'Post comment' }));
 
-    const field = screen.getByRole('textbox', { name: 'New comment' });
     expect(field).toHaveAccessibleDescription('Write a comment first.');
-    expect(field).toHaveFocus();
+    await waitFor(() => expect(field).toHaveFocus());
+    // Focus arrives once the field describes its error (KILN-48 review round 3).
+    expect(seen).toEqual(['true | Write a comment first.']);
     expect(server.requests('POST', THREADS)).toHaveLength(0);
   });
 
@@ -207,19 +224,6 @@ describe('Comments tab', () => {
   });
 
   describe('focus on a field that describes its error (KILN-48)', () => {
-    /** What a screen reader meets at `focusin`: the field must already describe its error. */
-    const recordFocusIn = (field: HTMLElement): string[] => {
-      const seen: string[] = [];
-      field.addEventListener('focusin', () => {
-        const describedBy = field.getAttribute('aria-describedby') ?? '';
-        const description = describedBy
-          .split(' ')
-          .map((id) => document.getElementById(id)?.textContent ?? '')
-          .join(' ');
-        seen.push(`${String(field.getAttribute('aria-invalid'))} | ${description}`);
-      });
-      return seen;
-    };
     const unreachable = /^true \| .*Kiln cannot reach its server/;
 
     it('a failed new comment', async () => {
@@ -262,7 +266,7 @@ describe('Comments tab', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    it('a failed edit', async () => {
+    it('a failed edit, and a blank one', async () => {
       server = serveComments(detail, {
         threads: { 'v-2': [aThread({ id: 't-1', body: 'Mine' })] },
       });
@@ -278,6 +282,13 @@ describe('Comments tab', () => {
       await waitFor(() => expect(edit).toHaveFocus());
       expect(seen).toHaveLength(1);
       expect(seen[0]).toMatch(unreachable);
+
+      // Blank: Save takes focus, then the field gets it back once it says why (review round 3).
+      await userEvent.clear(edit);
+      await userEvent.click(within(thread).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(seen).toHaveLength(2));
+      expect(seen[1]).toMatch(/^true \| .*Write a comment first/);
+      expect(edit).toHaveFocus();
     });
   });
 

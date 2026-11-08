@@ -165,6 +165,70 @@ test('with the keyboard, deleting my comment leaves focus on its thread', async 
   });
 });
 
+/** Records, on the field itself, what a screen reader meets at each `focusin`. */
+const recordFocusIn = (field: Locator): Promise<void> =>
+  field.evaluate((node) => {
+    node.setAttribute('data-focusin', '[]');
+    node.addEventListener('focusin', () => {
+      const description = (node.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => document.getElementById(id)?.textContent ?? '')
+        .join(' ')
+        .trim();
+      const seen = JSON.parse(node.getAttribute('data-focusin') ?? '[]') as string[];
+      seen.push(`${String(node.getAttribute('aria-invalid'))} | ${description}`);
+      node.setAttribute('data-focusin', JSON.stringify(seen));
+    });
+  });
+const focusInRecords = async (field: Locator): Promise<string[]> =>
+  JSON.parse((await field.getAttribute('data-focusin')) ?? '[]') as string[];
+
+test('a failed new comment, reply or edit focuses its field once it says why, with no alert', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  // KILN-48 review round 3: the API answers 500 to every write; each field must be aria-invalid
+  // and describe the error when focus reaches it, and nothing else may announce it.
+  const asset = await seedImageAsset(request, uniqueName('comments_failures', testInfo));
+  const [versionId = ''] = await versionIdsOf(request, asset.id);
+  await seedThread(request, versionId, { body: 'Mine to edit.' });
+  await openComments(page, asset.id);
+  await page.route('**/api/v1/**', async (route) => {
+    if (!['POST', 'PATCH'].includes(route.request().method())) return route.continue();
+    return route.fulfill({
+      status: 500,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ type: 'about:blank', title: 'Down', status: 500, code: 'INTERNAL' }),
+    });
+  });
+  const failedAt = async (field: Locator, submit: Locator): Promise<void> => {
+    await recordFocusIn(field);
+    await submit.click();
+    await expect(field).toBeFocused();
+    const [seen, ...more] = await focusInRecords(field);
+    expect(more).toEqual([]);
+    expect(seen).toMatch(/^true \| \S/);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  };
+
+  const composer = page.getByRole('textbox', { name: 'New comment' });
+  await composer.fill('Lost comment');
+  await failedAt(composer, page.getByRole('button', { name: 'Post comment' }));
+
+  const thread = page.getByRole('article', { name: /^Comment 1 by / });
+  await thread.getByRole('button', { name: 'Reply to comment 1' }).click();
+  const reply = thread.getByRole('textbox', { name: 'Reply to comment 1' });
+  await reply.fill('Lost reply');
+  await failedAt(reply, thread.getByRole('button', { name: 'Post reply' }));
+  await page.keyboard.press('Escape');
+
+  await thread.getByRole('button', { name: 'Edit', exact: true }).click();
+  const edit = thread.getByRole('textbox', { name: 'Edit comment' });
+  await edit.fill('Lost edit');
+  await failedAt(edit, thread.getByRole('button', { name: 'Save' }));
+});
+
 test('with the keyboard, resolving a thread puts a visible focus on the list', async ({
   page,
   request,

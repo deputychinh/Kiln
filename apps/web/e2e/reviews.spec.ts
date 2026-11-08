@@ -171,6 +171,57 @@ test('with the keyboard alone, a version is approved and reopened, focus never l
   });
 });
 
+test('reopening a version that offers no action focuses the hint, with its ring', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  // KILN-48 (AC3): a decided version that failed a later re-check (ADR 0011) can only be reopened;
+  // after that nothing is offered, so focus goes to the hint that says why. The real API decides;
+  // the page is told the version failed (an e2e cannot make a decided version fail).
+  const asset = await seedImageAsset(request, uniqueName('review_hint', testInfo));
+  await openReview(page, asset.id);
+  const [versionId = ''] = await versionIdsOf(request, asset.id);
+  await seedReviewTransition(request, versionId, { action: 'approve', expectedState: 'in_review' });
+  await page.route(`**/api/v1/assets/${asset.id}`, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as {
+      versions: { status: string; failure_reason: string | null }[];
+    };
+    for (const version of body.versions) {
+      version.status = 'failed';
+      version.failure_reason = 'UNREADABLE_IMAGE';
+    }
+    await route.fulfill({ response, json: body });
+  });
+  const form = await openReview(page, asset.id, 'Reopen');
+
+  await form.getByRole('button', { name: 'Reopen' }).focus();
+  await page.keyboard.press('Enter');
+
+  const hint = form.getByText(
+    'This version can be approved or sent back once it has finished processing.',
+  );
+  await expect(hint).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: /review$/ })).toHaveText(
+    'Version 1 is back in review',
+  );
+  for (const theme of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+    expect(
+      await hint.evaluate(
+        (node) =>
+          node.matches(':focus-visible') &&
+          getComputedStyle(node).outlineStyle === 'solid' &&
+          parseFloat(getComputedStyle(node).outlineWidth) >= 2,
+      ),
+    ).toBe(true);
+    await form.screenshot({
+      path: `test-results/screens/kiln-48-hint-focused-${testInfo.project.name}-${theme}.png`,
+    });
+  }
+});
+
 for (const theme of ['dark', 'light'] as const) {
   test(`the review tab and the badges pass axe and never scroll sideways in the ${theme} theme`, async ({
     page,
