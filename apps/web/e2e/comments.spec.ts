@@ -134,6 +134,37 @@ test('with the keyboard alone, a region is marked, moved and commented on', asyn
   await expect(page.getByRole('article', { name: /^Comment 1 by / })).toBeFocused();
 });
 
+test('with the keyboard, deleting my comment leaves focus on its thread', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  // KILN-48 (WCAG 2.4.3): "Delete comment" unmounts once the comment is gone, on both projects.
+  const asset = await seedImageAsset(request, uniqueName('comments_delete', testInfo));
+  const [versionId = ''] = await versionIdsOf(request, asset.id);
+  await seedThread(request, versionId, { body: 'Posted by mistake.' });
+  await openComments(page, asset.id);
+  const thread = page.getByRole('article', { name: /^Comment 1 by / });
+
+  await thread.getByRole('button', { name: 'Delete', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(thread.getByRole('button', { name: 'Delete comment' })).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(thread.getByText('Comment deleted')).toBeVisible();
+  await expect(thread).toBeFocused();
+  expect(
+    await thread.evaluate((node) => node === document.activeElement && node.tagName === 'ARTICLE'),
+  ).toBe(true);
+  // The focus outline sits outside the card's box: capture a margin around it.
+  const box = await thread.boundingBox();
+  if (!box) throw new Error('the thread has no box');
+  await page.screenshot({
+    path: `test-results/screens/kiln-48-thread-focused-${testInfo.project.name}.png`,
+    clip: { x: box.x - 8, y: box.y - 8, width: box.width + 16, height: box.height + 16 },
+  });
+});
+
 const seedReview = async (
   request: Parameters<typeof seedImageAsset>[0],
   name: string,

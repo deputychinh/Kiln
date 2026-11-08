@@ -33,6 +33,13 @@ const openReview = async (page: Page, assetId: string, action = 'Approve'): Prom
 };
 
 const header = (page: Page): Locator => page.locator('.asset-detail__header');
+
+/** What `document.activeElement` is, read in the page itself: tag and trimmed text. */
+const activeElement = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const active = document.activeElement;
+    return active ? `${active.tagName}: ${active.textContent?.trim() ?? ''}` : 'none';
+  });
 const history = (page: Page): Locator => page.getByRole('region', { name: /^Review history/ });
 
 test('a lead approves with a note, reopens, requests changes, and the gallery follows', async ({
@@ -89,6 +96,9 @@ test('a decision made on a state someone else changed is refused and explained',
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('this version is now “Approved”');
   await expect(alert).toBeFocused();
+  // Request changes is gone now; focus stays on the message, not on <body> (KILN-48).
+  await expect(form.getByRole('button', { name: 'Request changes' })).toBeHidden();
+  expect(await activeElement(page)).toMatch(/^P: Someone else decided first/);
   await expect(form.getByRole('button', { name: 'Reopen' })).toBeVisible();
   await expect(form.getByRole('textbox', { name: 'Note (optional)' })).toHaveValue(
     'Needs a darker rim.',
@@ -97,12 +107,12 @@ test('a decision made on a state someone else changed is refused and explained',
   await expect(history(page).getByRole('listitem')).toHaveCount(1);
 });
 
-test('with the keyboard alone, a version is approved and the outcome announced', async ({
+test('with the keyboard alone, a version is approved and reopened, focus never lost', async ({
   page,
   request,
 }, testInfo) => {
   test.setTimeout(120_000);
-  test.skip(testInfo.project.name !== 'desktop', 'a hardware keyboard journey');
+  // Desktop and Pixel 7 (a phone with a hardware keyboard): KILN-48 asserts focus on both.
   const asset = await seedImageAsset(request, uniqueName('review_keys', testInfo));
   await openReview(page, asset.id);
   await page.getByRole('tab', { name: 'Versions' }).click();
@@ -129,6 +139,22 @@ test('with the keyboard alone, a version is approved and the outcome announced',
     'Version 1 approved',
   );
   await expect(history(page).getByText('Approved by keyboard.')).toBeVisible();
+  // Approve unmounted; focus went on purpose to Reopen, never to <body> (KILN-48, WCAG 2.4.3).
+  await expect(page.getByRole('button', { name: 'Reopen' })).toBeFocused();
+  expect(await activeElement(page)).toBe('BUTTON: Reopen');
+  await page.getByRole('form', { name: /^Decide on version / }).screenshot({
+    path: `test-results/screens/kiln-48-reopen-focused-${testInfo.project.name}.png`,
+  });
+
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('status').filter({ hasText: /review$/ })).toContainText(
+    'Version 1 is back in review',
+  );
+  await expect(page.getByRole('button', { name: 'Approve' })).toBeFocused();
+  expect(await activeElement(page)).toBe('BUTTON: Approve');
+  await page.getByRole('form', { name: /^Decide on version / }).screenshot({
+    path: `test-results/screens/kiln-48-approve-focused-${testInfo.project.name}.png`,
+  });
 });
 
 for (const theme of ['dark', 'light'] as const) {
