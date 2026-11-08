@@ -338,14 +338,14 @@ review_events = Table(
     ),
 )
 
-# Append-only: an event is never changed or deleted, except by the cascade of deleting its
-# version. That delete runs inside the foreign key's trigger once the version row is gone, so a
-# delete passes only when nested (depth above 1) and its version no longer exists (migration 0012:
-# depth alone let any other trigger's delete through).
+# Append-only: an event is never changed, and deleted only once its version is gone, which is
+# what the cascade of deleting the version does (migration 0012). Since migration 0015 the delete
+# need not be nested in that cascade: replica mode skips it, and the orphans it leaves must still
+# be removable (ADR 0022). While the version exists, every delete is refused, nested or not.
 REVIEW_EVENTS_APPEND_ONLY_FUNCTION = """
 CREATE FUNCTION review_events_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1
+    IF TG_OP = 'DELETE'
         AND NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id) THEN
         RETURN OLD;
     END IF;

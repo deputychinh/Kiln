@@ -386,6 +386,28 @@ def test_deleting_an_asset_deletes_its_versions_history_with_them(
     assert left == []
 
 
+def test_an_event_orphaned_in_replica_mode_can_be_cleaned_up_afterwards(
+    engine: Engine, user: User
+) -> None:
+    """Replica mode skips the foreign key's cascade, so deleting a version leaves its events;
+    once the version is gone they may be deleted directly (migration 0015, ADR 0022)."""
+    version_id = _one_event(engine, user)
+    with engine.begin() as connection:
+        connection.execute(text("SET LOCAL session_replication_role = replica"))
+        connection.execute(text("DELETE FROM asset_versions WHERE id = :v"), {"v": version_id})
+    orphans = text("SELECT count(*) FROM review_events WHERE version_id = :v")
+    with engine.connect() as connection:
+        left_behind = connection.execute(orphans, {"v": version_id}).scalar_one()
+
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM review_events WHERE version_id = :v"), {"v": version_id}
+        )
+        after_cleanup = connection.execute(orphans, {"v": version_id}).scalar_one()
+
+    assert (left_behind, after_cleanup) == (1, 0)
+
+
 def test_deleting_a_version_deletes_its_history_with_it(engine: Engine, user: User) -> None:
     version_id = _one_event(engine, user)
 

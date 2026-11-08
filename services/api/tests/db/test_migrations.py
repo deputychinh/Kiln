@@ -680,3 +680,22 @@ def test_migration_0014_makes_the_history_triggers_fire_always_and_downgrades(
     assert before == [("review_events_append_only", "O"), ("review_events_no_truncate", "O")]
     assert after == [("review_events_append_only", "A"), ("review_events_no_truncate", "A")]
     assert file_after == file_before
+
+
+def test_migration_0015_drops_the_nesting_condition_and_downgrades(
+    database_url: str, alembic_config: Config
+) -> None:
+    """KILN-51 round 2: a delete passes once the version is gone, nested or not (ADR 0022)."""
+    engine = create_engine(database_url)
+    body = text("SELECT pg_get_functiondef('review_events_append_only'::regproc)")
+    command.downgrade(alembic_config, "0014_review_events_always")
+    with engine.connect() as connection:
+        before = connection.execute(body).scalar_one()
+    command.upgrade(alembic_config, "head")
+    with engine.connect() as connection:
+        after = connection.execute(body).scalar_one()
+    engine.dispose()
+
+    assert "pg_trigger_depth() > 1" in before
+    assert "pg_trigger_depth" not in after
+    assert "NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id)" in after
