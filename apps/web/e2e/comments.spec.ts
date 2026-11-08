@@ -63,7 +63,7 @@ test('a reviewer drags a region, comments on it, gets a reply and resolves the t
   await expect(mark).toBeVisible();
   // The rectangle sits where it was drawn, relative to the image (normalised, ±1 %).
   const box = await overlay.boundingBox();
-  const markBox = await mark.locator('..').boundingBox();
+  const markBox = await overlay.locator('.region-overlay__rect').boundingBox();
   if (!box || !markBox) throw new Error('no boxes');
   expect((markBox.x - box.x) / box.width).toBeCloseTo(0.2, 1);
   expect((markBox.y - box.y) / box.height).toBeCloseTo(0.25, 1);
@@ -188,6 +188,81 @@ test('moving focus back up never leaves it under the pinned preview (WCAG 2.4.11
     });
     expect(covered, `step ${String(step)}`).toBeLessThanOrEqual(0);
   }
+});
+
+test('marks close together and a pin in the corner all stay reachable, inside the image', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const asset = await seedImageAsset(request, uniqueName('comments_crowd', testInfo));
+  const [versionId = ''] = await versionIdsOf(request, asset.id);
+  const crowd = [
+    { shape: 'rect', x: 0.5, y: 0.5, width: 0.2, height: 0.2 },
+    { shape: 'rect', x: 0.51, y: 0.51, width: 0.2, height: 0.2 },
+    { shape: 'point', x: 0.5, y: 0.5 },
+    { shape: 'point', x: 0.505, y: 0.505 },
+    { shape: 'point', x: 1, y: 1 },
+    { shape: 'point', x: 0, y: 0 },
+    { shape: 'rect', x: 0.99, y: 0.99, width: 0.01, height: 0.01 },
+  ] as const;
+  for (const [index, region] of crowd.entries()) {
+    await seedThread(request, versionId, { body: `Mark ${String(index + 1)}`, region });
+  }
+  const overlay = await openComments(page, asset.id);
+  const marks = page.getByRole('group', { name: 'Marked regions' }).getByRole('button');
+  await expect(marks).toHaveCount(crowd.length);
+
+  expect(await seriousViolations(page), 'crowded marks').toEqual([]);
+  const image = await overlay.boundingBox();
+  if (!image) throw new Error('no image box');
+  const boxes = await marks.evaluateAll((buttons) =>
+    buttons.map((button) => {
+      const box = button.getBoundingClientRect();
+      return { x: box.x, y: box.y, width: box.width, height: box.height };
+    }),
+  );
+  for (const [index, box] of boxes.entries()) {
+    expect(box.width, `mark ${String(index + 1)} width`).toBeGreaterThanOrEqual(24);
+    expect(box.height, `mark ${String(index + 1)} height`).toBeGreaterThanOrEqual(24);
+    expect(box.x, `mark ${String(index + 1)} left`).toBeGreaterThanOrEqual(image.x - 0.5);
+    expect(box.y, `mark ${String(index + 1)} top`).toBeGreaterThanOrEqual(image.y - 0.5);
+    expect(box.x + box.width).toBeLessThanOrEqual(image.x + image.width + 0.5);
+    expect(box.y + box.height).toBeLessThanOrEqual(image.y + image.height + 0.5);
+    for (const other of boxes.slice(index + 1)) {
+      const apart =
+        box.x + box.width <= other.x ||
+        other.x + other.width <= box.x ||
+        box.y + box.height <= other.y ||
+        other.y + other.height <= box.y;
+      expect(apart, `mark ${String(index + 1)} overlaps another`).toBe(true);
+    }
+  }
+  await page.locator('.asset-detail__preview').screenshot({
+    path: `test-results/screens/kiln-10-crowded-marks-${testInfo.project.name}.png`,
+  });
+  // Each one still opens its own thread.
+  await marks.nth(3).click();
+  await expect(page.getByRole('article', { name: /^Comment 4 by / })).toBeFocused();
+});
+
+test('a rectangle dragged along the right edge of the image posts', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const asset = await seedImageAsset(request, uniqueName('comments_edge', testInfo));
+  const overlay = await openComments(page, asset.id);
+
+  await page.getByRole('button', { name: 'Mark region' }).click();
+  // A thin drag that starts a hair inside the right edge and ends past it.
+  await drag(page, overlay, [0.998, 0.2, 1.2, 0.7]);
+  await page.getByRole('textbox', { name: 'New comment' }).fill('Right edge');
+  await page.getByRole('button', { name: 'Post comment' }).click();
+
+  await expect(page.getByRole('button', { name: 'Region 1: Right edge' })).toBeVisible();
+  await expect(page.getByText(/must lie on the image/)).toBeHidden();
 });
 
 for (const theme of ['dark', 'light'] as const) {
