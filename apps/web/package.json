@@ -1,7 +1,7 @@
 {
   "name": "@kiln/web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
-    "@kiln/ui": "0.1.0",
+    "@kiln/ui": "0.2.0",
     "@react-three/fiber": "9.8.2",
     "@tanstack/react-query": "5.105.3",
     "@tanstack/react-router": "1.170.46",

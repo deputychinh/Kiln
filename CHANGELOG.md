@@ -4,6 +4,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-08
+
+Phase 2, review: sign-in and personal access tokens, new versions from the asset detail, side-by-side compare, a 3D viewer for glTF binaries, region annotations and comment threads, approval states with history, and a dark-first visual redesign; a hung job no longer blocks its worker. Review debt carried to v0.3 is listed in `docs/backlog.md`.
+
 ### Added
 
 - Review in the web app (KILN-11): every gallery card, the inspector header and each version in the Versions timeline show the review state as an icon, a word and a tone (In review, Approved, Changes requested). A Review tab in the inspector shows the chosen version (newest by default) with Approve and Request changes (ready versions in review) or Reopen (decided ones), an optional note, and the history as a timeline (who, what, when, the note; newest first, "Show older"); on wide screens the preview shrinks while the tab is open, so the decision is in view. A decision sends the state and revision it was made on; if someone else decided first, the tab says which state won, keeps the note and offers what applies now. Each version starts with an empty form and its own idempotency key, and a retry after a lost answer reuses that key. The gallery toolbar filters by review state and sorts by "Needs attention first", kept in the URL (`?review=&sort=attention`) and applied to the loaded pages.
