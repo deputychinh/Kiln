@@ -677,12 +677,12 @@ export interface components {
             y: number;
             /**
              * Width
-             * @description Rectangles only, above 0.
+             * @description Rectangles only, at least 0.01.
              */
             width?: number | null;
             /**
              * Height
-             * @description Rectangles only, above 0.
+             * @description Rectangles only, at least 0.01.
              */
             height?: number | null;
         };

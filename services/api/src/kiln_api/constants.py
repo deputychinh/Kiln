@@ -161,3 +161,6 @@ COMMENT_PAGE_LIMIT_DEFAULT = 50
 # Regions are normalised to the image: 0 to 1 on each axis, origin top left (Frame.io's model).
 REGION_MIN = 0.0
 REGION_MAX = 1.0
+# A rectangle is at least 1 % of the image on each side (5 px on a 512 px preview), so it is
+# always drawn; the web app's smallest drag is 2 %.
+REGION_MIN_SIZE = 0.01

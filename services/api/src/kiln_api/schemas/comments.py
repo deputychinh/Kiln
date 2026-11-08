@@ -1,16 +1,30 @@
 """Request and response bodies for comment threads, comments and regions (KILN-10)."""
 
+import unicodedata
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from kiln_api.constants import MAX_COMMENT_BODY_FIELD_LENGTH
 from kiln_api.domain.comments import Author, Region
 from kiln_api.enums import RegionShape
+from kiln_api.errors import InvalidCommentBodyError
 from kiln_api.ports import CommentView, Page, ThreadView
 
 _NORMALISED = "Normalised to the image: 0 is the left (top) edge, 1 the right (bottom) edge."
+
+
+def _refuse_lone_surrogates(value: object) -> object:
+    """Answer a lone surrogate in a body as the body rule does (KILN-10 AC3).
+
+    A JSON surrogate escape without its pair decodes to a lone surrogate (Unicode category Cs),
+    which pydantic would refuse as an invalid string (VALIDATION_FAILED) before the domain sees
+    it. It is raised as a domain error, which pydantic does not wrap: 422 INVALID_COMMENT_BODY.
+    """
+    if isinstance(value, str) and any(unicodedata.category(char) == "Cs" for char in value):
+        raise InvalidCommentBodyError
+    return value
 
 
 class RegionIn(BaseModel):
@@ -23,8 +37,12 @@ class RegionIn(BaseModel):
         strict=True, description=f"Left edge of a rectangle, or a point. {_NORMALISED}"
     )
     y: float = Field(strict=True, description=f"Top edge of a rectangle, or a point. {_NORMALISED}")
-    width: float | None = Field(default=None, strict=True, description="Rectangles only, above 0.")
-    height: float | None = Field(default=None, strict=True, description="Rectangles only, above 0.")
+    width: float | None = Field(
+        default=None, strict=True, description="Rectangles only, at least 0.01."
+    )
+    height: float | None = Field(
+        default=None, strict=True, description="Rectangles only, at least 0.01."
+    )
 
     def to_region(self) -> Region:
         """Convert to the domain value (the domain checks the bounds)."""
@@ -58,6 +76,8 @@ class StartThreadRequest(BaseModel):
     body: str = Field(max_length=MAX_COMMENT_BODY_FIELD_LENGTH)
     region: RegionIn | None = None
 
+    _surrogates = field_validator("body", mode="before")(_refuse_lone_surrogates)
+
 
 class CommentRequest(BaseModel):
     """A reply, or the new text of a comment."""
@@ -65,6 +85,8 @@ class CommentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     body: str = Field(max_length=MAX_COMMENT_BODY_FIELD_LENGTH)
+
+    _surrogates = field_validator("body", mode="before")(_refuse_lone_surrogates)
 
 
 class ResolveRequest(BaseModel):

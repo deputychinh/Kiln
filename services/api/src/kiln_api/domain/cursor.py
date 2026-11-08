@@ -9,6 +9,9 @@ from kiln_api.errors import InvalidCursorError
 
 _SEPARATOR = "|"
 _MAX_CURSOR_LENGTH = 128  # an encoded cursor is about 90 characters
+# Thread numbers are Postgres integers: a larger one must never reach a query (it answered 503).
+_MAX_NUMBER = 2**31 - 1
+_MAX_NUMBER_DIGITS = len(str(_MAX_NUMBER))
 
 
 def encode_cursor(created_at: datetime, item_id: UUID) -> str:
@@ -37,6 +40,8 @@ def decode_number_cursor(cursor: str) -> int:
     except (binascii.Error, UnicodeDecodeError, ValueError) as error:
         raise InvalidCursorError from error
     if marker != "n" or not number_text.isascii() or not number_text.isdigit():
+        raise InvalidCursorError
+    if len(number_text) > _MAX_NUMBER_DIGITS or int(number_text) > _MAX_NUMBER:
         raise InvalidCursorError
     return int(number_text)
 

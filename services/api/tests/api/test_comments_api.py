@@ -1,5 +1,6 @@
 """Comment threads, replies and region annotations through the HTTP API (KILN-10)."""
 
+import base64
 from typing import Any
 
 import pytest
@@ -642,3 +643,80 @@ def test_an_allowed_origin_may_preflight_a_comment_edit(client: TestClient) -> N
 
     assert response.status_code == 200
     assert "PATCH" in response.headers["access-control-allow-methods"]
+
+
+@pytest.mark.parametrize("raw", [b"n|2147483648", b"n|" + b"9" * 40, b"n|0" + b"1" * 12])
+def test_a_cursor_past_the_largest_thread_number_is_refused_not_a_server_error(
+    client: TestClient, raw: bytes
+) -> None:
+    """A crafted number cursor must never reach the database (it answered 503 before)."""
+    cursor = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    response = client.get(_threads_path(_version(client)), params={"cursor": cursor})
+
+    assert (response.status_code, response.json()["code"]) == (400, "INVALID_CURSOR")
+
+
+@pytest.mark.parametrize("escaped", ["a\\ud800b", "\\udfff", "x\\udbff"])
+def test_a_body_with_a_lone_surrogate_is_an_invalid_comment_body(
+    client: TestClient, engine: Engine, escaped: str
+) -> None:
+    version_id = _version(client)
+    raw = f'{{"body": "{escaped}"}}'.encode()
+
+    started = client.post(
+        _threads_path(version_id), content=raw, headers={"Content-Type": "application/json"}
+    )
+    thread = _start(client, version_id)
+    edited = client.patch(
+        f"/api/v1/comments/{thread['comment']['id']}",
+        content=raw,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert (started.status_code, started.json()["code"]) == (422, "INVALID_COMMENT_BODY")
+    assert (edited.status_code, edited.json()["code"]) == (422, "INVALID_COMMENT_BODY")
+    assert _count(engine, comment_threads) == 1
+
+
+@pytest.mark.parametrize("size", [1e-300, 0.0099])
+def test_a_rectangle_smaller_than_one_percent_is_refused(
+    client: TestClient, engine: Engine, size: float
+) -> None:
+    region = {"shape": "rect", "x": 0.5, "y": 0.5, "width": size, "height": 0.2}
+
+    response = client.post(_threads_path(_version(client)), json={"body": "x", "region": region})
+
+    assert (response.status_code, response.json()["code"]) == (422, "INVALID_REGION")
+    assert _count(engine, comment_threads) == 0
+
+
+def test_a_rectangle_of_exactly_one_percent_is_kept(client: TestClient) -> None:
+    region = {"shape": "rect", "x": 0.99, "y": 0.99, "width": 0.01, "height": 0.01}
+
+    assert _start(client, _version(client), region=region)["region"] == region
+
+
+@pytest.mark.parametrize(
+    "position",
+    [
+        "9999-12-31T23:59:59.999999+00:00",
+        "0001-01-01T00:00:00+14:00",
+        "9999-12-31T23:59:59-23:59",
+    ],
+)
+def test_time_cursors_at_the_ends_of_the_calendar_answer_without_a_server_error(
+    client: TestClient, position: str
+) -> None:
+    """The other decoder (`decode_cursor`, assets and replies) has no unbounded field."""
+    thread = _start(client, _version(client))
+    raw = f"{position}|0190a0a0-0000-7000-8000-000000000000".encode()
+    cursor = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    replies = client.get(
+        f"/api/v1/comment-threads/{thread['id']}/comments", params={"cursor": cursor}
+    )
+    assets = client.get("/api/v1/assets", params={"cursor": cursor})
+
+    assert (replies.status_code, assets.status_code) == (200, 200)
+    assert replies.json()["items"] == []

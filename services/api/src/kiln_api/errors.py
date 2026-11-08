@@ -349,8 +349,8 @@ class InvalidRegionError(DomainError):
     status = HTTPStatus.UNPROCESSABLE_ENTITY
     code = ErrorCode.INVALID_REGION
     default_detail = (
-        "A region needs x and y from 0 to 1; a rectangle a width and height above 0 that stay"
-        " inside the image; a point no size."
+        "A region needs x and y from 0 to 1; a rectangle a width and height of at least 0.01"
+        " that stay inside the image; a point no size."
     )
 
 

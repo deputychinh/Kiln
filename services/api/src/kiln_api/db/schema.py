@@ -29,6 +29,7 @@ from kiln_api.constants import (
     FILE_NAME_MAX_LENGTH,
     IDEMPOTENCY_KEY_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
+    REGION_MIN_SIZE,
 )
 from kiln_api.enums import (
     AssetKind,
@@ -257,6 +258,12 @@ comment_threads = Table(
     ),
     CheckConstraint(
         "(resolved_at IS NULL) = (resolved_by IS NULL)", name="resolved_by_when_resolved"
+    ),
+    # KILN-10 review: a rectangle is at least 1 % on each side (migration 0010).
+    CheckConstraint(
+        "region_shape IS DISTINCT FROM 'rect'"
+        f" OR (region_width >= {REGION_MIN_SIZE} AND region_height >= {REGION_MIN_SIZE})",
+        name="rect_min_size",
     ),
 )
 

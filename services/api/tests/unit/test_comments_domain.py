@@ -67,7 +67,7 @@ def test_hidden_and_control_characters_other_than_line_breaks_are_refused(body: 
 
 @pytest.mark.parametrize(
     ("x", "y", "width", "height"),
-    [(0, 0, 1, 1), (0.5, 0.5, 0.5, 0.5), (0.999, 0, 0.001, 1), (0.3, 0.3, 1e-6, 1e-6)],
+    [(0, 0, 1, 1), (0.5, 0.5, 0.5, 0.5), (0.99, 0, 0.01, 1), (0.3, 0.3, 0.01, 0.01)],
 )
 def test_a_rectangle_inside_the_image_is_valid(
     x: float, y: float, width: float, height: float
@@ -90,6 +90,8 @@ def test_a_rectangle_inside_the_image_is_valid(
         (math.nan, 0, 0.5, 0.5),
         (0, 0, math.inf, 0.5),
         (0, 0, 0.5, math.nan),
+        (0, 0, 0.0099, 0.5),
+        (0, 0, 0.5, 1e-300),
     ],
 )
 def test_a_rectangle_past_an_edge_or_without_size_is_refused(

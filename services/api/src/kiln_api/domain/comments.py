@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from uuid import UUID
 
-from kiln_api.constants import COMMENT_BODY_MAX_LENGTH, REGION_MAX, REGION_MIN
+from kiln_api.constants import COMMENT_BODY_MAX_LENGTH, REGION_MAX, REGION_MIN, REGION_MIN_SIZE
 from kiln_api.domain.assets import IdFactory, is_unreadable
 from kiln_api.enums import RegionShape
 from kiln_api.errors import CommentDeletedError, InvalidCommentBodyError, InvalidRegionError
@@ -93,8 +93,8 @@ def check_region(region: Region) -> Region:
     """Return `region` when it lies inside the image and fits its shape; raise otherwise.
 
     Raises:
-        InvalidRegionError: Out of 0 to 1, not finite, no size for a rectangle or past an edge,
-            or a size on a point.
+        InvalidRegionError: Out of 0 to 1, not finite, a rectangle under 1 % on a side or past
+            an edge, or a size on a point.
     """
     if not (_in_range(region.x) and _in_range(region.y)):
         raise InvalidRegionError
@@ -105,7 +105,7 @@ def check_region(region: Region) -> Region:
     width, height = region.width, region.height
     if width is None or height is None or not (_in_range(width) and _in_range(height)):
         raise InvalidRegionError
-    if width <= 0 or height <= 0:
+    if width < REGION_MIN_SIZE or height < REGION_MIN_SIZE:
         raise InvalidRegionError
     if region.x + width > REGION_MAX or region.y + height > REGION_MAX:
         raise InvalidRegionError

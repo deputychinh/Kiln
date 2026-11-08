@@ -3441,7 +3441,7 @@
               }
             ],
             "title": "Width",
-            "description": "Rectangles only, above 0."
+            "description": "Rectangles only, at least 0.01."
           },
           "height": {
             "anyOf": [
@@ -3453,7 +3453,7 @@
               }
             ],
             "title": "Height",
-            "description": "Rectangles only, above 0."
+            "description": "Rectangles only, at least 0.01."
           }
         },
         "additionalProperties": false,

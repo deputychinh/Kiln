@@ -78,6 +78,13 @@ def _thread_row(engine: Engine, user: User, **overrides: Any) -> None:
         {"region_shape": "point", "region_x": float("nan"), "region_y": 0.5},
         {"region_shape": "circle", "region_x": 0.5, "region_y": 0.5},
         {"region_x": 0.5, "region_y": 0.5},  # coordinates without a shape
+        {
+            "region_shape": "rect",
+            "region_x": 0,
+            "region_y": 0,
+            "region_width": 1e-300,
+            "region_height": 0.5,
+        },  # under the 1 % minimum (migration 0010)
         {"number": 0},
         {"resolved_at": NOW},  # resolved by nobody
     ],

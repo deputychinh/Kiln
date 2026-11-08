@@ -50,7 +50,7 @@ def test_a_cursor_without_a_timezone_is_rejected() -> None:
         decode_cursor(tampered)
 
 
-@pytest.mark.parametrize("number", [0, 1, 50, 2**31])
+@pytest.mark.parametrize("number", [0, 1, 50, 2**31 - 1])
 def test_a_number_cursor_round_trips(number: int) -> None:
     assert decode_number_cursor(encode_number_cursor(number)) == number
 
@@ -68,5 +68,18 @@ def test_a_number_cursor_that_this_api_did_not_issue_is_refused(raw: bytes) -> N
 
 @pytest.mark.parametrize("cursor", ["not base64!", "x" * 129, "\u00e9"])
 def test_a_number_cursor_that_is_not_base64_or_too_long_is_refused(cursor: str) -> None:
+    with pytest.raises(InvalidCursorError):
+        decode_number_cursor(cursor)
+
+
+@pytest.mark.parametrize("number", [2**31 - 1])
+def test_the_largest_thread_number_round_trips(number: int) -> None:
+    assert decode_number_cursor(encode_number_cursor(number)) == number
+
+
+@pytest.mark.parametrize("raw", [b"n|2147483648", b"n|" + b"9" * 40, b"n|00000000001"])
+def test_a_number_cursor_past_a_postgres_integer_or_too_long_is_refused(raw: bytes) -> None:
+    cursor = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
     with pytest.raises(InvalidCursorError):
         decode_number_cursor(cursor)

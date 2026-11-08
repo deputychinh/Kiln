@@ -447,3 +447,24 @@ def test_migration_0009_gives_up_while_a_writer_holds_asset_versions(
         engine.dispose()
 
     assert waited < 5
+
+
+def test_migration_0010_validates_the_minimum_rectangle_and_downgrades(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+
+    command.downgrade(alembic_config, "0009_comments")
+    before = {c["name"] for c in inspect(engine).get_check_constraints("comment_threads")}
+    command.upgrade(alembic_config, "head")
+    with engine.connect() as connection:
+        validated = connection.execute(
+            text(
+                "SELECT convalidated FROM pg_constraint"
+                " WHERE conname = 'ck_comment_threads_rect_min_size'"
+            )
+        ).scalar_one()
+    engine.dispose()
+
+    assert "ck_comment_threads_rect_min_size" not in before
+    assert validated is True

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from kiln_api.domain.assets import IdFactory
+from kiln_api.domain.assets import Asset, IdFactory
 from kiln_api.domain.authorization import authorize
 from kiln_api.domain.comments import (
     Region,
@@ -179,21 +179,23 @@ class CommentService:
             return tx.comments.thread_view(thread_id)
 
     @staticmethod
+    def _asset_of(tx: Transaction, version_id: UUID) -> Asset:
+        """The asset a version belongs to: what the policy decides on."""
+        return tx.assets.get(tx.assets.get_version(version_id).asset_id)
+
     def _authorize_version(
-        tx: Transaction, principal: Principal, action: Action, version_id: UUID
+        self, tx: Transaction, principal: Principal, action: Action, version_id: UUID
     ) -> AssetKind:
         """Check `action` against the asset the version belongs to; return the asset's kind."""
-        version = tx.assets.get_version(version_id)
-        asset = tx.assets.get(version.asset_id)
+        asset = self._asset_of(tx, version_id)
         authorize(principal, action, asset)
         return asset.kind
 
     def _authorize_comment(
         self, tx: Transaction, principal: Principal, thread_id: UUID, author_id: UUID
     ) -> None:
-        thread = tx.comments.get_thread(thread_id)
-        version = tx.assets.get_version(thread.version_id)
-        asset = tx.assets.get(version.asset_id)
+        """Only the author changes a comment, and only on an asset they can reach."""
+        asset = self._asset_of(tx, tx.comments.get_thread(thread_id).version_id)
         authorize(principal, Action.CHANGE_OWN_COMMENT, asset, author_id=author_id)
 
     def _claim(
