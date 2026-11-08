@@ -543,6 +543,63 @@ def test_a_refused_comment_does_not_use_up_its_key(client: TestClient) -> None:
     assert (refused.status_code, accepted.status_code) == (422, 201)
 
 
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        (RECT, None),
+        (RECT, {**RECT, "x": 0.3}),
+        (RECT, {**RECT, "y": 0.55}),
+        (RECT, {**RECT, "width": 0.4}),
+        (RECT, {**RECT, "height": 0.2}),
+        (POINT, {**POINT, "x": 0.2}),
+    ],
+    ids=["region-left-out", "x", "y", "width", "height", "point-x"],
+)
+def test_a_thread_key_reused_with_one_other_region_field_is_refused(
+    client: TestClient, engine: Engine, first: dict[str, Any], second: dict[str, Any] | None
+) -> None:
+    """KILN-49: the body is the same, so only the region field can tell the requests apart."""
+    version_id = _version(client)
+    key = {"Idempotency-Key": "thread-one-field"}
+    created = client.post(
+        _threads_path(version_id), json={"body": "Same", "region": first}, headers=key
+    )
+    assert created.status_code == 201, created.text
+
+    again = client.post(
+        _threads_path(version_id), json={"body": "Same", "region": second}, headers=key
+    )
+
+    assert (again.status_code, again.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
+    assert _count(engine, comment_threads) == 1
+
+
+def test_a_reply_key_reused_with_another_body_or_on_another_thread_is_refused(
+    client: TestClient, engine: Engine
+) -> None:
+    """KILN-49: the body is in the reply's fingerprint and the thread id in its operation."""
+    version_id = _version(client)
+    thread, other_thread = _start(client, version_id), _start(client, version_id)
+    key = {"Idempotency-Key": "reply-one-field"}
+    first = client.post(
+        f"/api/v1/comment-threads/{thread['id']}/comments", json={"body": "Once"}, headers=key
+    )
+    assert first.status_code == 201, first.text
+
+    other_body = client.post(
+        f"/api/v1/comment-threads/{thread['id']}/comments", json={"body": "Twice"}, headers=key
+    )
+    other_place = client.post(
+        f"/api/v1/comment-threads/{other_thread['id']}/comments",
+        json={"body": "Once"},
+        headers=key,
+    )
+
+    assert (other_body.status_code, other_body.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
+    assert (other_place.status_code, other_place.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
+    assert _count(engine, comments) == 3  # two first comments and one reply
+
+
 # --- AC10: scopes, sign-in and CSRF -------------------------------------------------------------
 
 

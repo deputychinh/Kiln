@@ -588,3 +588,50 @@ def test_the_same_key_with_another_note_is_refused(client: TestClient, engine: E
 
     assert (again.status_code, again.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
     assert _events(engine) == 1
+
+
+# --- KILN-49: every field of the fingerprint is pinned on its own --------------------------------
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        (APPROVE, REQUEST),
+        (APPROVE, {**APPROVE, "expected_state": "changes_requested"}),
+        ({**APPROVE, "expected_revision": 0}, {**APPROVE, "expected_revision": 1}),
+        ({**APPROVE, "expected_revision": 0}, APPROVE),
+    ],
+    ids=[
+        "another-action",
+        "another-expected-state",
+        "another-expected-revision",
+        "expected-revision-left-out",
+    ],
+)
+def test_the_same_key_with_one_other_field_is_refused(
+    client: TestClient, engine: Engine, first: dict[str, Any], second: dict[str, Any]
+) -> None:
+    """Only one field differs from the first request, so each field must be in the fingerprint."""
+    version_id = _version(client, engine)
+    headers = {"Idempotency-Key": "review-one-field"}
+    assert client.post(_path(version_id), json=first, headers=headers).status_code == 201
+
+    again = client.post(_path(version_id), json=second, headers=headers)
+
+    assert (again.status_code, again.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
+    assert _events(engine) == 1
+
+
+def test_the_same_key_and_body_on_another_version_is_refused(
+    client: TestClient, engine: Engine
+) -> None:
+    """The version id is part of the operation: a key cannot replay one version's decision."""
+    first_version, other_version = _version(client, engine), _version(client, engine)
+    headers = {"Idempotency-Key": "review-other-version"}
+    assert client.post(_path(first_version), json=APPROVE, headers=headers).status_code == 201
+
+    again = client.post(_path(other_version), json=APPROVE, headers=headers)
+
+    assert (again.status_code, again.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
+    assert _version_state(client, other_version) == ("in_review", 0)
+    assert _events(engine) == 1

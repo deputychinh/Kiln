@@ -1,0 +1,91 @@
+# KILN-48 + KILN-49: Focus after a decision; every idempotency fingerprint field pinned
+
+- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop) · Debt from the KILN-11 review (one story for both items)
+
+## Story
+
+As a **lead who reviews with the keyboard or a screen reader**, I want focus to land somewhere sensible after I approve, request changes, reopen or delete a comment, so that I can carry on without starting again from the top of the page (KILN-48).
+
+As a **maintainer**, I want every field that makes a request different to be pinned by a test of its idempotency fingerprint, so that a later change cannot let a retry with another body replay the first answer (KILN-49).
+
+INVEST: Independent ☑ (KILN-11 and KILN-10 are done) · Negotiable ☑ (the focus target is a choice, recorded below) · Valuable ☑ (WCAG 2.4.3 failure; mutants that survived review) · Estimable ☑ · Small ☑ (no API or schema change) · Testable ☑
+
+## Acceptance criteria
+
+| Id   | Platform       | Given                                                                   | When                                                                                                                                                      | Then                                                                                                                                                            |
+| ---- | -------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1  | web            | a ready version in review on the Review tab                             | I approve or request changes (keyboard or pointer)                                                                                                        | once the new state shows, focus is on Reopen, never on `<body>`; the polite status says "Version n approved" once and the focused button adds only its own name |
+| AC2  | web            | a decided version                                                       | I reopen it                                                                                                                                               | focus is on Approve, the first action the new state offers                                                                                                      |
+| AC3  | web (edge)     | a decided version that is no longer ready                               | I reopen it, and the new state offers no action                                                                                                           | focus is on the state line ("Version n is In review", `tabindex="-1"`, a visible focus ring)                                                                    |
+| AC4  | web (negative) | someone else decided first (409), or the API refuses for another reason | I submit                                                                                                                                                  | focus is on the refusal (`role="alert"`, `tabindex="-1"`), also when the pressed button has gone; the note is kept                                              |
+| AC5  | web (edge)     | focus moved after my decision                                           | the page later learns of someone else's decision, or I hold Enter                                                                                         | focus is not moved again; a repeated Enter keydown does not press the action that took focus                                                                    |
+| AC6  | web            | my own comment or reply                                                 | I delete it after confirming                                                                                                                              | focus is on its thread (the article "Comment n by …"), not on `<body>`; the polite status says "Comment deleted"                                                |
+| AC7  | api            | a review transition sent with an `Idempotency-Key`                      | the key is reused with only the `action`, the `expected_state` or the `expected_revision` changed (or left out), or with the same body on another version | 422 `IDEMPOTENCY_KEY_REUSED`; no event is stored                                                                                                                |
+| AC8  | api            | a thread or a reply sent with an `Idempotency-Key`                      | the key is reused with the region left out or one of its `x`, `y`, `width`, `height` changed; or a reply's key with another body or on another thread     | 422 `IDEMPOTENCY_KEY_REUSED`; nothing is stored                                                                                                                 |
+| AC9  | web            | a decision, a thread or a reply whose answer was lost                   | I change the note, the action, the body or the region, then send again (or the revision changed meanwhile)                                                | the retry carries a new `Idempotency-Key`; an unchanged retry keeps the old one (KILN-11, KILN-10)                                                              |
+| AC10 | api, web       | every field of each fingerprint and key signature                       | it is removed by hand (mutant, in a worktree)                                                                                                             | at least one test fails, except mutants proven equivalent (listed under QA)                                                                                     |
+
+## Non-functional
+
+- Accessibility: WCAG 2.2 SC 2.4.3 Focus Order (focus never drops to `<body>`), 2.4.7 Focus Visible (the state line gets the same ring as other controls), 4.1.3 Status Messages (the outcome stays in the polite region, announced once).
+- Security: the idempotency fingerprint is what stops a retry with another body from replaying the first answer (ADR 0006, ADR 0016); this item only adds tests, no behaviour change on the API.
+- Performance: no extra request; the focus move waits for the refetch the decision already makes.
+
+## Out of scope
+
+The CLI's `expected_revision` (KILN-50); comment replay semantics (KILN-47); moving `role="alert"` off the focused refusal (see Known gaps).
+
+## References
+
+- W3C, Understanding WCAG 2.2 SC 2.4.3 Focus Order: https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html
+- WAI-ARIA APG, Dialog (Modal) pattern, keyboard interaction: "When a dialog closes, focus returns to the element that invoked the dialog unless either … the invoking element no longer exists. Then, focus is set on another element that provides logical work flow." https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/
+- WAI-ARIA APG, Button pattern (a toggle button keeps focus while its state changes): https://www.w3.org/WAI/ARIA/apg/patterns/button/ ; APG "Developing a Keyboard Interface", focusing a static element with `tabindex="-1"`: https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/
+- IETF draft-ietf-httpapi-idempotency-key-header (request fingerprint; a key reused with a different request payload is answered 422): https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
+
+## Design
+
+- **Focus target after a decision (KILN-48).** Chosen: the first action the new state offers (Reopen after approve or request changes; Approve after reopen), falling back to the state line when there is none. Why: the APG dialog rule above says that when the element that had focus no longer exists, focus goes to "another element that provides logical work flow"; Approve → Reopen behaves like one toggle control whose state changed, and the APG button pattern keeps focus on a toggle (the comments' Resolve ↔ Reopen is one button and keeps focus for that reason). Focusing the state line instead would make a screen reader read "Version 2 is Approved" right after the polite status said "Version 2 approved": a double announcement. Focusing Reopen reads only "Reopen, button", so the status region is kept as it was (one queued message per outcome). The state line is the fallback (APG: a static element with `tabindex="-1"` may take focus when no control fits) and gets a focus ring.
+- **When focus moves.** `ReviewDecision` stores the revision its decision created (`event.sequence`) and an effect moves focus once the version shown has reached it; the refetch is part of the mutation (`onSettled`), so this is one render after success. `movedForRef` makes it once per decision, so a later refetch (someone else decides) never steals focus. Buttons ignore a repeated Enter keydown (`event.repeat`), so a held key cannot approve and then reopen.
+- **Refusals.** Unchanged code path, now asserted: the focused `role="alert"` paragraph takes focus after the message renders, also when the pressed button unmounts after a 409's refetch.
+- **Comment flows audited (KILN-10).** Edit → Save returns focus to Edit; Cancel/Escape to Edit or Delete; Reply → Post or Cancel to Reply; Resolve and Reopen are one button that stays (a thread hidden by Resolve sends focus to the list, KILN-10); posting keeps the Post button; Remove region focuses Mark region. One case unmounted its own button: **Delete comment**: the confirmation and the author's buttons disappear once the comment is deleted. `CommentEntry` now calls `onDeleted`, and `ThreadItem` focuses its article (`tabindex="-1"`, named "Comment n by …", focus ring already styled), so the status's "Comment deleted" is not read twice.
+- **Fingerprints (KILN-49).** No code change: tests now change one field at a time. Review: `operation = review:{version_id}`, payload `{action, expected_state, expected_revision, note}`. Thread: `start_thread:{version_id}`, `{body, region: {shape, x, y, width, height} | null}`. Reply: `reply:{thread_id}`, `{body}`. Web signatures: review `[version.id, revision, action, expected state, note]`, thread `[body, region]`, reply `body`.
+- **API, data, layout:** no change (no OpenAPI diff, no migration); the focus ring uses the existing focus tokens at every size class.
+
+## QA
+
+| AC   | Platform | Test(s)                                                                                                                                                                                                                                                                                               | Result  |
+| ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| AC1  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC2  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC3  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC4  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC5  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC6  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC7  | api      | `test_reviews_api.py` `test_the_same_key_with_one_other_field_is_refused` (4: another-action, another-expected-state, another-expected-revision, expected-revision-left-out), `test_the_same_key_and_body_on_another_version_is_refused`; existing `test_the_same_key_with_another_note_is_refused`   | pass    |
+| AC8  | api      | `test_comments_api.py` `test_a_thread_key_reused_with_one_other_region_field_is_refused` (6: region-left-out, x, y, width, height, point-x), `test_a_reply_key_reused_with_another_body_or_on_another_thread_is_refused`; existing `test_a_key_reused_for_another_comment_is_refused` (body, version) | pass    |
+| AC9  | web      | web commit                                                                                                                                                                                                                                                                                            | pending |
+| AC10 | api      | the API mutation table below (web: web commit)                                                                                                                                                                                                                                                        | pass    |
+
+**API mutants** (by hand in a git worktree with its own `.venv`, so the dev API on :8010 never reloaded; `PYTHONDONTWRITEBYTECODE=1`, `__pycache__` cleared, each file restored in `finally`; `test_reviews_api.py`, `test_comments_api.py`, `test_idempotency_api.py`, 174 tests):
+
+| Mutant                                                   | Before this item | Now                                                                                                                                          |
+| -------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| review: `action` dropped from the payload                | survived         | killed (1: another-action)                                                                                                                   |
+| review: `expected_state` dropped                         | survived         | killed (1: another-expected-state)                                                                                                           |
+| review: `expected_revision` dropped                      | survived         | killed (2)                                                                                                                                   |
+| review: operation without the version id                 | survived         | killed (1: `…_on_another_version_is_refused`)                                                                                                |
+| review: `note` dropped                                   | killed (KILN-11) | killed (1)                                                                                                                                   |
+| thread: `region` dropped                                 | survived         | killed (6)                                                                                                                                   |
+| thread: region `x` / `y` / `width` / `height` dropped    | survived         | killed (2 / 1 / 1 / 1)                                                                                                                       |
+| thread: `body` dropped; operation without the version id | killed           | killed (1 each)                                                                                                                              |
+| reply: `body` dropped                                    | survived         | killed (1)                                                                                                                                   |
+| reply: operation without the thread id                   | survived         | killed (1)                                                                                                                                   |
+| thread: region `shape` dropped                           | survives         | equivalent: a point has `width`/`height` null and a rectangle needs both, so two regions that differ in shape always differ in another field |
+
+Gates (API commit): `make lint` 0; `make test` 1299 Python (`KILN_TEST_DATABASE_URL=…/kiln_k48_test`), the web and UI suites unchanged by this commit.
+
+## Known gaps
+
+- The refusal paragraph is focused **and** `role="alert"`, so some screen readers read it twice; kept as KILN-11 shipped it (the alert also covers a pointer user whose focus is elsewhere) and left for a decision on the error-summary pattern.
+- The state-line fallback reads the new state right after the status message (a second reading) in the one case where no action remains.
+- Only Chromium projects run the keyboard journeys; Safari's focus behaviour on `<button>` clicks is not covered.
