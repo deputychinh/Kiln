@@ -311,6 +311,59 @@ def test_a_delete_from_another_trigger_is_refused_while_the_version_exists(
     assert _state(engine, version_id) == ("approved", 1, 1)
 
 
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "TRUNCATE review_events",
+        "TRUNCATE review_events RESTART IDENTITY CASCADE",
+        "TRUNCATE assets CASCADE",  # reaches the history through the foreign keys
+    ],
+)
+def test_the_database_refuses_to_truncate_the_history(
+    engine: Engine, user: User, statement: str
+) -> None:
+    """Row triggers never see TRUNCATE; the statement-level guard does (KILN-51, ADR 0018)."""
+    version_id = _one_event(engine, user)
+
+    with engine.begin() as connection, pytest.raises(DBAPIError, match="append-only"):
+        connection.execute(text(statement))
+
+    assert _state(engine, version_id) == ("approved", 1, 1)
+
+
+def test_the_truncate_guard_is_a_statement_level_before_trigger(engine: Engine) -> None:
+    with engine.connect() as connection:
+        definition = connection.execute(
+            text(
+                "SELECT pg_get_triggerdef(oid) FROM pg_trigger"
+                " WHERE tgrelid = 'review_events'::regclass"
+                " AND tgname = 'review_events_no_truncate'"
+            )
+        ).scalar_one()
+
+    assert definition == (
+        "CREATE TRIGGER review_events_no_truncate BEFORE TRUNCATE ON public.review_events"
+        " FOR EACH STATEMENT EXECUTE FUNCTION review_events_append_only()"
+    )
+
+
+def test_deleting_an_asset_deletes_its_versions_history_with_them(
+    engine: Engine, user: User
+) -> None:
+    version_id = _one_event(engine, user)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "DELETE FROM assets WHERE id = (SELECT asset_id FROM asset_versions WHERE id = :v)"
+            ),
+            {"v": version_id},
+        )
+        left = connection.execute(select(review_events)).all()
+
+    assert left == []
+
+
 def test_deleting_a_version_deletes_its_history_with_it(engine: Engine, user: User) -> None:
     version_id = _one_event(engine, user)
 

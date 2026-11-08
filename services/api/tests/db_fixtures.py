@@ -14,7 +14,7 @@ from sqlalchemy.exc import OperationalError
 
 from kiln_api.adapters import Argon2PasswordHasher
 from kiln_api.constants import CSRF_HEADER, CSRF_HEADER_VALUE, SESSION_COOKIE_LOCAL
-from kiln_api.db.schema import metadata
+from kiln_api.db.schema import metadata, review_events
 from kiln_api.domain.identity import (
     Principal,
     User,
@@ -60,10 +60,11 @@ def engine(database_url: str) -> Iterator[Engine]:
     engine = create_engine(database_url)
     yield engine
     with engine.begin() as connection:
-        # The review history is append-only: a trigger refuses DELETE, TRUNCATE skips row triggers.
-        connection.execute(text("TRUNCATE review_events"))
+        # The review history is append-only and refuses TRUNCATE (ADR 0018): its rows leave with
+        # the cascade from `asset_versions`, the only delete its trigger allows.
         for table in reversed(metadata.sorted_tables):
-            connection.execute(table.delete())
+            if table is not review_events:
+                connection.execute(table.delete())
     engine.dispose()
 
 

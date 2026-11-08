@@ -357,12 +357,19 @@ REVIEW_EVENTS_APPEND_ONLY_TRIGGER = (
     "CREATE TRIGGER review_events_append_only BEFORE UPDATE OR DELETE ON review_events"
     " FOR EACH ROW EXECUTE FUNCTION review_events_append_only()"
 )
+# Row triggers never see TRUNCATE, so a statement-level one refuses it with the same function
+# (migration 0013, ADR 0018); `TRUNCATE assets CASCADE` reaches it too.
+REVIEW_EVENTS_NO_TRUNCATE_TRIGGER = (
+    "CREATE TRIGGER review_events_no_truncate BEFORE TRUNCATE ON review_events"
+    " FOR EACH STATEMENT EXECUTE FUNCTION review_events_append_only()"
+)
 
 
 def _create_append_only(_target: object, connection: Connection, **_kw: object) -> None:
     """Give a database built from this module (tests' reference schema) the same trigger."""
     connection.execute(text(REVIEW_EVENTS_APPEND_ONLY_FUNCTION))
     connection.execute(text(REVIEW_EVENTS_APPEND_ONLY_TRIGGER))
+    connection.execute(text(REVIEW_EVENTS_NO_TRUNCATE_TRIGGER))
 
 
 def _drop_append_only(_target: object, connection: Connection, **_kw: object) -> None:

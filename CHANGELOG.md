@@ -7,6 +7,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 ### Security
 
 - Password policy (KILN-39, ADR 0017): `make create-user` refuses a new password under 15 characters (was 12; NIST SP 800-63B-4 for a single-factor password), one on the bundled NCSC list of the 100,000 most common breached passwords (`COMMON_PASSWORD`), or one that is a derivative of "kiln" or the email's local part (`GUESSABLE_PASSWORD`), compared after NFKC and case-folding; the message says why without repeating the password. The list is offline, checksum-pinned and loaded once at startup; no breach API is called. Existing passwords keep signing in.
+- The review history refuses `TRUNCATE` (KILN-51, ADR 0018): migration 0013 adds a statement-level `BEFORE TRUNCATE` trigger on `review_events` (also reached by `TRUNCATE assets CASCADE`); deleting a version or an asset still removes its history. Test cleanup now goes through that cascade. A non-owner runtime role is filed as KILN-58, with the remaining risk accepted in ADR 0018.
 
 ## [0.2.0] - 2026-11-08
 

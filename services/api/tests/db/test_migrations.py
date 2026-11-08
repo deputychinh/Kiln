@@ -8,7 +8,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import Engine, create_engine, inspect, make_url, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from kiln_api.db.schema import metadata
 
@@ -540,7 +540,7 @@ def test_migration_0011_puts_existing_versions_in_review_without_rewriting_the_t
     assert file_after == file_before
     assert [tuple(row) for row in states] == [("in_review", 0, 500)]
     assert validated == dict.fromkeys(_REVIEW_RULES, True)
-    assert trigger_names == {"review_events_append_only"}
+    assert trigger_names == {"review_events_append_only", "review_events_no_truncate"}  # 0013
 
 
 def test_migration_0011_downgrades_without_the_review_columns_and_history(
@@ -601,3 +601,55 @@ def test_migration_0012_lets_only_the_cascade_delete_events_and_downgrades(
 
     assert "NOT EXISTS" not in before
     assert "NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id)" in after
+
+
+def test_migration_0013_refuses_truncate_without_rewriting_and_downgrades(
+    database_url: str, alembic_config: Config
+) -> None:
+    """KILN-51: before 0013 a TRUNCATE emptied the history; after it, it is refused, the table
+    keeps its file (no rewrite), and the downgrade lets it through again."""
+    engine = create_engine(database_url)
+    filenode = text("SELECT pg_relation_filenode('review_events')")
+    guard = text("SELECT count(*) FROM pg_trigger WHERE tgname = 'review_events_no_truncate'")
+    command.downgrade(alembic_config, "0012_review_events_cascade_only")
+    with engine.begin() as connection:
+        guards_before = connection.execute(guard).scalar_one()
+        connection.execute(text("TRUNCATE review_events"))  # passes before 0013
+        file_before = connection.execute(filenode).scalar_one()  # TRUNCATE gave it a new file
+    command.upgrade(alembic_config, "head")
+    try:
+        with engine.begin() as connection:
+            file_after = connection.execute(filenode).scalar_one()
+            guards_after = connection.execute(guard).scalar_one()
+        with engine.begin() as connection, pytest.raises(DBAPIError) as refused:
+            connection.execute(text("TRUNCATE review_events"))
+    finally:
+        engine.dispose()
+
+    assert (guards_before, guards_after) == (0, 1)
+    assert file_after == file_before
+    assert "append-only" in str(refused.value)
+
+
+def test_migration_0013_gives_up_while_a_writer_holds_review_events(
+    database_url: str, alembic_config: Config
+) -> None:
+    """CREATE TRIGGER needs SHARE ROW EXCLUSIVE: behind a writer it fails fast, not queueing."""
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0012_review_events_cascade_only")
+    hurried = Config(alembic_config.config_file_name)
+    hurried.set_main_option("sqlalchemy.url", database_url)
+    hurried.cmd_opts = argparse.Namespace(x=["lock_timeout_ms=300"])
+    try:
+        with engine.connect() as holder:
+            holder.execute(text("LOCK TABLE review_events IN ROW EXCLUSIVE MODE"))
+            started = time.monotonic()
+            with pytest.raises(OperationalError, match="lock timeout"):
+                command.upgrade(hurried, "head")
+            waited = time.monotonic() - started
+            holder.rollback()
+    finally:
+        command.upgrade(alembic_config, "head")
+        engine.dispose()
+
+    assert waited < 5
