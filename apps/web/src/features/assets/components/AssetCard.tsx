@@ -4,6 +4,7 @@ import { Box, Image, Rotate3d } from 'lucide-react';
 import { memo, type ReactElement } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
+import { ReviewBadge } from '@/components/ReviewBadge/ReviewBadge';
 import { useCopy } from '@/hooks/useCopy';
 import { useMiddleEllipsis } from '@/hooks/useMiddleEllipsis';
 import type { Asset } from '@/interfaces/asset.interface';
@@ -17,7 +18,7 @@ interface AssetCardProps {
 
 /**
  * A gallery card: an edge-to-edge square preview, the name (middle ellipsis, full name on hover),
- * kind and age. The whole card links to the asset (the router marks the open one with
+ * kind, age and review state (icon and word, KILN-11). The whole card links to the asset (the router marks the open one with
  * `aria-current`); a model with a preview also offers View in 3D on hover and focus.
  */
 // Memoised: the gallery re-renders on every upload progress step; the cards need not.
@@ -74,6 +75,9 @@ export const AssetCard = memo(({ asset, onThumbError }: AssetCardProps): ReactEl
             <span className="asset-card__time">
               <RelativeTime iso={asset.updated_at} />
             </span>
+          </span>
+          <span className="asset-card__review">
+            <ReviewBadge state={asset.review_state} />
           </span>
         </span>
       </Link>

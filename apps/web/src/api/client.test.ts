@@ -30,6 +30,29 @@ describe('apiGet', () => {
     });
   });
 
+  it('keeps the current state of a review conflict, and none for other problems (KILN-11)', async () => {
+    const body = {
+      title: 'Conflict',
+      status: 409,
+      code: 'REVIEW_STATE_CONFLICT',
+      current_state: 'approved',
+    };
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(body), {
+          status: 409,
+          headers: { 'Content-Type': 'application/problem+json' },
+        }),
+      )
+      .mockResolvedValueOnce(problem(503, 'Unavailable', 'DATABASE_UNAVAILABLE'));
+
+    const conflict: unknown = await apiGet('/x').catch((caught: unknown) => caught);
+    const other: unknown = await apiGet('/x').catch((caught: unknown) => caught);
+
+    expect(conflict).toMatchObject({ code: 'REVIEW_STATE_CONFLICT', currentState: 'approved' });
+    expect(other).toMatchObject({ code: 'DATABASE_UNAVAILABLE', currentState: null });
+  });
+
   it('falls back to the status text for a non-problem error or a broken problem body', async () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('<html>', { status: 502, statusText: 'Bad Gateway' }))

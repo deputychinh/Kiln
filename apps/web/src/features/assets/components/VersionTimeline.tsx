@@ -4,6 +4,7 @@ import { Rotate3d } from 'lucide-react';
 import type { ReactElement } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
+import { ReviewBadge } from '@/components/ReviewBadge/ReviewBadge';
 import { VERSION_STATUS_TONE } from '@/constants/assets.constant';
 import { useCopy } from '@/hooks/useCopy';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
@@ -24,6 +25,7 @@ export const VersionTimeline = ({ asset }: { asset: AssetDetailData }): ReactEle
                 {copy.assets.versionLabel(version.number)}
               </span>
               <span className="asset-detail__status">{copy.assets.status[version.status]}</span>
+              <ReviewBadge state={version.review_state} />
               {isViewable(asset.kind, version) ? (
                 <Link
                   to="/assets/$assetId/view"

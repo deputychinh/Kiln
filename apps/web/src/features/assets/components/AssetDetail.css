@@ -55,6 +55,7 @@
 
 .asset-detail__kind {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--kiln-space-2);
   align-items: center;
   font-size: var(--kiln-text-sm);

@@ -4,4 +4,6 @@ export interface ApiError extends Error {
   status: number;
   /** The stable `code` from RFC 9457 problem details, when the API sent one. */
   code: string | null;
+  /** On a review conflict, the state the version is in now (`current_state`, KILN-11). */
+  currentState: string | null;
 }

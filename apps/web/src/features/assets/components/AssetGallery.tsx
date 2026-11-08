@@ -10,7 +10,7 @@ import {
   Toolbar,
 } from '@kiln/ui';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ArrowDownUp, Box, Grid2x2, Grid3x3, Image, Images } from 'lucide-react';
+import { ArrowDownUp, Box, Grid2x2, Grid3x3, Image, Images, ListFilter } from 'lucide-react';
 import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -18,6 +18,7 @@ import {
   ASSET_PAGE_SIZE,
   THUMB_REFRESH_WINDOW_MS,
 } from '@/constants/assets.constant';
+import { REVIEW_STATES } from '@/constants/reviews.constant';
 import { CardSize } from '@/enums/card-size.enum';
 import { GallerySort } from '@/enums/gallery-sort.enum';
 import { AssetCard } from '@/features/assets/components/AssetCard';
@@ -27,15 +28,20 @@ import { useCopy } from '@/hooks/useCopy';
 import { useKeyedThrottle } from '@/hooks/useKeyedThrottle';
 import type { AssetKind } from '@/interfaces/asset.interface';
 import type { GallerySearch } from '@/interfaces/gallery.interface';
+import type { ReviewState } from '@/interfaces/review.interface';
 import { describeError } from '@/utils/error.util';
-import { parseGallerySearch, visibleAssets, withOption } from '@/utils/gallery.util';
+import { isFiltered, parseGallerySearch, visibleAssets, withOption } from '@/utils/gallery.util';
 
 import './AssetGallery.css';
 
 const SKELETON_CARDS = Array.from({ length: ASSET_PAGE_SIZE / 3 }, (_, index) => index);
 const ALL_KINDS = 'all';
+const ALL_STATES = 'all';
 
-/** The kind filter, sort and card size, kept in the URL so a view can be shared and reloaded. */
+/**
+ * The kind and review-state filters, sort and card size, kept in the URL so a view can be shared
+ * and reloaded.
+ */
 const GalleryOptions = ({
   search,
   onChange,
@@ -68,6 +74,25 @@ const GalleryOptions = ({
           onChange(withOption(search, 'kind', kind === ALL_KINDS ? undefined : kind))
         }
       />
+      <label className="asset-gallery__sort">
+        <ListFilter className="asset-gallery__sort-icon" size={ICON_SIZE.sm} aria-hidden="true" />
+        <span className="visually-hidden">{copy.reviews.filterLabel}</span>
+        <select
+          className="asset-gallery__select"
+          value={search.review ?? ALL_STATES}
+          onChange={(event) => {
+            const review = event.target.value as ReviewState | typeof ALL_STATES;
+            onChange(withOption(search, 'review', review === ALL_STATES ? undefined : review));
+          }}
+        >
+          <option value={ALL_STATES}>{copy.reviews.filterAll}</option>
+          {REVIEW_STATES.map((state) => (
+            <option key={state} value={state}>
+              {copy.reviews.state[state]}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="asset-gallery__sort">
         <ArrowDownUp className="asset-gallery__sort-icon" size={ICON_SIZE.sm} aria-hidden="true" />
         <span className="visually-hidden">{copy.assets.sortLabel}</span>
@@ -222,7 +247,8 @@ export const AssetGallery = (): ReactElement => {
     const result = await pages.fetchNextPage();
     setFocusAfterLoad(result.isError ? 'error' : shownBefore);
   };
-  const count = search.kind
+  const filtered = isFiltered(search);
+  const count = filtered
     ? copy.assets.countFiltered(assets.length, loaded.length)
     : copy.assets.count(loaded.length, pages.hasNextPage);
 
@@ -237,6 +263,21 @@ export const AssetGallery = (): ReactElement => {
             </li>
           ))}
         </ul>
+      ) : search.review && !search.kind ? (
+        <EmptyState
+          title={copy.reviews.filteredEmptyTitle(copy.reviews.state[search.review])}
+          icon={<ListFilter size={ICON_SIZE.lg} />}
+          action={
+            <Button
+              variant={ButtonVariant.Secondary}
+              onClick={() => setSearch(withOption(search, 'review', undefined))}
+            >
+              {copy.reviews.showAllStates}
+            </Button>
+          }
+        >
+          {copy.reviews.filteredEmptyBody}
+        </EmptyState>
       ) : (
         <EmptyState
           title={copy.assets.filteredEmptyTitle[search.kind ?? 'image']}
@@ -256,7 +297,7 @@ export const AssetGallery = (): ReactElement => {
         </EmptyState>
       )}
       <p className="visually-hidden" aria-live="polite">
-        {search.kind
+        {filtered
           ? copy.assets.shownFiltered(assets.length, loaded.length)
           : copy.assets.shown(assets.length)}
       </p>

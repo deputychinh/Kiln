@@ -2,4 +2,6 @@
 export interface ProblemBody {
   title?: unknown;
   code?: unknown;
+  /** A review conflict's state now (KILN-11, an RFC 9457 extension member). */
+  current_state?: unknown;
 }

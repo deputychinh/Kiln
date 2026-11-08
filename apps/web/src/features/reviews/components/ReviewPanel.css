@@ -1,0 +1,81 @@
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+  min-inline-size: 0;
+}
+
+.review-panel__version {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+  align-items: center;
+}
+
+.review-panel__label {
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.review-panel__select {
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-2);
+  font: inherit;
+  font-size: var(--kiln-text-ui);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-md);
+}
+
+.review-panel__select:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+.review-panel__state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-medium);
+}
+
+.review-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  padding: var(--kiln-space-3);
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+}
+
+.review-panel__hint {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+/* The outcome of a refused decision: an icon-free sentence with a bar, not colour alone. */
+.review-panel__problem {
+  margin: 0;
+  padding: var(--kiln-space-2) var(--kiln-space-3);
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border-radius: var(--kiln-radius-sm);
+  border-inline-start: var(--kiln-border-focus) solid var(--kiln-color-warning);
+}
+
+.review-panel__problem:focus {
+  outline: none;
+}
+
+.review-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+}

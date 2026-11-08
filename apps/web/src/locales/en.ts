@@ -1,6 +1,8 @@
 import { ViewerError } from '@/enums/viewer-error.enum';
 import type { Copy } from '@/interfaces/copy.interface';
 import { enComments } from '@/locales/en.comments';
+import { enFailure } from '@/locales/en.failure';
+import { enReviews } from '@/locales/en.reviews';
 
 export const en: Copy = {
   locale: 'en',
@@ -104,7 +106,7 @@ export const en: Copy = {
     kindFilterLabel: 'Kind',
     kindFilter: { all: 'All', image: 'Images', model: 'Models' },
     sortLabel: 'Sort',
-    sort: { newest: 'Newest first', name: 'Name (A–Z)' },
+    sort: { newest: 'Newest first', name: 'Name (A–Z)', attention: 'Needs attention first' },
     sizeLabel: 'Card size',
     size: { large: 'Large cards', small: 'Small cards' },
     filteredEmptyTitle: { image: 'No images loaded', model: 'No models loaded' },
@@ -128,17 +130,7 @@ export const en: Copy = {
       ready: 'Ready',
       failed: 'Failed',
     },
-    failure: {
-      UPLOAD_CHANGED: 'The file changed after it was uploaded. Upload it again.',
-      UNREADABLE_IMAGE: 'This is not a readable PNG, JPEG or WebP image.',
-      IMAGE_TOO_LARGE: 'The image has too many pixels to preview.',
-      PROCESSING_GAVE_UP: 'Processing failed several times. Upload the file again later.',
-      UPLOAD_EXPIRED: 'The upload was never completed. Upload the file again.',
-      UNREADABLE_MODEL:
-        'This is not a glTF binary (.glb) Kiln can read. Compressed meshes (Draco, meshopt) and external files are not supported yet.',
-      MODEL_TOO_LARGE:
-        'The model is too large or too complex to preview (limits include 256 MB, 2 million triangles and 60 seconds of rendering).',
-    },
+    failure: enFailure,
     detailLabel: 'Asset details',
     selectPrompt: 'Select an asset to see its versions.',
     back: 'All assets',
@@ -161,6 +153,7 @@ export const en: Copy = {
     notFoundBody: 'It may have been removed, or the link is wrong.',
   },
   comments: enComments,
+  reviews: enReviews,
   compare: {
     link: 'Compare versions',
     linkShort: 'Compare',

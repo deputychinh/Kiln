@@ -1,7 +1,7 @@
 import { CardSize } from '@/enums/card-size.enum';
 import { GallerySort } from '@/enums/gallery-sort.enum';
 import { anAsset } from '@/test/fake-api';
-import { parseGallerySearch, visibleAssets, withOption } from '@/utils/gallery.util';
+import { isFiltered, parseGallerySearch, visibleAssets, withOption } from '@/utils/gallery.util';
 
 const rock = anAsset({ id: 'a1', name: 'rock_albedo', kind: 'image' });
 const crate = anAsset({ id: 'a2', name: 'Crate_wooden', kind: 'model' });
@@ -67,5 +67,45 @@ describe('visible assets', () => {
       tree10,
     ]);
     expect(visibleAssets([rock], { kind: 'model' })).toEqual([]);
+  });
+});
+
+describe('review state in the gallery (KILN-11)', () => {
+  const fixMe = anAsset({ id: 'r1', name: 'fix_me', review_state: 'changes_requested' });
+  const done = anAsset({ id: 'r2', name: 'done', review_state: 'approved' });
+  const waiting = anAsset({ id: 'r3', name: 'waiting', review_state: 'in_review' });
+  const alsoFix = anAsset({ id: 'r4', name: 'also_fix', review_state: 'changes_requested' });
+  const loaded = [done, fixMe, waiting, alsoFix];
+
+  it('keeps a known review state from the URL and drops anything else', () => {
+    expect(parseGallerySearch({ review: 'approved' })).toEqual({ review: 'approved' });
+    expect(parseGallerySearch({ review: 'changes_requested', sort: 'attention' })).toEqual({
+      review: 'changes_requested',
+      sort: GallerySort.Attention,
+    });
+    expect(parseGallerySearch({ review: 'rejected' })).toEqual({});
+    expect(parseGallerySearch({ review: ['approved'] })).toEqual({});
+  });
+
+  it('keeps only the assets in the chosen state, in order, with the kind filter too', () => {
+    expect(visibleAssets(loaded, { review: 'changes_requested' })).toEqual([fixMe, alsoFix]);
+    expect(visibleAssets([...loaded, crate], { review: 'in_review', kind: 'model' })).toEqual([
+      crate,
+    ]);
+  });
+
+  it('orders by what needs attention: changes requested, in review, approved, newest first in each', () => {
+    expect(visibleAssets(loaded, { sort: GallerySort.Attention })).toEqual([
+      fixMe,
+      alsoFix,
+      waiting,
+      done,
+    ]);
+  });
+
+  it('counts as filtered with a kind or a review state, not with a sort or a size', () => {
+    expect(isFiltered({ review: 'approved' })).toBe(true);
+    expect(isFiltered({ kind: 'image' })).toBe(true);
+    expect(isFiltered({ sort: GallerySort.Attention, size: CardSize.Small })).toBe(false);
   });
 });

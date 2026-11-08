@@ -118,6 +118,12 @@
   text-overflow: ellipsis;
 }
 
+/* The review state: its own row, so the longest word never pushes the age out of a narrow card. */
+.asset-card__review {
+  display: flex;
+  min-inline-size: 0;
+}
+
 /* Narrow cards keep the kind icon and drop its word (still in the link's name). */
 @container asset-card (max-width: 179px) {
   .asset-card__kind-label {

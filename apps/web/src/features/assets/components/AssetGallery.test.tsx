@@ -353,10 +353,78 @@ describe('AssetGallery', () => {
     ).toEqual([apple.id, rock.id, tree.id]);
   });
 
+  it('shows the review state of each asset in words on its card (KILN-11)', async () => {
+    const approved = anAsset({
+      id: '0190f1c2-0000-7000-8000-00000000000a',
+      review_state: 'approved',
+    });
+    fakeApi({ [LIST]: [json({ items: [rock, approved], next_cursor: null })] });
+    renderApp('/assets');
+
+    const list = await screen.findByRole('list', { name: 'Assets' });
+    const cards = within(list).getAllByRole('link', { name: /rock_albedo/ });
+    expect(cards[0]).toHaveTextContent('In review');
+    expect(cards[1]).toHaveTextContent('Approved');
+    expect(cards[1]?.querySelector('[data-review-state="approved"] svg')).not.toBeNull();
+  });
+
+  it('filters by review state and sorts by what needs attention, both in the URL', async () => {
+    const fix = anAsset({
+      id: '0190f1c2-0000-7000-8000-00000000000b',
+      name: 'fix_me',
+      review_state: 'changes_requested',
+    });
+    const done = anAsset({
+      id: '0190f1c2-0000-7000-8000-00000000000c',
+      name: 'done_prop',
+      review_state: 'approved',
+    });
+    fakeApi({ [LIST]: [json({ items: [done, rock, fix], next_cursor: null })] });
+    const { router } = renderApp('/assets');
+    await screen.findByRole('list', { name: 'Assets' });
+    const options = screen.getByRole('group', { name: 'Gallery options' });
+
+    await userEvent.selectOptions(
+      within(options).getByRole('combobox', { name: 'Sort' }),
+      'Needs attention first',
+    );
+    await waitFor(() => expect(router.state.location.search).toEqual({ sort: 'attention' }));
+    const order = (): (string | null)[] =>
+      within(screen.getByRole('list', { name: 'Assets' }))
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('data-asset-id'));
+    expect(order()).toEqual([fix.id, rock.id, done.id]);
+
+    await userEvent.selectOptions(
+      within(options).getByRole('combobox', { name: 'Review state' }),
+      'Approved',
+    );
+
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ sort: 'attention', review: 'approved' }),
+    );
+    expect(order()).toEqual([done.id]);
+    expect(within(options).getByText('1 of 3')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 3 loaded assets')).toBeInTheDocument();
+  });
+
+  it('says when no loaded asset is in the chosen state, and shows every state again', async () => {
+    fakeApi({ [LIST]: [json({ items: [rock], next_cursor: null })] });
+    const { router } = renderApp('/assets?review=approved');
+
+    expect(
+      await screen.findByRole('heading', { name: 'No assets loaded are “Approved”' }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show all states' }));
+
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole('link', { name: /rock_albedo/ })).toBeInTheDocument();
+  });
+
   it('ignores unknown view options in the URL', async () => {
     fakeApi({ [LIST]: [json({ items: [rock, tree], next_cursor: null })] });
 
-    renderApp('/assets?kind=video&size=huge&sort=random');
+    renderApp('/assets?kind=video&size=huge&sort=random&review=rejected');
 
     const list = await screen.findByRole('list', { name: 'Assets' });
     expect(within(list).getAllByRole('link')).toHaveLength(2);

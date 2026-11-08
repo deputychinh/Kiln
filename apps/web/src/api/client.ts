@@ -8,7 +8,12 @@ const HTTP_NO_CONTENT = 204;
 const CSRF_HEADERS = { 'X-Kiln-Csrf': '1' } as const;
 
 export const apiError = (status: number, message: string, code: string | null = null): ApiError =>
-  Object.assign(new Error(message), { name: 'ApiError' as const, status, code });
+  Object.assign(new Error(message), {
+    name: 'ApiError' as const,
+    status,
+    code,
+    currentState: null,
+  });
 
 export const isApiError = (error: unknown): error is ApiError =>
   error instanceof Error && error.name === 'ApiError';
@@ -18,11 +23,14 @@ const problemOf = async (response: Response): Promise<ApiError> => {
   if (!response.headers.get('Content-Type')?.includes(PROBLEM_MEDIA_TYPE)) return fallback;
   try {
     const body = (await response.json()) as ProblemBody;
-    return apiError(
+    const error = apiError(
       response.status,
       typeof body.title === 'string' ? body.title : response.statusText,
       typeof body.code === 'string' ? body.code : null,
     );
+    // A review conflict names the state the version is in now (KILN-11).
+    if (typeof body.current_state === 'string') error.currentState = body.current_state;
+    return error;
   } catch {
     return fallback; // a broken problem body still reports the status
   }

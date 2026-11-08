@@ -1,0 +1,116 @@
+.review-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  min-inline-size: 0;
+}
+
+.review-history__title {
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+  font-weight: var(--kiln-weight-semibold);
+}
+
+.review-history__loading {
+  display: grid;
+  gap: var(--kiln-space-3);
+}
+
+/* A timeline like the versions': an icon on a line down the left, the facts beside it. */
+.review-history__events {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-history__event {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--kiln-icon-sm) minmax(0, 1fr) auto;
+  gap: var(--kiln-space-1) var(--kiln-space-2);
+  align-items: baseline;
+  padding-block-end: var(--kiln-space-4);
+}
+
+.review-history__event::before {
+  position: absolute;
+  inset: calc(var(--kiln-icon-sm) + var(--kiln-space-1)) auto 0
+    calc(var(--kiln-icon-sm) / 2 - var(--kiln-border-hairline) / 2);
+  inline-size: var(--kiln-border-hairline);
+  background-color: var(--kiln-color-outline-variant);
+  content: '';
+}
+
+.review-history__event:last-child::before {
+  content: none;
+}
+
+.review-history__icon {
+  display: inline-flex;
+  align-self: center;
+  inline-size: var(--kiln-icon-sm);
+  block-size: var(--kiln-icon-sm);
+}
+
+.review-history__event--info .review-history__icon {
+  color: var(--kiln-color-info);
+}
+
+.review-history__event--success .review-history__icon {
+  color: var(--kiln-color-success);
+}
+
+.review-history__event--warning .review-history__icon {
+  color: var(--kiln-color-warning);
+}
+
+.review-history__what {
+  min-inline-size: 0;
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  overflow-wrap: anywhere;
+  color: var(--kiln-color-on-surface);
+}
+
+.review-history__when {
+  font-size: var(--kiln-text-xs);
+  white-space: nowrap;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+/* Notes are text, never markup; long ones wrap without widening the pane. */
+.review-history__note {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.review-history__more {
+  align-self: flex-start;
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-2);
+  font: inherit;
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+  background: none;
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+}
+
+.review-history__more:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+@media (hover: hover) {
+  .review-history__more:hover {
+    background-color: var(--kiln-color-surface-hover);
+  }
+}

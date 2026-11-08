@@ -5,6 +5,7 @@ import type { UploadStatus } from '@/enums/upload-status.enum';
 import type { ViewerError } from '@/enums/viewer-error.enum';
 import type { AssetKind, FailureReason, VersionStatus } from '@/interfaces/asset.interface';
 import type { CommentsCopy } from '@/interfaces/comments-copy.interface';
+import type { ReviewsCopy } from '@/interfaces/reviews-copy.interface';
 
 export interface Copy {
   /** BCP 47 tag for `Intl` formatting. */
@@ -145,6 +146,7 @@ export interface Copy {
   };
   /** Comment threads and region annotations in the inspector (KILN-10). */
   comments: CommentsCopy;
+  reviews: ReviewsCopy;
   compare: {
     link: string;
     linkShort: string;
