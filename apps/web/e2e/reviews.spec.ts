@@ -166,7 +166,7 @@ for (const theme of ['dark', 'light'] as const) {
   });
 }
 
-test('screenshots of the review tab and the gallery badges at 1440 and 390 px in both themes', async ({
+test('screenshots of the review tab and the gallery badges at 1440, 1280 and 390 px in both themes', async ({
   page,
   request,
 }, testInfo) => {
@@ -190,10 +190,14 @@ test('screenshots of the review tab and the gallery badges at 1440 and 390 px in
     note: 'Cooled down — approved.',
   });
   for (const theme of ['dark', 'light'] as const) {
-    for (const width of [1440, 390]) {
+    for (const width of [1440, 1280, 390]) {
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
-      await page.setViewportSize({ width, height: width > 600 ? 900 : 844 });
+      await page.setViewportSize({ width, height: { 1440: 900, 1280: 800 }[width] ?? 844 });
       await openReview(page, asset.id, 'Reopen');
+      if (width > 600) {
+        // KILN-11 review: on a wide screen the decision is in view without scrolling the pane.
+        await expect(page.getByRole('button', { name: 'Reopen' })).toBeInViewport();
+      }
       await expect(history(page).getByText('Cooled down — approved.')).toBeVisible();
       // On wide screens the inspector scrolls on its own: bring the history into its view.
       await history(page).scrollIntoViewIfNeeded();
