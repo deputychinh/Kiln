@@ -440,3 +440,15 @@ def test_a_password_chosen_before_the_kiln_39_rules_still_signs_in(
     )
 
     assert _sign_in(anonymous_client, "old@kiln.test", old_password).status_code == 201
+
+
+def test_sign_in_takes_a_password_of_exactly_512_characters_and_refuses_513(
+    anonymous_client: TestClient,
+) -> None:
+    """The bound creation shares (`PASSWORD_INPUT_MAX_LENGTH`, ADR 0021): 512 reaches the
+    password check, 513 is refused before it."""
+    at_bound = _sign_in(anonymous_client, "nobody@kiln.test", "x" * 512)
+    past_bound = _sign_in(anonymous_client, "nobody@kiln.test", "x" * 513)
+
+    assert (at_bound.status_code, at_bound.json()["code"]) == (401, "INVALID_CREDENTIALS")
+    assert (past_bound.status_code, past_bound.json()["code"]) == (422, "VALIDATION_FAILED")

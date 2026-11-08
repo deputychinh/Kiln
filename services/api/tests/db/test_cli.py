@@ -122,3 +122,39 @@ def test_the_installed_command_refuses_a_breached_password(
     assert "list of common or breached passwords" in result.stdout
     assert "passwordpassword" not in result.stdout + result.stderr
     assert SqlIdentityStore(engine).user_by_email("ada@kiln.test") is None
+
+
+def test_create_user_refuses_a_lone_surrogate_without_crashing(
+    identity: IdentityService, engine: Engine
+) -> None:
+    out = io.StringIO()
+
+    code = run(
+        [*ARGS, "--password-stdin"],
+        identity,
+        stdin=io.StringIO("correct-staple-horse\udc80\n"),
+        out=out,
+    )
+
+    assert code is ExitCode.INVALID
+    assert "not valid text" in out.getvalue()
+    assert SqlIdentityStore(engine).user_by_email("ada@kiln.test") is None
+
+
+def test_the_installed_command_refuses_invalid_utf8_without_a_traceback(
+    database_url: str, engine: Engine
+) -> None:
+    """Python decodes invalid UTF-8 on stdin to lone surrogates; Argon2 crashed on them."""
+    result = subprocess.run(  # noqa: S603 - our own interpreter and module
+        [sys.executable, "-m", "kiln_api.cli", *ARGS, "--password-stdin"],
+        input=b"correct-staple-horse\xff\n",
+        capture_output=True,
+        timeout=60,
+        check=False,
+        env={**os.environ, "KILN_DATABASE_URL": database_url},
+    )
+
+    assert result.returncode == ExitCode.INVALID
+    assert b"not valid text" in result.stdout
+    assert b"Traceback" not in result.stderr
+    assert SqlIdentityStore(engine).user_by_email("ada@kiln.test") is None

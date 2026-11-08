@@ -311,6 +311,11 @@ class WeakPasswordError(DomainError):
     status = HTTPStatus.UNPROCESSABLE_ENTITY
     code = ErrorCode.WEAK_PASSWORD
     default_detail = f"A password needs {PASSWORD_MIN_LENGTH} to {PASSWORD_MAX_LENGTH} characters."
+    # Same code, another reason: invalid UTF-8 typed or piped in decodes to lone surrogates.
+    invalid_text_detail = (
+        "The password is not valid text (it has an unpaired surrogate, often from invalid UTF-8)."
+        " Type it again."
+    )
 
 
 class CommonPasswordError(WeakPasswordError):

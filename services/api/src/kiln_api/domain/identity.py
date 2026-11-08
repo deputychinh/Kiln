@@ -227,7 +227,12 @@ def check_new_password(
     without the context words must still hold 15 of the password's code points and not be on the
     list. Never called at sign-in, so passwords chosen under older rules keep working (ADRs 0017,
     0019 and 0021).
+
+    A lone surrogate (Cs, what invalid UTF-8 on stdin decodes to) is refused first: it cannot be
+    encoded for hashing, and sign-in's JSON parser refuses it, so it could never be used.
     """
+    if any(unicodedata.category(char) == "Cs" for char in password):
+        raise WeakPasswordError(WeakPasswordError.invalid_text_detail)
     if not (
         PASSWORD_MIN_LENGTH <= password_length(password) <= PASSWORD_MAX_LENGTH
         and len(password) <= PASSWORD_INPUT_MAX_LENGTH

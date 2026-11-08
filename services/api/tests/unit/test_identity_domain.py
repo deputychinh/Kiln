@@ -1,4 +1,6 @@
+import json
 import random
+import unicodedata
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -136,12 +138,15 @@ _UNSEEN = ["\u200b", "\t", "\u200d", "\ufe0f", "\u2028"]
 
 def _generated_passwords(count: int) -> list[str]:
     """15-128 visible characters padded with 0-600 unseen ones, so many lie near or past the
-    512-character bound; seeded, so a failure names the same passwords on every run."""
+    512-character bound, and one in five with a lone surrogate (what invalid UTF-8 on stdin
+    decodes to); seeded, so a failure names the same passwords on every run."""
     rng = random.Random(39)  # noqa: S311 - test data, not a secret
     passwords = []
     for _ in range(count):
         parts = [rng.choice(_VISIBLE) for _ in range(rng.randint(15, 128))]
         parts += [rng.choice(_UNSEEN) for _ in range(rng.randint(0, 600))]
+        if rng.random() < 0.2:
+            parts.append(rng.choice(["\udc80", "\ud800", "\udfff"]))
         rng.shuffle(parts)
         passwords.append("".join(parts))
     return passwords
@@ -155,6 +160,10 @@ _EDGES = [
     "\U0001f525" * 128,
     "\u5bc6" * 15,
 ]
+
+
+def _has_surrogate(password: str) -> bool:
+    return any(unicodedata.category(char) == "Cs" for char in password)
 
 
 def _accepted(password: str) -> bool:
@@ -175,13 +184,18 @@ def test_a_password_at_an_edge_that_can_be_created_can_be_sent_at_sign_in(passwo
 def test_every_password_that_can_be_created_can_be_sent_at_sign_in() -> None:
     """Property over 3,000 seeded passwords: creation never accepts what `SignInRequest` would
     refuse (review round 2: a decomposed password was accepted and could never sign in)."""
-    accepted = [password for password in _generated_passwords(3_000) if _accepted(password)]
+    generated = _generated_passwords(3_000)
+    accepted = [password for password in generated if _accepted(password)]
     refused_at_sign_in = []
     for password in accepted:
         try:
             SignInRequest(email=EMAIL, password=password)
+            # and as the browser sends it: JSON, which refuses lone surrogates
+            SignInRequest.model_validate_json(json.dumps({"email": EMAIL, "password": password}))
         except ValidationError:
             refused_at_sign_in.append(len(password))
+
+    assert sum(_has_surrogate(password) for password in generated) >= 300  # they were tried
 
     assert len(accepted) >= 300  # the property is exercised, not vacuous
     assert max(len(password) for password in accepted) > 400  # near the 512 bound
@@ -496,3 +510,13 @@ def test_combining_marks_count_as_code_points_as_nist_says() -> None:
     _check("\u0915\u094d\u0937" * 5)  # Devanagari "ksha" (with a virama) five times
 
     _refused_as_weak("a" + "\u0334" * 13)
+
+
+@pytest.mark.parametrize("code_point", [0xDC80, 0xD800, 0xDFFF])
+def test_a_lone_surrogate_is_refused_as_weak_with_its_own_reason(code_point: int) -> None:
+    """Invalid UTF-8 decodes to lone surrogates, which Argon2 cannot encode (review round 3)."""
+    with pytest.raises(WeakPasswordError) as refused:
+        _check("correct-staple-horse" + chr(code_point))
+
+    assert refused.value.code is ErrorCode.WEAK_PASSWORD
+    assert "not valid text" in refused.value.detail
