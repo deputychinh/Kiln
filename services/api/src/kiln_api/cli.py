@@ -2,7 +2,8 @@
 
 There is no public sign-up in v0.2; the operator creates each account here. The password is
 read without echo (or from stdin with `--password-stdin`) and never from the command line, so
-it does not land in shell history or `ps`.
+it does not land in shell history or `ps`. Exactly one trailing line terminator is dropped
+(CRLF, LF or a lone CR, KILN-60); nothing else is trimmed.
 """
 
 import argparse
@@ -15,6 +16,7 @@ from typing import TextIO
 from kiln_api.adapters import load_common_passwords
 from kiln_api.clock import SystemClock
 from kiln_api.config import get_settings
+from kiln_api.constants import CLI_PASSWORD_LINE_ENDINGS
 from kiln_api.container import build_engine, build_hasher
 from kiln_api.domain.ids import uuid7
 from kiln_api.errors import DomainError, EmailTakenError
@@ -42,11 +44,20 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _without_line_ending(line: str) -> str:
+    """Drop exactly one trailing line terminator (KILN-60); spaces and anything else stay."""
+    for ending in CLI_PASSWORD_LINE_ENDINGS:
+        if line.endswith(ending):
+            return line.removesuffix(ending)
+    return line
+
+
 def _read_password(from_stdin: bool, stdin: TextIO, prompt: Callable[[str], str]) -> str | None:
     if from_stdin:
-        return stdin.readline().rstrip("\n")
-    first = prompt("Password: ")
-    if prompt("Repeat the password: ") != first:
+        return _without_line_ending(stdin.readline())
+    # getpass drops the `\n`; without a terminal it reads stdin, where a CRLF leaves the `\r`.
+    first = _without_line_ending(prompt("Password: "))
+    if _without_line_ending(prompt("Repeat the password: ")) != first:
         return None
     return first
 

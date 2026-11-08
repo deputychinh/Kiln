@@ -6,6 +6,7 @@ import sys
 import pytest
 from db_fixtures import TEST_HASHER, TEST_PASSWORD
 from fakes import FixedClock
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from kiln_api.adapters import load_common_passwords
@@ -158,3 +159,91 @@ def test_the_installed_command_refuses_invalid_utf8_without_a_traceback(
     assert b"not valid text" in result.stdout
     assert b"Traceback" not in result.stderr
     assert SqlIdentityStore(engine).user_by_email("ada@kiln.test") is None
+
+
+# --- KILN-60: exactly one line terminator is dropped, nothing else -------------------------------
+def _create_user_process(
+    database_url: str, stdin: bytes, *, prompt: bool = False
+) -> subprocess.CompletedProcess[bytes]:
+    """`python -m kiln_api.cli create-user` in a new process fed raw bytes (no newline
+    translation). With `prompt`, it runs without `--password-stdin` in a new session, so it has no
+    terminal and getpass falls back to reading stdin, as when an operator pipes into the prompt."""
+    flags = [] if prompt else ["--password-stdin"]
+    return subprocess.run(  # noqa: S603 - our own interpreter and module
+        [sys.executable, "-m", "kiln_api.cli", *ARGS, *flags],
+        input=stdin,
+        capture_output=True,
+        timeout=60,
+        check=False,
+        start_new_session=prompt,
+        env={**os.environ, "KILN_DATABASE_URL": database_url},
+    )
+
+
+def _signs_in(client: TestClient, password: str) -> bool:
+    response = client.post(
+        "/api/v1/sessions", json={"email": "ada@kiln.test", "password": password}
+    )
+    assert response.status_code in {201, 401}, response.text
+    return response.status_code == 201
+
+
+@pytest.mark.parametrize(
+    ("piped", "password"),
+    [
+        (b"correct horse battery staple\n", TEST_PASSWORD),  # LF
+        (b"correct horse battery staple\r\n", TEST_PASSWORD),  # CRLF (Windows file or clipboard)
+        (b"correct horse battery staple\r", TEST_PASSWORD),  # a lone CR (classic Mac)
+        (b"correct horse battery staple", TEST_PASSWORD),  # no terminator (printf, echo -n)
+        (b"correct horse battery staple\r\r\n", TEST_PASSWORD + "\r"),  # two: only one dropped
+        (b"correct horse battery staple\r\r", TEST_PASSWORD + "\r"),  # two lone CRs: one dropped
+        (b"correct horse battery staple\n\n", TEST_PASSWORD),  # only the first line is read
+        (b"  correct horse battery staple  \r\n", "  correct horse battery staple  "),  # spaces
+        (b"\tcorrect horse battery staple\r\n", "\tcorrect horse battery staple"),  # a leading tab
+    ],
+)
+def test_the_installed_command_drops_exactly_one_line_ending_and_the_user_signs_in(
+    database_url: str, anonymous_client: TestClient, piped: bytes, password: str
+) -> None:
+    """KILN-60: a CRLF used to leave `\\r` in the hash, so that account could never sign in."""
+    result = _create_user_process(database_url, piped)
+
+    assert result.returncode == ExitCode.OK, result.stdout
+    assert _signs_in(anonymous_client, password)
+    typed = piped.decode()
+    for other in sorted({typed, typed.strip(), password + "\r"} - {password}):
+        assert not _signs_in(anonymous_client, other), repr(other)
+
+
+def test_the_installed_prompt_without_a_terminal_drops_the_carriage_return_too(
+    database_url: str, anonymous_client: TestClient
+) -> None:
+    """getpass reads stdin when there is no terminal and drops only `\\n`, so a CRLF left `\\r`
+    in both answers; the prompt path drops exactly one terminator as `--password-stdin` does."""
+    piped = b"  correct horse battery staple  \r\n  correct horse battery staple  \r\n"
+
+    result = _create_user_process(database_url, piped, prompt=True)
+
+    assert result.returncode == ExitCode.OK, result.stdout
+    assert _signs_in(anonymous_client, "  correct horse battery staple  ")
+    assert not _signs_in(anonymous_client, TEST_PASSWORD)
+
+
+@pytest.mark.parametrize(
+    ("answers", "password"),
+    [
+        ((TEST_PASSWORD + "\r", TEST_PASSWORD + "\r"), TEST_PASSWORD),
+        ((TEST_PASSWORD + "\r", TEST_PASSWORD), TEST_PASSWORD),  # same password, one CRLF
+        ((TEST_PASSWORD + "\r\r", TEST_PASSWORD + "\r\r"), TEST_PASSWORD + "\r"),
+        ((" " + TEST_PASSWORD + " ", " " + TEST_PASSWORD + " "), " " + TEST_PASSWORD + " "),
+    ],
+)
+def test_the_prompt_drops_one_line_ending_from_each_answer_and_keeps_spaces(
+    identity: IdentityService, answers: tuple[str, str], password: str
+) -> None:
+    replies = iter(answers)
+
+    code = run(ARGS, identity, out=io.StringIO(), prompt=lambda _: next(replies))
+
+    assert code is ExitCode.OK
+    assert identity.sign_in("ada@kiln.test", password, client_ip="cli").principal

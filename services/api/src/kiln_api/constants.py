@@ -141,6 +141,11 @@ PASSWORD_CONTEXT_WORD_MIN_LENGTH = 3
 # and one code point can expand to 18): sign-in's request field and account creation both use it,
 # so every password that can be created can also be sent at sign-in (ADRs 0019 and 0021).
 PASSWORD_INPUT_MAX_LENGTH = PASSWORD_MAX_LENGTH * 4
+# Line terminators the operator CLI drops from the end of a password it reads (KILN-60): exactly
+# one, longest first, so a CRLF from a Windows file or clipboard goes whole and a password never
+# keeps a stray CR that no sign-in form can send (HTML password fields strip CR and LF). A lone CR
+# (the classic Mac line ending, `printf 'pw\r'`) counts too. Spaces are never trimmed.
+CLI_PASSWORD_LINE_ENDINGS = ("\r\n", "\n", "\r")
 # Unicode 16 Default_Ignorable_Code_Point ranges outside the categories checked directly (Cf
 # format, Cc control, Zl and Zp separators): drawn as nothing, so they neither count toward a
 # password's length nor change how it compares with the blocklist (ADRs 0019 and 0021). Ranges that
