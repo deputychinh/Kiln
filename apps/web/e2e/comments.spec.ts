@@ -165,6 +165,28 @@ test('with the keyboard, deleting my comment leaves focus on its thread', async 
   });
 });
 
+test('with the keyboard, reopening a resolved thread keeps focus on its button', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  // KILN-48 review round 1: Resolve and Reopen are one button; reopening must not lose focus.
+  const asset = await seedImageAsset(request, uniqueName('comments_reopen', testInfo));
+  const [versionId = ''] = await versionIdsOf(request, asset.id);
+  const done = await seedThread(request, versionId, { body: 'Fixed in v2.' });
+  await seedResolved(request, done.id);
+  await openComments(page, asset.id);
+  await page.getByRole('checkbox', { name: 'Show resolved (1)' }).check();
+  const thread = page.getByRole('article', { name: /^Comment 1 by / });
+
+  await thread.getByRole('button', { name: 'Reopen' }).focus();
+  await page.keyboard.press('Enter');
+
+  await expect(thread.getByText(/^Resolved by /)).toBeHidden();
+  await expect(thread.getByRole('button', { name: 'Resolve' })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim())).toBe('Resolve');
+});
+
 const seedReview = async (
   request: Parameters<typeof seedImageAsset>[0],
   name: string,

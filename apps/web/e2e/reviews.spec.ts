@@ -91,14 +91,28 @@ test('a decision made on a state someone else changed is refused and explained',
   });
 
   await form.getByRole('textbox', { name: 'Note (optional)' }).fill('Needs a darker rim.');
-  await form.getByRole('button', { name: 'Request changes' }).click();
+  await form.getByRole('button', { name: 'Request changes' }).focus();
+  await page.keyboard.press('Enter');
 
-  const alert = page.getByRole('alert');
-  await expect(alert).toContainText('this version is now “Approved”');
-  await expect(alert).toBeFocused();
+  // The refusal takes focus and is no alert, so it is read once; its ring shows (KILN-48).
+  const refusal = form.getByText(/^Someone else decided first/);
+  await expect(refusal).toContainText('this version is now “Approved”');
+  await expect(refusal).toBeFocused();
+  await expect(page.getByRole('alert')).toHaveCount(0);
   // Request changes is gone now; focus stays on the message, not on <body> (KILN-48).
   await expect(form.getByRole('button', { name: 'Request changes' })).toBeHidden();
   expect(await activeElement(page)).toMatch(/^P: Someone else decided first/);
+  expect(
+    await refusal.evaluate(
+      (node) => node.matches(':focus-visible') && getComputedStyle(node).outlineStyle === 'solid',
+    ),
+  ).toBe(true);
+  for (const theme of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+    await form.screenshot({
+      path: `test-results/screens/kiln-48-refusal-focused-${testInfo.project.name}-${theme}.png`,
+    });
+  }
   await expect(form.getByRole('button', { name: 'Reopen' })).toBeVisible();
   await expect(form.getByRole('textbox', { name: 'Note (optional)' })).toHaveValue(
     'Needs a darker rim.',
