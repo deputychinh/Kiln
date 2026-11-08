@@ -136,6 +136,8 @@ describe('Review tab', () => {
     // Focus is the one channel: no alert role, or NVDA and JAWS read it twice.
     expect(alert).not.toHaveAttribute('role');
     expect(alert).toHaveAttribute('tabindex', '-1');
+    // Nor a live region around it (review round 2): focus alone says it, once.
+    expect(alert.closest('[aria-live], [role="alert"], [role="status"], [role="log"]')).toBeNull();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await waitFor(() =>
       expect(within(form()).getByRole('button', { name: 'Reopen' })).toBeVisible(),
@@ -328,6 +330,9 @@ describe('Review tab', () => {
       // fireEvent returns false when the default (the button's activation) was prevented.
       expect(fireEvent.keyDown(approve, { key: 'Enter', repeat: true })).toBe(false);
       expect(fireEvent.keyDown(approve, { key: 'Enter' })).toBe(true);
+      // Only a held Enter: a held Tab still moves focus, Space activates on key up (round 2).
+      expect(fireEvent.keyDown(approve, { key: 'Tab', repeat: true })).toBe(true);
+      expect(fireEvent.keyDown(approve, { key: ' ', repeat: true })).toBe(true);
     });
   });
 

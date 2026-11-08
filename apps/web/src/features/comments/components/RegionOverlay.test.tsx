@@ -189,6 +189,26 @@ describe('Marking a region', () => {
     expect(retry?.idempotencyKey).not.toBe(lost?.idempotencyKey);
   });
 
+  it('gives a retry with the region moved a new key, as the API would refuse the old one (KILN-49)', async () => {
+    const server = serveComments(detail);
+    server.failNext('POST', THREADS, new TypeError('Failed to fetch'));
+    await openWithPreview();
+    await userEvent.click(screen.getByRole('button', { name: 'Mark region' }));
+    await userEvent.keyboard('{Enter}');
+    await post('Same words');
+    expect(await screen.findByText(/Kiln cannot reach its server/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mark again' }));
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Post comment' }));
+
+    await screen.findByRole('button', { name: 'Region 1: Same words' });
+    const [lost, retry] = server.requests('POST', THREADS);
+    expect(lost?.body).toMatchObject({ region: { shape: 'rect', x: 0.3 } });
+    expect(retry?.body).toMatchObject({ body: 'Same words', region: { shape: 'rect', x: 0.34 } });
+    expect(retry?.idempotencyKey).not.toBe(lost?.idempotencyKey);
+  });
+
   it('hides the marks while marking, so a drag over them draws instead', async () => {
     serveComments(detail, {
       threads: {
