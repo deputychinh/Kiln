@@ -68,7 +68,10 @@ _DEFINITIONS = text(
     SELECT tablename || '.' || indexname, indexdef FROM pg_indexes
     WHERE schemaname = 'public' AND tablename <> 'alembic_version'
     UNION ALL
-    SELECT 'function ' || p.proname, pg_get_functiondef(p.oid) FROM pg_proc p
+    SELECT 'function ' || p.proname,
+        pg_get_functiondef(p.oid)
+        || ' -- config ' || coalesce(array_to_string(p.proconfig, ';'), '')
+    FROM pg_proc p
     JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public'
     UNION ALL
     SELECT 'trigger ' || t.tgname, pg_get_triggerdef(t.oid) || ' -- enabled ' || t.tgenabled::text
@@ -601,7 +604,7 @@ def test_migration_0012_lets_only_the_cascade_delete_events_and_downgrades(
     engine.dispose()
 
     assert "NOT EXISTS" not in before
-    assert "NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id)" in after
+    assert "asset_versions WHERE id = OLD.version_id)" in after
 
 
 def test_migration_0013_refuses_truncate_without_rewriting_and_downgrades(
@@ -691,11 +694,64 @@ def test_migration_0015_drops_the_nesting_condition_and_downgrades(
     command.downgrade(alembic_config, "0014_review_events_always")
     with engine.connect() as connection:
         before = connection.execute(body).scalar_one()
-    command.upgrade(alembic_config, "head")
+    command.upgrade(alembic_config, "0015_review_events_orphans")  # not head: 0016 rewrites it
     with engine.connect() as connection:
         after = connection.execute(body).scalar_one()
+    command.upgrade(alembic_config, "head")
     engine.dispose()
 
     assert "pg_trigger_depth() > 1" in before
     assert "pg_trigger_depth" not in after
-    assert "NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id)" in after
+    assert "asset_versions WHERE id = OLD.version_id)" in after
+
+
+def test_migration_0016_pins_the_search_path_and_qualifies_the_table_and_downgrades(
+    database_url: str, alembic_config: Config
+) -> None:
+    """KILN-51 round 3 (ADR 0023): the existence check reads public.asset_versions, with
+    pg_temp searched last, so a temporary table cannot stand in for it."""
+    engine = create_engine(database_url)
+    function = text(
+        "SELECT pg_get_functiondef(oid), coalesce(array_to_string(proconfig, ';'), '')"
+        " FROM pg_proc WHERE proname = 'review_events_append_only'"
+    )
+    command.downgrade(alembic_config, "0015_review_events_orphans")
+    with engine.connect() as connection:
+        body_before, config_before = connection.execute(function).one()
+    command.upgrade(alembic_config, "head")
+    with engine.connect() as connection:
+        body_after, config_after = connection.execute(function).one()
+    engine.dispose()
+
+    assert "public.asset_versions" not in body_before
+    assert config_before == ""
+    assert "FROM public.asset_versions WHERE" in body_after
+    assert config_after == "search_path=pg_catalog, public, pg_temp"
+
+
+def test_every_function_in_the_schema_pins_its_search_path_with_pg_temp_last(
+    database_url: str,
+) -> None:
+    """Generic, so a function added later fails CI until it is pinned (ADR 0023). Leaving pg_temp
+    out is not enough: PostgreSQL then searches it first for tables."""
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT p.proname, coalesce(array_to_string(p.proconfig, ';'), '')"
+                " FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace"
+                " WHERE ns.nspname = 'public'"
+            )
+        ).all()
+    engine.dispose()
+
+    assert rows  # the append-only function at least
+    unpinned = [
+        name
+        for name, config in rows
+        if not any(
+            setting.startswith("search_path=") and setting.endswith(", pg_temp")
+            for setting in config.split(";")
+        )
+    ]
+    assert unpinned == []

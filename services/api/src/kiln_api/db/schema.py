@@ -341,12 +341,17 @@ review_events = Table(
 # Append-only: an event is never changed, and deleted only once its version is gone, which is
 # what the cascade of deleting the version does (migration 0012). Since migration 0015 the delete
 # need not be nested in that cascade: replica mode skips it, and the orphans it leaves must still
-# be removable (ADR 0022). While the version exists, every delete is refused, nested or not.
+# be removable (ADR 0022). That makes the existence check the whole guard, so it reads the table
+# schema-qualified with a pinned search_path that names pg_temp last (migration 0016, ADR 0023):
+# otherwise a temporary table called asset_versions could answer "gone" for a live version.
 REVIEW_EVENTS_APPEND_ONLY_FUNCTION = """
-CREATE FUNCTION review_events_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION public.review_events_append_only() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public, pg_temp
+AS $$
 BEGIN
     IF TG_OP = 'DELETE'
-        AND NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id) THEN
+        AND NOT EXISTS (SELECT 1 FROM public.asset_versions WHERE id = OLD.version_id) THEN
         RETURN OLD;
     END IF;
     RAISE EXCEPTION 'review_events is append-only' USING ERRCODE = 'restrict_violation';

@@ -10,6 +10,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 - The review history refuses `TRUNCATE` (KILN-51, ADR 0018): migration 0013 adds a statement-level `BEFORE TRUNCATE` trigger on `review_events` (also reached by `TRUNCATE assets CASCADE`); deleting a version or an asset still removes its history. Test cleanup now goes through that cascade. A non-owner runtime role is filed as KILN-58, with the remaining risk accepted in ADR 0018.
 - The review history's triggers fire in replica mode too (KILN-51, ADR 0020): migration 0014 enables the append-only and the `TRUNCATE` triggers `ALWAYS`, so `SET session_replication_role = replica` no longer lets `UPDATE`, `DELETE` or `TRUNCATE` through.
 - Review events left behind by a replica-mode delete can be cleaned up (KILN-51, ADR 0022): migration 0015 lets a `DELETE` of an event through once its version is gone, nested in the cascade or not; while the version exists, every delete is still refused.
+- The append-only check cannot be fooled by a temporary table (KILN-51, ADR 0023): since migration 0015 a role with only DML rights could `CREATE TEMP TABLE asset_versions` and then delete a live version's history; migration 0016 makes the function read `public.asset_versions` with `search_path = pg_catalog, public, pg_temp` pinned, and a test requires such a pin on every function in the schema.
 
 ## [0.2.0] - 2026-11-08
 

@@ -386,6 +386,54 @@ def test_deleting_an_asset_deletes_its_versions_history_with_them(
     assert left == []
 
 
+@pytest.fixture
+def dml_role(engine: Engine) -> str:
+    """A role with only SELECT, INSERT, UPDATE and DELETE on this database's tables, as the app's
+    login will have once the owner and runtime roles are split (KILN-58). Roles are shared by the
+    cluster, so the name carries the database's."""
+    with engine.begin() as connection:
+        database = connection.execute(text("SELECT current_database()")).scalar_one()
+        role = f"{database}_dml"
+        exists = connection.execute(
+            text("SELECT 1 FROM pg_roles WHERE rolname = :role"), {"role": role}
+        ).first()
+        if exists is None:
+            connection.execute(text(f'CREATE ROLE "{role}" NOLOGIN'))
+        connection.execute(
+            text(f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{role}"')
+        )
+    return role
+
+
+def test_a_dml_role_cannot_shadow_the_versions_table_to_erase_a_live_history(
+    engine: Engine, user: User, dml_role: str
+) -> None:
+    """KILN-51 round 3: a temporary `asset_versions` used to make a live version look gone to the
+    append-only check, so a direct DELETE passed (migration 0016, ADR 0023)."""
+    version_id = _one_event(engine, user)
+
+    with engine.begin() as connection:
+        connection.execute(text(f'SET LOCAL ROLE "{dml_role}"'))
+        connection.execute(text("CREATE TEMP TABLE asset_versions (id uuid) ON COMMIT DROP"))
+        with pytest.raises(DBAPIError, match="append-only"):
+            connection.execute(text("DELETE FROM review_events"))
+
+    assert _state(engine, version_id) == ("approved", 1, 1)
+
+
+def test_a_dml_role_still_removes_the_history_of_a_version_it_deletes(
+    engine: Engine, user: User, dml_role: str
+) -> None:
+    version_id = _one_event(engine, user)
+
+    with engine.begin() as connection:
+        connection.execute(text(f'SET LOCAL ROLE "{dml_role}"'))
+        connection.execute(text("DELETE FROM asset_versions WHERE id = :v"), {"v": version_id})
+        left = connection.execute(select(review_events)).all()
+
+    assert left == []
+
+
 def test_an_event_orphaned_in_replica_mode_can_be_cleaned_up_afterwards(
     engine: Engine, user: User
 ) -> None:
