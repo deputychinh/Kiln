@@ -10,6 +10,7 @@ Lint enforces most of these rules; the rest is checked in review.
 - Errors are never swallowed; domain errors carry a stable code (`ErrorCode`) and are mapped to HTTP/UI exactly once, at the boundary (the API returns RFC 9457 problem details with a `code` field). `errors.py` stays framework-free; the HTTP mapping lives in `problems.py`.
 - No personal data, secrets, tokens or asset contents in logs.
 - Formatting: Prettier (100 columns, single quotes, trailing commas); Python: ruff format (100 columns).
+- CSS values shared between two components cannot be a custom property: the BEM linter wants `--ComponentName-…` and `custom-property-pattern` wants kebab-case. Compute the value in each file instead (container units against a container the other component sets, as `ThreadItem.css` does for the pinned preview).
 - Times are UTC ISO-8601; ids are UUID v7 strings (time-ordered); the JSON API uses `snake_case`, and the web app reads it through types generated from OpenAPI.
 - Code, identifiers, commits, docs and source UI copy are in English; Vietnamese is a second locale.
 

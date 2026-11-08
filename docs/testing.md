@@ -30,6 +30,7 @@ Every Python test has a 120 s time limit (`pytest-timeout`, in `pyproject.toml`)
 - Fakes for ports (database, storage, clock, Claude) in `tests/fakes.py`; no network in tests; warnings are errors.
 - Small sample files in `samples/` (CC0 or self-made), never real studio assets.
 - E2E runs against the production build, never the dev server.
+- Playwright empties `apps/web/test-results` at the start of every run: copy screenshots to `docs/delivery/<item>/screens/` before rerunning any spec, and screenshot the element under review (an e2e that clicked into a thread captured the list, not the marks).
 
 ## What the tests do not prove
 
