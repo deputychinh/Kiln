@@ -121,16 +121,41 @@ ARGON2_PARALLELISM = 1
 # only when a password is chosen; passwords set under the old 12-character rule still sign in.
 PASSWORD_MIN_LENGTH = 15
 PASSWORD_MAX_LENGTH = 128  # ASVS V6.2.9: at least 64 must be allowed; bounds the hash work
-# Common and breached passwords refused at creation (ASVS 5.0 V6.2.4, KILN-39, ADR 0017): the NCSC
-# top 100,000 from Have I Been Pwned (2019), bundled as SecLists ships it at commit 231fffb; the
-# checksum pins the file (a test compares them). Read once per process, offline.
+# Common and breached passwords refused at creation (KILN-39, ADRs 0017 and 0019), offline:
+# the NCSC top 100,000 from Have I Been Pwned (2019), and the 10,908 breached passwords of 15 or
+# more characters from Mark Burnett's ten million (2015), so at least 3,000 entries match the
+# length policy (ASVS 5.0 V6.2.4). Both from SecLists at commit 231fffb; the checksums pin the
+# files (a test compares them); provenance and licences in resources/common-passwords.LICENSE.txt.
 COMMON_PASSWORDS_FILE = "resources/common-passwords.txt"
 COMMON_PASSWORDS_SHA256 = "c2e5696882c603b76bb67a47ee970897e5a76fc4c3f5547abe3d0ca340c576e0"
+LONG_BREACHED_PASSWORDS_FILE = "resources/long-breached-passwords.txt"
+LONG_BREACHED_PASSWORDS_SHA256 = "977ebd3a68e793459a1f83c6766ccf75152f9268098d624d8dac7c28326d3c37"
+PASSWORD_LIST_FILES = (COMMON_PASSWORDS_FILE, LONG_BREACHED_PASSWORDS_FILE)
 # Words a password must not lean on (NIST 63B-4 "context-specific words"): the service's name and
 # the email's local part with its pieces. Shorter pieces are ignored: "al" or "jo" would cut into
 # ordinary words.
 PASSWORD_CONTEXT_WORDS = ("kiln",)
 PASSWORD_CONTEXT_WORD_MIN_LENGTH = 3
+# Hashed as NFKC: one code point can expand to 18 (U+FDFA), so the normalised form gets its own
+# bound, the same 4x slack the sign-in field allows (ADR 0019).
+PASSWORD_NORMALISED_MAX_LENGTH = PASSWORD_MAX_LENGTH * 4
+# Unicode 16 Default_Ignorable_Code_Point ranges that are not format characters (Cf is checked by
+# category): drawn as nothing, so they neither count toward a password's length nor change how it
+# compares with the blocklist (ADR 0019).
+PASSWORD_IGNORABLE_RANGES = (
+    (0x034F, 0x034F),  # combining grapheme joiner
+    (0x115F, 0x1160),  # Hangul choseong and jungseong fillers
+    (0x17B4, 0x17B5),  # Khmer inherent vowels
+    (0x180B, 0x180F),  # Mongolian free variation selectors
+    (0x2060, 0x206F),  # word joiner and invisible operators (unassigned ones too)
+    (0x3164, 0x3164),  # Hangul filler
+    (0xFE00, 0xFE0F),  # variation selectors
+    (0xFFA0, 0xFFA0),  # half-width Hangul filler
+    (0xFFF0, 0xFFF8),  # unassigned specials
+    (0x1BCA0, 0x1BCA3),  # shorthand format controls
+    (0x1D173, 0x1D17A),  # musical symbol format controls
+    (0xE0000, 0xE0FFF),  # tags and variation selectors supplement
+)
 EMAIL_MAX_LENGTH = 254
 DISPLAY_NAME_MAX_LENGTH = 80
 # Sessions: opaque 256-bit ids stored only as SHA-256; OWASP Session Management Cheat Sheet:

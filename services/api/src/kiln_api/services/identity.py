@@ -3,7 +3,7 @@
 import logging
 import math
 import secrets
-from collections.abc import Container
+from collections.abc import Callable, Container
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -83,11 +83,12 @@ class IdentityService:
         hasher: PasswordHasher,
         clock: Clock,
         new_id: IdFactory,
-        common_passwords: Container[str],
+        common_passwords: Callable[[], Container[str]],
     ) -> None:
         """Receive collaborators; hash a random password so unknown emails cost the same.
 
-        `common_passwords` holds the blocklist in `password_key` form (ADR 0017).
+        `common_passwords` returns the blocklist in `password_key` form; it is called only when a
+        password is chosen, so a process that never sets one never loads it (ADR 0019).
         """
         self._store = store
         self._common_passwords = common_passwords
@@ -105,7 +106,12 @@ class IdentityService:
         (a later change or reset must call it too).
         """
         normalized_email = normalize_email(email)
-        check_new_password(password, email=normalized_email, blocklist=self._common_passwords)
+        check_new_password(
+            password,
+            email=normalized_email,
+            display_name=display_name,
+            blocklist=self._common_passwords(),
+        )
         now = self._clock.now()
         user = User(
             id=self._new_id(),

@@ -162,7 +162,7 @@ def build_container(
         hasher or build_hasher(),
         resolved_clock,
         uuid7,
-        load_common_passwords(),  # at startup: a missing list fails here, not at the first user
+        load_common_passwords,  # loaded only when a password is set (the CLI), not by the API
     )
     comments = CommentService(resolved_clock, uuid7, SqlUnitOfWork(engine))
     return Container(

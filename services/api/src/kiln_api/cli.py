@@ -81,7 +81,7 @@ def main() -> None:  # pragma: no cover - runs in a subprocess in test_cli.py
     """Entry point: real settings, database and Argon2."""
     engine = build_engine(get_settings())
     identity = IdentityService(
-        SqlIdentityStore(engine), build_hasher(), SystemClock(), uuid7, load_common_passwords()
+        SqlIdentityStore(engine), build_hasher(), SystemClock(), uuid7, load_common_passwords
     )
     try:
         code = run(sys.argv[1:], identity)

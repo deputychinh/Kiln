@@ -20,7 +20,7 @@ ARGS = ["create-user", "--email", "Ada@Kiln.test", "--name", "Ada Artist"]
 @pytest.fixture
 def identity(engine: Engine) -> IdentityService:
     return IdentityService(
-        SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7, load_common_passwords()
+        SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7, load_common_passwords
     )
 
 
@@ -84,7 +84,11 @@ def test_create_user_refuses_a_short_password_and_a_taken_email(
     [
         ("1qaz2wsx3edc4rfv", "list of common or breached passwords"),  # on the bundled list
         ("LinkedInLinkedIn", "list of common or breached passwords"),  # its case variant
-        ("Ada-Artist-at-Kiln-1", "leans on the email address or the name Kiln"),
+        ("Ada-Artist-at-Kiln-1", "leans on the email address, the person's name or the word Kiln"),
+        (
+            "artist-artist-artist-1",
+            "leans on the email address, the person's name or the word Kiln",
+        ),  # the name
     ],
 )
 def test_create_user_refuses_a_common_or_guessable_password_and_says_why(

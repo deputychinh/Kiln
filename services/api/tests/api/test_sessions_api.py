@@ -415,7 +415,7 @@ def test_a_password_signs_in_whichever_unicode_form_the_keyboard_sent(
     anonymous_client: TestClient, engine: Engine, created_with: str, signed_in_with: str
 ) -> None:
     identity = IdentityService(
-        SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7, load_common_passwords()
+        SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7, load_common_passwords
     )
     identity.create_user("zoe@kiln.test", "Zoe", created_with)
 

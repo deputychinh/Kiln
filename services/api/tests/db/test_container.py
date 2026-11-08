@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime, tzinfo
 from typing import Any
 
@@ -108,3 +111,28 @@ def test_the_built_identity_service_refuses_a_password_from_the_bundled_list(
 
     with pytest.raises(CommonPasswordError):
         container.identity.create_user("zoe@kiln.test", "Zoe", "000000000000000")
+
+
+def test_the_api_process_never_loads_the_password_list(database_url: str) -> None:
+    """Only setting a password needs the list (about 20 MB); the API never sets one (ADR 0019).
+
+    A new interpreter, so no other test has filled the cache.
+    """
+    script = (
+        "from kiln_api.adapters import load_common_passwords\n"
+        "from kiln_api.config import get_settings\n"
+        "from kiln_api.container import build_container\n"
+        "container = build_container(get_settings())\n"
+        "print(load_common_passwords.cache_info().currsize)\n"
+        "container.engine.dispose()\n"
+    )
+    result = subprocess.run(  # noqa: S603 - our own interpreter and a fixed script
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+        env={**os.environ, "KILN_DATABASE_URL": database_url},
+    )
+
+    assert result.stdout.split()[-1] == "0"

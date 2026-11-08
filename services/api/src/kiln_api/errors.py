@@ -324,12 +324,13 @@ class CommonPasswordError(WeakPasswordError):
 
 
 class GuessablePasswordError(WeakPasswordError):
-    """Without the email's name and "kiln", the password is too short or common (KILN-39)."""
+    """Without the context words (ADR 0019), the password is too short or common (KILN-39)."""
 
     code = ErrorCode.GUESSABLE_PASSWORD
     default_detail = (
-        "This password leans on the email address or the name Kiln, which attackers try first:"
-        f" it needs {PASSWORD_MIN_LENGTH} characters besides them. Choose another one."
+        "This password leans on the email address, the person's name or the word Kiln, which"
+        f" attackers try first: it needs {PASSWORD_MIN_LENGTH} characters besides them."
+        " Choose another one."
     )
 
 

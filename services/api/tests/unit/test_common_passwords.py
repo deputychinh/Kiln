@@ -6,9 +6,17 @@ import sys
 import time
 from importlib import resources
 
+import pytest
+
 from kiln_api.adapters import load_common_passwords
-from kiln_api.constants import COMMON_PASSWORDS_FILE, COMMON_PASSWORDS_SHA256
-from kiln_api.domain.identity import password_key
+from kiln_api.constants import (
+    COMMON_PASSWORDS_FILE,
+    COMMON_PASSWORDS_SHA256,
+    LONG_BREACHED_PASSWORDS_FILE,
+    LONG_BREACHED_PASSWORDS_SHA256,
+    PASSWORD_MIN_LENGTH,
+)
+from kiln_api.domain.identity import password_key, password_length
 
 # Load time in a fresh process; measured about 0.1 s on a laptop, bounded loosely for busy CI.
 LOAD_BUDGET_SECONDS = 1.0
@@ -16,10 +24,26 @@ LOOKUPS = 100_000
 LOOKUP_BUDGET_SECONDS = 0.5
 
 
-def test_the_bundled_file_is_the_one_recorded_by_its_checksum() -> None:
-    data = (resources.files("kiln_api") / COMMON_PASSWORDS_FILE).read_bytes()
+@pytest.mark.parametrize(
+    ("name", "checksum"),
+    [
+        (COMMON_PASSWORDS_FILE, COMMON_PASSWORDS_SHA256),
+        (LONG_BREACHED_PASSWORDS_FILE, LONG_BREACHED_PASSWORDS_SHA256),
+    ],
+)
+def test_each_bundled_file_is_the_one_recorded_by_its_checksum(name: str, checksum: str) -> None:
+    data = (resources.files("kiln_api") / name).read_bytes()
 
-    assert hashlib.sha256(data).hexdigest() == COMMON_PASSWORDS_SHA256
+    assert hashlib.sha256(data).hexdigest() == checksum
+
+
+def test_at_least_3000_listed_passwords_match_the_length_policy() -> None:
+    """ASVS 5.0 V6.2.4: the top 3,000 passwords that match the policy, here 15+ code points."""
+    long_enough = [entry for entry in load_common_passwords() if password_length(entry) >= 15]
+
+    assert PASSWORD_MIN_LENGTH == 15
+    assert len(long_enough) >= 3_000
+    assert {"123456789987654321", "qazwsxedcrfvtgb", "passwordstandard"} <= set(long_enough)
 
 
 def test_the_list_holds_the_top_passwords_in_their_comparison_form() -> None:

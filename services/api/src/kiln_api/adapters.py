@@ -10,7 +10,7 @@ from typing import IO, TYPE_CHECKING
 import argon2
 from botocore.exceptions import BotoCoreError, ClientError
 
-from kiln_api.constants import COMMON_PASSWORDS_FILE
+from kiln_api.constants import PASSWORD_LIST_FILES
 from kiln_api.domain.identity import password_key
 from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
@@ -233,10 +233,16 @@ class Argon2PasswordHasher:
 
 @functools.cache
 def load_common_passwords() -> frozenset[str]:
-    """The bundled common and breached passwords in `password_key` form (KILN-39, ADR 0017).
+    """The bundled common and breached passwords in `password_key` form (KILN-39, ADR 0019).
 
-    Read from the package once per process (about 0.1 s, a few MB); a frozenset, so each check is
-    one hash lookup. Offline: no breach API is called.
+    Read from the package on first use and kept for the process (about 0.05 s and 20 MB); a
+    frozenset, so each check is one hash lookup. Only code that sets a password calls it, so the
+    API process, which never does, does not load it. Offline: no breach API is called.
     """
-    text = (resources.files("kiln_api") / COMMON_PASSWORDS_FILE).read_text(encoding="utf-8")
-    return frozenset(password_key(line) for line in text.splitlines() if line)
+    root = resources.files("kiln_api")
+    lines = (
+        line
+        for name in PASSWORD_LIST_FILES
+        for line in (root / name).read_text(encoding="utf-8").splitlines()
+    )
+    return frozenset(key for line in lines if (key := password_key(line)))

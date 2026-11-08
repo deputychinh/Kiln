@@ -37,8 +37,15 @@ BLOCKLIST = frozenset({"passwordpassword", "1qaz2wsx3edc4rfv"})
 EMAIL = "ada.lovelace@studio.com"
 
 
-def _check(password: str, email: str = EMAIL) -> None:
-    check_new_password(password, email=email, blocklist=BLOCKLIST)
+def _check(password: str, email: str = EMAIL, display_name: str = "") -> None:
+    check_new_password(password, email=email, blocklist=BLOCKLIST, display_name=display_name)
+
+
+def _refused_as_weak(password: str) -> None:
+    """The length rule, exactly: not one of its subclasses (common, guessable)."""
+    with pytest.raises(WeakPasswordError) as refused:
+        _check(password)
+    assert refused.value.code is ErrorCode.WEAK_PASSWORD
 
 
 def test_an_email_is_trimmed_and_lower_cased() -> None:
@@ -65,10 +72,32 @@ def test_an_email_with_a_hidden_character_is_rejected() -> None:
 
 @pytest.mark.parametrize("length", [14, 129])
 def test_a_password_outside_15_to_128_characters_is_refused(length: int) -> None:
-    with pytest.raises(WeakPasswordError) as refused:
-        _check("x" * length)
+    _refused_as_weak("x" * length)
 
-    assert refused.value.code is ErrorCode.WEAK_PASSWORD
+
+@pytest.mark.parametrize(
+    "password",
+    [
+        "\ufdfa",  # one code point, 18 characters after NFKC
+        "\ufb03" * 5,  # the "ffi" ligature: 5 code points, 15 after NFKC
+        "\u3392" * 5,  # the "MHz" square: 5 code points, 15 after NFKC
+        "x" * 14 + "\u200b",  # a zero-width space does not count
+        "x" * 14 + "\ufe0f",  # nor a variation selector
+    ],
+)
+def test_each_visible_code_point_counts_once_toward_the_minimum(password: str) -> None:
+    """NIST SP 800-63B-4: each code point is one character, whatever NFKC expands it to."""
+    _refused_as_weak(password)
+
+
+def test_a_password_of_15_compatibility_characters_counts_15() -> None:
+    _check("\ufdfa" * 15)  # 270 characters after NFKC, within the hashed bound of 512
+
+
+def test_the_hashed_form_is_bounded_too() -> None:
+    _check("\ufdfa" * 28)  # 504 after NFKC
+
+    _refused_as_weak("\ufdfa" * 29)  # 522 after NFKC, although only 29 code points
 
 
 @pytest.mark.parametrize("length", [15, 128])
@@ -78,6 +107,7 @@ def test_a_password_of_15_or_128_characters_is_accepted(length: int) -> None:
 
 def test_a_password_is_never_trimmed_so_spaces_count() -> None:
     _check("  " + "x" * 13)
+    _refused_as_weak("  " + "x" * 12)
 
 
 def test_a_password_on_the_blocklist_is_refused_as_common() -> None:
@@ -94,6 +124,12 @@ def test_a_password_on_the_blocklist_is_refused_as_common() -> None:
         "PASSWORDPASSWORD",
         "\uff50\uff41\uff53\uff53\uff57\uff4f\uff52\uff44" * 2,  # full-width forms (NFKC)
         "1QAZ2wsx3EDC4rfv",
+        "passwordpa\u200bssword",  # a zero-width space
+        "passwordpa\u00adssword",  # a soft hyphen
+        "password\u2060password",  # a word joiner
+        "pass\ufe0fwordpassword",  # a variation selector
+        "pass\u034fwordpassword",  # a combining grapheme joiner (Mn, yet default-ignorable)
+        "password\U000e0041password",  # a tag character
     ],
 )
 def test_a_case_or_width_variant_of_a_blocklisted_password_is_refused(variant: str) -> None:
@@ -110,16 +146,37 @@ def test_the_comparison_key_is_nfkc_case_folded() -> None:
     assert password_key("Stra\u00dfe") == password_key("STRASSE") == "strasse"
     assert password_key("\uff2b\uff29\uff2c\uff2e") == "kiln"
     assert password_key("cafe\u0301") == password_key("CAF\u00c9")
+    assert password_key("pass\u200bwo\u00adrd") == "password"  # invisible characters dropped
 
 
 def test_the_context_words_are_kiln_the_local_part_and_its_pieces() -> None:
     assert password_context_words("Ada.Lovelace@Studio.com") == (
         "ada.lovelace",
         "lovelace",
+        "studio",
         "kiln",
         "ada",
     )
-    assert password_context_words("al@studio.com") == ("kiln",)  # two letters are ignored
+    assert password_context_words("al@x.com") == ("kiln",)  # short pieces and the TLD ignored
+    assert password_context_words("ada_lovelace@x.com") == (
+        "ada_lovelace",
+        "lovelace",
+        "kiln",
+        "ada",
+    )
+
+
+def test_the_context_words_include_the_domain_and_the_display_name() -> None:
+    assert password_context_words("ada@lovelace-studio.co.uk", "Grace Hopper") == (
+        "lovelace-studio",
+        "grace hopper",
+        "lovelace",
+        "hopper",
+        "studio",
+        "grace",
+        "kiln",
+        "ada",
+    )
 
 
 @pytest.mark.parametrize(
@@ -132,6 +189,7 @@ def test_the_context_words_are_kiln_the_local_part_and_its_pieces() -> None:
         "kikilnln" * 4,  # nested: one pass leaves "kilnkilnkilnkiln", 16 characters
         "KILNpasswordpassword",  # long enough, but what is left is on the blocklist
         "kilnq7#mzr2!vb9@lp",  # 18 characters, 14 besides "kiln"
+        "\u00df" * 8 + "kilnkiln",  # "ß" folds to "ss" but is still 8 code points, not 16
     ],
 )
 def test_a_password_that_leans_on_context_words_is_refused(password: str) -> None:
@@ -147,6 +205,7 @@ def test_a_password_that_leans_on_context_words_is_refused(password: str) -> Non
         ("kiln-glaze-recipes-for-spring", EMAIL),  # 25 characters besides "kiln"
         ("kilnq7#mzr2!vb9@lpw", EMAIL),  # exactly 15 besides "kiln"
         ("e2e-only-password-for-local-tests", "e2e@kiln.test"),  # the e2e user
+        ("\u00df" * 15 + "kiln", EMAIL),  # 15 code points besides "kiln"
     ],
 )
 def test_a_password_with_enough_besides_the_context_words_is_accepted(
@@ -289,8 +348,22 @@ def test_a_password_is_nfkc_normalised_so_composed_and_decomposed_forms_match() 
     assert normalize_password("\uff21\uff22") == "AB"  # compatibility forms fold too
 
 
-def test_the_length_rule_counts_the_normalised_password() -> None:
-    _check("e\u0301" * 15)  # 30 code points, 15 after NFKC
+def test_the_length_rule_counts_canonically_composed_code_points() -> None:
+    _check("e\u0301" * 15)  # 30 code points as typed, 15 after NFC
 
-    with pytest.raises(WeakPasswordError):
-        _check("e\u0301" * 14)  # 28 code points, 14 after NFKC
+    _refused_as_weak("e\u0301" * 14)  # 28 code points as typed, 14 after NFC
+
+
+@pytest.mark.parametrize(
+    ("password", "email", "display_name"),
+    [
+        ("lovelace_lovelace_1", "ada_lovelace@studio.com", ""),  # pieces split at "_"
+        ("lovelace-studio-2026", "ada@lovelace-studio.com", ""),  # the email's domain
+        ("Grace-Hopper-1906!!", EMAIL, "Grace Hopper"),  # the display name
+    ],
+)
+def test_the_domain_display_name_and_underscored_pieces_are_context_words(
+    password: str, email: str, display_name: str
+) -> None:
+    with pytest.raises(GuessablePasswordError):
+        _check(password, email, display_name)
