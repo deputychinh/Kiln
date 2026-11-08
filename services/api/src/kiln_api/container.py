@@ -35,6 +35,7 @@ from kiln_api.resilience import CircuitBreaker, GuardedStorage
 from kiln_api.services.assets import AssetService
 from kiln_api.services.comments import CommentService
 from kiln_api.services.identity import IdentityService
+from kiln_api.services.reviews import ReviewService
 from kiln_api.signing import SigningCredentials
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ class Container:
     assets: AssetService
     identity: IdentityService
     comments: CommentService
+    reviews: ReviewService
 
     def check_database(self) -> None:
         """Run `SELECT 1`; raise `DatabaseUnavailableError` when it fails."""
@@ -165,6 +167,7 @@ def build_container(
         assets=service,
         identity=identity,
         comments=comments,
+        reviews=ReviewService(resolved_clock, uuid7, SqlUnitOfWork(engine)),
     )
 
 

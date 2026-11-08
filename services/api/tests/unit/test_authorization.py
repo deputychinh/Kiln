@@ -38,12 +38,13 @@ def test_a_browser_session_may_do_everything(action: Action) -> None:
 
 
 def test_the_required_scope_of_each_action_is_pinned() -> None:
-    reads = {Action.READ_ASSETS, Action.READ_COMMENTS}
+    reads = {Action.READ_ASSETS, Action.READ_COMMENTS, Action.READ_REVIEWS}
     writes = {
         Action.WRITE_ASSETS,
         Action.MANAGE_TOKENS,
         Action.WRITE_COMMENTS,
         Action.CHANGE_OWN_COMMENT,
+        Action.REVIEW_VERSIONS,
     }
 
     assert reads | writes == set(Action)
@@ -116,3 +117,27 @@ def test_the_scope_is_checked_before_the_resource() -> None:
 
     with pytest.raises(InsufficientScopeError):
         authorize(READ_TOKEN, Action.WRITE_ASSETS, asset)
+
+
+def test_any_writer_may_review_a_version_their_own_upload_included() -> None:
+    """KILN-11, ADR 0015: one studio, no required reviewers; a token still needs `write`."""
+    own_asset = Asset(
+        id=uuid4(),
+        name="Rock",
+        kind=AssetKind.IMAGE,
+        created_at=NOW,
+        updated_at=NOW,
+        owner_id=WRITE_TOKEN.user_id,
+    )
+    someone_elses = Asset(
+        id=uuid4(), name="Crate", kind=AssetKind.MODEL, created_at=NOW, updated_at=NOW
+    )
+
+    for asset in (own_asset, someone_elses):
+        authorize(WRITE_TOKEN, Action.REVIEW_VERSIONS, asset)
+        authorize(SESSION, Action.REVIEW_VERSIONS, asset)
+        with pytest.raises(InsufficientScopeError):
+            authorize(READ_TOKEN, Action.REVIEW_VERSIONS, asset)
+        authorize(READ_TOKEN, Action.READ_REVIEWS, asset)
+        with pytest.raises(InsufficientScopeError):
+            authorize(WRITE_TOKEN, Action.READ_REVIEWS, asset)

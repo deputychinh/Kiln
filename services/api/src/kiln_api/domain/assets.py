@@ -17,7 +17,7 @@ from kiln_api.constants import (
     THUMBNAIL_KEY_PREFIX,
     UPLOAD_KEY_PREFIX,
 )
-from kiln_api.enums import AssetKind, FailureReason, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, ReviewState, VersionStatus
 from kiln_api.errors import (
     AssetKindMismatchError,
     InvalidAssetNameError,
@@ -79,6 +79,10 @@ class AssetVersion:
     etag: str | None = None  # of the final object, recorded at completion (ADR 0005)
     failure_reason: FailureReason | None = None
     uploaded_by: UUID | None = None  # who declared this version (KILN-12); None before sign-in
+    # Review (KILN-11): every version starts in review; the revision counts its transitions and
+    # is what a reviewer's compare-and-set checks.
+    review_state: ReviewState = ReviewState.IN_REVIEW
+    review_revision: int = 0
 
 
 def is_unreadable(text: str) -> bool:

@@ -78,7 +78,9 @@ async def _domain_handler(request: Request, exc: Exception) -> JSONResponse:
             request.url.path,
             getattr(request.state, "request_id", "-"),
         )
-    return _problem(request, exc.status, exc.code, exc.detail, headers=headers)
+    return _problem(
+        request, exc.status, exc.code, exc.detail, headers=headers, extra=exc.extensions
+    )
 
 
 async def _http_handler(request: Request, exc: Exception) -> JSONResponse:

@@ -52,6 +52,8 @@ def test_constraints_keep_the_names_from_the_naming_convention(database_url: str
         "ck_asset_versions_size_range",
         "ck_asset_versions_failure_reason",
         "ck_asset_versions_failure_reason_when_failed",
+        "ck_asset_versions_review_state",
+        "ck_asset_versions_review_revision_non_negative",
     }
     assert "ix_assets_created_at_id" in indexes
 
@@ -468,3 +470,109 @@ def test_migration_0010_validates_the_minimum_rectangle_and_downgrades(
 
     assert "ck_comment_threads_rect_min_size" not in before
     assert validated is True
+
+
+_REVIEW_RULES = (
+    "ck_asset_versions_review_state",
+    "ck_asset_versions_review_revision_non_negative",
+    "fk_review_events_version_id",
+    "fk_review_events_actor_id",
+)
+
+
+def test_migration_0011_puts_existing_versions_in_review_without_rewriting_the_table(
+    database_url: str, alembic_config: Config
+) -> None:
+    """The backfill plan of KILN-11: a constant default is metadata-only, so the table keeps its
+    file (no rewrite), every existing version reads `in_review` at revision 0, and the new rules
+    end validated."""
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0010_comment_rect_min_size")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO assets (id, name, kind, created_at, updated_at)"
+                " VALUES ('00000000-0000-7000-8000-000000000111', 'Old', 'image', now(), now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO asset_versions (id, asset_id, number, status, file_name,"
+                " content_type, size_bytes, object_key, created_at, updated_at)"
+                " SELECT gen_random_uuid(), '00000000-0000-7000-8000-000000000111', n, 'ready',"
+                " 'old.png', 'image/png', 10, 'assets/old/' || n, now(), now()"
+                " FROM generate_series(1, 500) AS n"
+            )
+        )
+        file_before = connection.execute(
+            text("SELECT pg_relation_filenode('asset_versions')")
+        ).scalar_one()
+
+    command.upgrade(alembic_config, "head")
+    with engine.begin() as connection:
+        file_after = connection.execute(
+            text("SELECT pg_relation_filenode('asset_versions')")
+        ).scalar_one()
+        states = connection.execute(
+            text("SELECT review_state, review_revision, count(*) FROM asset_versions GROUP BY 1, 2")
+        ).all()
+        validated: dict[str, bool] = dict(
+            connection.execute(
+                text("SELECT conname, convalidated FROM pg_constraint WHERE conname = ANY(:n)"),
+                {"n": list(_REVIEW_RULES)},
+            ).all()
+        )
+        triggers = connection.execute(
+            text("SELECT tgname FROM pg_trigger WHERE tgrelid = 'review_events'::regclass")
+        ).scalars()
+        trigger_names = {name for name in triggers if not name.startswith("RI_")}
+        connection.execute(text("DELETE FROM assets"))
+    engine.dispose()
+
+    assert file_after == file_before
+    assert [tuple(row) for row in states] == [("in_review", 0, 500)]
+    assert validated == dict.fromkeys(_REVIEW_RULES, True)
+    assert trigger_names == {"review_events_append_only"}
+
+
+def test_migration_0011_downgrades_without_the_review_columns_and_history(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0010_comment_rect_min_size")
+    columns = {c["name"] for c in inspect(engine).get_columns("asset_versions")}
+    tables = set(inspect(engine).get_table_names())
+    with engine.connect() as connection:
+        function = connection.execute(
+            text("SELECT count(*) FROM pg_proc WHERE proname = 'review_events_append_only'")
+        ).scalar_one()
+    command.upgrade(alembic_config, "head")
+    engine.dispose()
+
+    assert {"review_state", "review_revision"}.isdisjoint(columns)
+    assert "review_events" not in tables
+    assert function == 0
+
+
+def test_migration_0011_gives_up_while_a_writer_holds_asset_versions(
+    database_url: str, alembic_config: Config
+) -> None:
+    """Adding the columns needs a brief exclusive lock: behind a writer it fails fast."""
+    engine = create_engine(database_url)
+    command.downgrade(alembic_config, "0010_comment_rect_min_size")
+    hurried = Config(alembic_config.config_file_name)
+    hurried.set_main_option("sqlalchemy.url", database_url)
+    hurried.cmd_opts = argparse.Namespace(x=["lock_timeout_ms=300"])
+    try:
+        with engine.connect() as holder:
+            holder.execute(text("LOCK TABLE asset_versions IN ROW EXCLUSIVE MODE"))
+            started = time.monotonic()
+            with pytest.raises(OperationalError, match="lock timeout"):
+                command.upgrade(hurried, "head")
+            waited = time.monotonic() - started
+            holder.rollback()
+    finally:
+        command.upgrade(alembic_config, "head")
+        engine.dispose()
+
+    assert waited < 5

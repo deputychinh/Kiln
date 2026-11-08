@@ -395,6 +395,69 @@ export interface paths {
         patch: operations["edit_comment_api_v1_comments__comment_id__patch"];
         trace?: never;
     };
+    "/api/v1/asset-versions/{version_id}/review-transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition
+         * @description Approve, request changes on or reopen a version; the answer is the new history event.
+         *
+         *     Compare-and-set: nothing changes unless the version is still in `expected_state` (409
+         *     `REVIEW_STATE_CONFLICT` with `current_state`). The state machine is in `domain/reviews.py`.
+         */
+        post: operations["transition_api_v1_asset_versions__version_id__review_transitions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/asset-versions/{version_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * History
+         * @description A version's review events, newest first; `limit` is 1 to 100.
+         */
+        get: operations["history_api_v1_asset_versions__version_id__review_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/review-events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event
+         * @description One review event.
+         */
+        get: operations["get_event_api_v1_review_events__event_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -432,6 +495,8 @@ export interface components {
              * @description The user who created the asset; null for assets before sign-in.
              */
             owner_id?: string | null;
+            /** @description The review state of the newest version: a new version is back in review. */
+            review_state: components["schemas"]["ReviewState"];
             /** Versions */
             versions: components["schemas"]["VersionOut"][];
         };
@@ -474,6 +539,8 @@ export interface components {
              * @description The user who created the asset; null for assets before sign-in.
              */
             owner_id?: string | null;
+            /** @description The review state of the newest version: a new version is back in review. */
+            review_state: components["schemas"]["ReviewState"];
         };
         /**
          * AssetPageOut
@@ -716,6 +783,75 @@ export interface components {
             resolved: boolean;
         };
         /**
+         * ReviewAction
+         * @description What a reviewer does to a version's review state (KILN-11).
+         * @enum {string}
+         */
+        ReviewAction: "approve" | "request_changes" | "reopen";
+        /**
+         * ReviewEventOut
+         * @description One transition of a version's review state: who, when, from, to and why.
+         */
+        ReviewEventOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Version Id
+             * Format: uuid
+             */
+            version_id: string;
+            /**
+             * Sequence
+             * @description Per version, from 1; the version's review_revision after it.
+             */
+            sequence: number;
+            action: components["schemas"]["ReviewAction"];
+            from_state: components["schemas"]["ReviewState"];
+            to_state: components["schemas"]["ReviewState"];
+            actor: components["schemas"]["AuthorOut"];
+            /** Note */
+            note: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * ReviewEventPageOut
+         * @description A page of review events, newest first; `next_cursor` is null on the last page.
+         */
+        ReviewEventPageOut: {
+            /** Items */
+            items: components["schemas"]["ReviewEventOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /**
+         * ReviewState
+         * @description Where a version stands in review (KILN-11); every version starts in review.
+         * @enum {string}
+         */
+        ReviewState: "in_review" | "approved" | "changes_requested";
+        /**
+         * ReviewTransitionRequest
+         * @description Approve, request changes or reopen, if the version is still in `expected_state`.
+         */
+        ReviewTransitionRequest: {
+            /** @description `approve` and `request_changes` from `in_review` (a ready version only); `reopen` from `approved` or `changes_requested` back to `in_review`. */
+            action: components["schemas"]["ReviewAction"];
+            /** @description The state you saw. If someone changed it since, nothing happens and the answer is 409 `REVIEW_STATE_CONFLICT` with `current_state`. */
+            expected_state: components["schemas"]["ReviewState"];
+            /**
+             * Note
+             * @description Optional, up to 1,000 characters after trimming; blank means none.
+             */
+            note?: string | null;
+        };
+        /**
          * Scope
          * @description What a personal access token may do; a browser session has every scope (KILN-12).
          * @enum {string}
@@ -901,6 +1037,13 @@ export interface components {
              * @description The user who uploaded it; null for versions before sign-in.
              */
             uploaded_by?: string | null;
+            /** @description Where the version stands in review (KILN-11). */
+            review_state: components["schemas"]["ReviewState"];
+            /**
+             * Review Revision
+             * @description How many review transitions it has had; the sequence of its newest event.
+             */
+            review_revision: number;
         };
         /**
          * VersionStatus
@@ -913,7 +1056,7 @@ export interface components {
          * @description Stable error codes returned in the `code` field of problem details.
          * @enum {string}
          */
-        ErrorCode: "NOT_FOUND" | "VALIDATION_FAILED" | "INTERNAL" | "ASSET_NOT_FOUND" | "ASSET_VERSION_NOT_FOUND" | "INVALID_ASSET_NAME" | "INVALID_FILE_NAME" | "INVALID_FILE_SIZE" | "UNSUPPORTED_MEDIA_TYPE" | "ASSET_KIND_MISMATCH" | "INVALID_STATUS_TRANSITION" | "INVALID_CURSOR" | "UPLOAD_NOT_FOUND" | "UPLOAD_MISMATCH" | "STORAGE_UNAVAILABLE" | "DATABASE_UNAVAILABLE" | "DATABASE_BUSY" | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE" | "INVALID_IDEMPOTENCY_KEY" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_KEY_IN_USE" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS" | "SIGN_IN_THROTTLED" | "CSRF_CHECK_FAILED" | "INSUFFICIENT_SCOPE" | "SESSION_REQUIRED" | "ACCESS_TOKEN_NOT_FOUND" | "ACCESS_TOKEN_LIMIT" | "INVALID_EMAIL" | "INVALID_DISPLAY_NAME" | "WEAK_PASSWORD" | "EMAIL_TAKEN" | "INVALID_TOKEN_NAME" | "COMMENT_THREAD_NOT_FOUND" | "COMMENT_NOT_FOUND" | "INVALID_COMMENT_BODY" | "INVALID_REGION" | "REGION_NOT_SUPPORTED" | "NOT_COMMENT_AUTHOR" | "COMMENT_DELETED";
+        ErrorCode: "NOT_FOUND" | "VALIDATION_FAILED" | "INTERNAL" | "ASSET_NOT_FOUND" | "ASSET_VERSION_NOT_FOUND" | "INVALID_ASSET_NAME" | "INVALID_FILE_NAME" | "INVALID_FILE_SIZE" | "UNSUPPORTED_MEDIA_TYPE" | "ASSET_KIND_MISMATCH" | "INVALID_STATUS_TRANSITION" | "INVALID_CURSOR" | "UPLOAD_NOT_FOUND" | "UPLOAD_MISMATCH" | "STORAGE_UNAVAILABLE" | "DATABASE_UNAVAILABLE" | "DATABASE_BUSY" | "METHOD_NOT_ALLOWED" | "PAYLOAD_TOO_LARGE" | "INVALID_IDEMPOTENCY_KEY" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_KEY_IN_USE" | "UNAUTHENTICATED" | "INVALID_CREDENTIALS" | "SIGN_IN_THROTTLED" | "CSRF_CHECK_FAILED" | "INSUFFICIENT_SCOPE" | "SESSION_REQUIRED" | "ACCESS_TOKEN_NOT_FOUND" | "ACCESS_TOKEN_LIMIT" | "INVALID_EMAIL" | "INVALID_DISPLAY_NAME" | "WEAK_PASSWORD" | "EMAIL_TAKEN" | "INVALID_TOKEN_NAME" | "COMMENT_THREAD_NOT_FOUND" | "COMMENT_NOT_FOUND" | "INVALID_COMMENT_BODY" | "INVALID_REGION" | "REGION_NOT_SUPPORTED" | "NOT_COMMENT_AUTHOR" | "COMMENT_DELETED" | "REVIEW_EVENT_NOT_FOUND" | "INVALID_REVIEW_NOTE" | "INVALID_REVIEW_TRANSITION" | "REVIEW_STATE_CONFLICT" | "VERSION_NOT_READY";
         /**
          * FieldError
          * @description One invalid field of a request.
@@ -948,6 +1091,11 @@ export interface components {
              * @default null
              */
             errors: components["schemas"]["FieldError"][] | null;
+            /**
+             * @description On `REVIEW_STATE_CONFLICT` and `INVALID_REVIEW_TRANSITION`: the version's review state now (KILN-11).
+             * @default null
+             */
+            current_state: components["schemas"]["ReviewState"] | null;
         };
     };
     responses: never;
@@ -1379,7 +1527,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1636,7 +1784,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1825,7 +1973,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1994,7 +2142,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2195,7 +2343,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2560,7 +2708,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2811,8 +2959,289 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens. */
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    transition_api_v1_asset_versions__version_id__review_transitions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    /** @description URL of the created resource. */
+                    Location?: string;
+                    /** @description `true` when this response replays an earlier request with the same key. */
+                    "Idempotent-Replayed"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewEventOut"];
+                };
+            };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    history_api_v1_asset_versions__version_id__review_history_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewEventPageOut"];
+                };
+            };
+            /** @description Malformed request: an invalid cursor or Idempotency-Key (see `code`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request body larger than 1 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed: a field or a domain rule (see `code`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Database or storage unavailable or busy; retry after `Retry-After`. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_event_api_v1_review_events__event_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewEventOut"];
+                };
+            };
+            /** @description Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`). */
+            401: {
+                headers: {
+                    /** @description The scheme to use: `Bearer` with a personal access token. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The resource does not exist. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -618,7 +618,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -900,7 +900,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1336,7 +1336,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1582,7 +1582,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1920,7 +1920,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2502,7 +2502,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2756,7 +2756,7 @@
             }
           },
           "409": {
-            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, or too many active access tokens.",
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2797,6 +2797,464 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset-versions/{version_id}/review-transitions": {
+      "post": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Transition",
+        "description": "Approve, request changes on or reopen a version; the answer is the new history event.\n\nCompare-and-set: nothing changes unless the version is still in `expected_state` (409\n`REVIEW_STATE_CONFLICT` with `current_state`). The state machine is in `domain/reviews.py`.",
+        "operationId": "transition_api_v1_asset_versions__version_id__review_transitions_post",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Optional sf-string of 1 to 255 printable ASCII characters, e.g. a quoted UUID. A repeat within 24 hours replays the first result with `Idempotent-Replayed: true`; another body or endpoint gives 422; send the header once."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewTransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewEventOut"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URL of the created resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier request with the same key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state: upload missing or different, the Idempotency-Key is still in use, too many active access tokens, or a review decision that no longer applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset-versions/{version_id}/review-history": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "History",
+        "description": "A version's review events, newest first; `limit` is 1 to 100.",
+        "operationId": "history_api_v1_asset_versions__version_id__review_history_get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewEventPageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "The scheme to use: `Bearer` with a personal access token.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Signed in but not allowed: the token lacks the scope (`INSUFFICIENT_SCOPE`), the action needs a browser session (`SESSION_REQUIRED`), or a cookie-authenticated write failed the CSRF check (`CSRF_CHECK_FAILED`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The resource does not exist.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body larger than 1 MB.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed: a field or a domain rule (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database or storage unavailable or busy; retry after `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request: an invalid cursor or Idempotency-Key (see `code`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review-events/{event_id}": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Get Event",
+        "description": "One review event.",
+        "operationId": "get_event_api_v1_review_events__event_id__get",
+        "security": [
+          {
+            "accessToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewEventOut"
+                }
+              }
+            }
           },
           "401": {
             "description": "Not signed in: no session cookie or bearer token, or it is unknown, expired or revoked (`UNAUTHENTICATED`); on sign-in, a wrong email or password (`INVALID_CREDENTIALS`).",
@@ -2929,6 +3387,10 @@
             "title": "Owner Id",
             "description": "The user who created the asset; null for assets before sign-in."
           },
+          "review_state": {
+            "$ref": "#/components/schemas/ReviewState",
+            "description": "The review state of the newest version: a new version is back in review."
+          },
           "versions": {
             "items": {
               "$ref": "#/components/schemas/VersionOut"
@@ -2944,6 +3406,7 @@
           "kind",
           "created_at",
           "updated_at",
+          "review_state",
           "versions"
         ],
         "title": "AssetDetailOut",
@@ -3006,6 +3469,10 @@
             ],
             "title": "Owner Id",
             "description": "The user who created the asset; null for assets before sign-in."
+          },
+          "review_state": {
+            "$ref": "#/components/schemas/ReviewState",
+            "description": "The review state of the newest version: a new version is back in review."
           }
         },
         "type": "object",
@@ -3014,7 +3481,8 @@
           "name",
           "kind",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "review_state"
         ],
         "title": "AssetOut",
         "description": "An asset."
@@ -3537,6 +4005,149 @@
         "title": "ResolveRequest",
         "description": "Resolve (`true`) or reopen (`false`) a thread."
       },
+      "ReviewAction": {
+        "type": "string",
+        "enum": [
+          "approve",
+          "request_changes",
+          "reopen"
+        ],
+        "title": "ReviewAction",
+        "description": "What a reviewer does to a version's review state (KILN-11)."
+      },
+      "ReviewEventOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "version_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Version Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence",
+            "description": "Per version, from 1; the version's review_revision after it."
+          },
+          "action": {
+            "$ref": "#/components/schemas/ReviewAction"
+          },
+          "from_state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "to_state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AuthorOut"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version_id",
+          "sequence",
+          "action",
+          "from_state",
+          "to_state",
+          "actor",
+          "note",
+          "created_at"
+        ],
+        "title": "ReviewEventOut",
+        "description": "One transition of a version's review state: who, when, from, to and why."
+      },
+      "ReviewEventPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewEventOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ReviewEventPageOut",
+        "description": "A page of review events, newest first; `next_cursor` is null on the last page."
+      },
+      "ReviewState": {
+        "description": "Where a version stands in review (KILN-11); every version starts in review.",
+        "enum": [
+          "in_review",
+          "approved",
+          "changes_requested"
+        ],
+        "title": "ReviewState",
+        "type": "string"
+      },
+      "ReviewTransitionRequest": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ReviewAction",
+            "description": "`approve` and `request_changes` from `in_review` (a ready version only); `reopen` from `approved` or `changes_requested` back to `in_review`."
+          },
+          "expected_state": {
+            "$ref": "#/components/schemas/ReviewState",
+            "description": "The state you saw. If someone changed it since, nothing happens and the answer is 409 `REVIEW_STATE_CONFLICT` with `current_state`."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Optional, up to 1,000 characters after trimming; blank means none."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action",
+          "expected_state"
+        ],
+        "title": "ReviewTransitionRequest",
+        "description": "Approve, request changes or reopen, if the version is still in `expected_state`."
+      },
       "Scope": {
         "type": "string",
         "enum": [
@@ -3921,6 +4532,15 @@
             ],
             "title": "Uploaded By",
             "description": "The user who uploaded it; null for versions before sign-in."
+          },
+          "review_state": {
+            "$ref": "#/components/schemas/ReviewState",
+            "description": "Where the version stands in review (KILN-11)."
+          },
+          "review_revision": {
+            "type": "integer",
+            "title": "Review Revision",
+            "description": "How many review transitions it has had; the sequence of its newest event."
           }
         },
         "type": "object",
@@ -3933,7 +4553,9 @@
           "content_type",
           "size_bytes",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "review_state",
+          "review_revision"
         ],
         "title": "VersionOut",
         "description": "One version; the storage key stays internal."
@@ -3993,7 +4615,12 @@
           "INVALID_REGION",
           "REGION_NOT_SUPPORTED",
           "NOT_COMMENT_AUTHOR",
-          "COMMENT_DELETED"
+          "COMMENT_DELETED",
+          "REVIEW_EVENT_NOT_FOUND",
+          "INVALID_REVIEW_NOTE",
+          "INVALID_REVIEW_TRANSITION",
+          "REVIEW_STATE_CONFLICT",
+          "VERSION_NOT_READY"
         ],
         "title": "ErrorCode",
         "type": "string"
@@ -4068,6 +4695,18 @@
             ],
             "default": null,
             "title": "Errors"
+          },
+          "current_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On `REVIEW_STATE_CONFLICT` and `INVALID_REVIEW_TRANSITION`: the version's review state now (KILN-11)."
           }
         },
         "required": [

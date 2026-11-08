@@ -99,7 +99,7 @@ def list_assets(
 ) -> AssetPageOut:
     """List assets newest first; `limit` is 1 to 100."""
     page = service.list(principal, cursor=cursor, limit=limit)
-    items = [AssetOut.of(card.asset, card.thumbnail_url) for card in page.items]
+    items = [AssetOut.of(card.asset, card.thumbnail_url, card.review_state) for card in page.items]
     return AssetPageOut(items=items, next_cursor=page.next_cursor)
 
 

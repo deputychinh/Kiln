@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Connection,
     DateTime,
     Double,
     ForeignKey,
@@ -17,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    event,
     text,
 )
 
@@ -30,6 +32,7 @@ from kiln_api.constants import (
     IDEMPOTENCY_KEY_MAX_LENGTH,
     MAX_UPLOAD_BYTES,
     REGION_MIN_SIZE,
+    REVIEW_NOTE_MAX_LENGTH,
 )
 from kiln_api.enums import (
     AssetKind,
@@ -37,6 +40,8 @@ from kiln_api.enums import (
     JobKind,
     JobStatus,
     RegionShape,
+    ReviewAction,
+    ReviewState,
     Scope,
     VersionStatus,
 )
@@ -171,6 +176,9 @@ asset_versions = Table(
     Column("etag", Text, nullable=True),
     Column("failure_reason", Text, nullable=True),
     Column("uploaded_by", Uuid, ForeignKey("users.id"), nullable=True),  # KILN-12, as owner_id
+    # Review (KILN-11): constant defaults, so adding them to a live table rewrites nothing.
+    Column("review_state", Text, nullable=False, server_default=ReviewState.IN_REVIEW.value),
+    Column("review_revision", Integer, nullable=False, server_default="0"),
     UniqueConstraint("asset_id", "number"),
     UniqueConstraint("object_key"),
     CheckConstraint("number >= 1", name="number_positive"),
@@ -186,6 +194,8 @@ asset_versions = Table(
     CheckConstraint(
         "(status = 'failed') = (failure_reason IS NOT NULL)", name="failure_reason_when_failed"
     ),
+    CheckConstraint(_one_of("review_state", [s.value for s in ReviewState]), name="review_state"),
+    CheckConstraint("review_revision >= 0", name="review_revision_non_negative"),
     # Maintenance finds abandoned uploads oldest first (KILN-22).
     Index(None, "created_at", postgresql_where=text("status = 'pending_upload'")),
 )
@@ -293,6 +303,71 @@ comments = Table(
     ),
 )
 
+
+# --- review history (KILN-11) ---------------------------------------------------------------------
+review_events = Table(
+    "review_events",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("version_id", Uuid, ForeignKey("asset_versions.id", ondelete="CASCADE"), nullable=False),
+    Column("sequence", Integer, nullable=False),  # per version, from 1 = the version's revision
+    Column("action", Text, nullable=False),
+    Column("from_state", Text, nullable=False),
+    Column("to_state", Text, nullable=False),
+    Column("actor_id", Uuid, ForeignKey("users.id"), nullable=False),
+    Column("note", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    # Also the keyset of the history pages, newest first.
+    UniqueConstraint("version_id", "sequence"),
+    CheckConstraint("sequence >= 1", name="sequence_positive"),
+    CheckConstraint(_one_of("action", [a.value for a in ReviewAction]), name="action"),
+    CheckConstraint(_one_of("from_state", [s.value for s in ReviewState]), name="from_state"),
+    CheckConstraint(_one_of("to_state", [s.value for s in ReviewState]), name="to_state"),
+    # The transition table of domain/reviews.py, as data: nothing else can be recorded.
+    CheckConstraint(
+        "(action = 'approve' AND from_state = 'in_review' AND to_state = 'approved')"
+        " OR (action = 'request_changes' AND from_state = 'in_review'"
+        " AND to_state = 'changes_requested')"
+        " OR (action = 'reopen' AND from_state IN ('approved', 'changes_requested')"
+        " AND to_state = 'in_review')",
+        name="transition",
+    ),
+    CheckConstraint(
+        f"note IS NULL OR char_length(note) BETWEEN 1 AND {REVIEW_NOTE_MAX_LENGTH}",
+        name="note_length",
+    ),
+)
+
+# Append-only: an event is never changed or deleted, except by the cascade of deleting its
+# version (that delete runs inside the foreign key's trigger, so the depth is above 1).
+REVIEW_EVENTS_APPEND_ONLY_FUNCTION = """
+CREATE FUNCTION review_events_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
+        RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'review_events is append-only' USING ERRCODE = 'restrict_violation';
+END
+$$
+"""
+REVIEW_EVENTS_APPEND_ONLY_TRIGGER = (
+    "CREATE TRIGGER review_events_append_only BEFORE UPDATE OR DELETE ON review_events"
+    " FOR EACH ROW EXECUTE FUNCTION review_events_append_only()"
+)
+
+
+def _create_append_only(_target: object, connection: Connection, **_kw: object) -> None:
+    """Give a database built from this module (tests' reference schema) the same trigger."""
+    connection.execute(text(REVIEW_EVENTS_APPEND_ONLY_FUNCTION))
+    connection.execute(text(REVIEW_EVENTS_APPEND_ONLY_TRIGGER))
+
+
+def _drop_append_only(_target: object, connection: Connection, **_kw: object) -> None:
+    connection.execute(text("DROP FUNCTION IF EXISTS review_events_append_only()"))
+
+
+event.listen(review_events, "after_create", _create_append_only)
+event.listen(review_events, "after_drop", _drop_append_only)
 
 jobs = Table(
     "jobs",

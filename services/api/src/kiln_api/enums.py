@@ -56,6 +56,11 @@ class ErrorCode(StrEnum):
     REGION_NOT_SUPPORTED = "REGION_NOT_SUPPORTED"
     NOT_COMMENT_AUTHOR = "NOT_COMMENT_AUTHOR"
     COMMENT_DELETED = "COMMENT_DELETED"
+    REVIEW_EVENT_NOT_FOUND = "REVIEW_EVENT_NOT_FOUND"
+    INVALID_REVIEW_NOTE = "INVALID_REVIEW_NOTE"
+    INVALID_REVIEW_TRANSITION = "INVALID_REVIEW_TRANSITION"
+    REVIEW_STATE_CONFLICT = "REVIEW_STATE_CONFLICT"
+    VERSION_NOT_READY = "VERSION_NOT_READY"
 
 
 class HealthStatus(StrEnum):
@@ -153,6 +158,8 @@ class Action(StrEnum):
     READ_COMMENTS = "read_comments"
     WRITE_COMMENTS = "write_comments"  # start, reply, resolve, reopen
     CHANGE_OWN_COMMENT = "change_own_comment"  # edit or delete: the author only
+    READ_REVIEWS = "read_reviews"  # a version's review state and history (KILN-11)
+    REVIEW_VERSIONS = "review_versions"  # approve, request changes, reopen
 
 
 class RegionShape(StrEnum):
@@ -160,3 +167,19 @@ class RegionShape(StrEnum):
 
     RECT = "rect"
     POINT = "point"
+
+
+class ReviewState(StrEnum):
+    """Where a version stands in review (KILN-11); every version starts in review."""
+
+    IN_REVIEW = "in_review"
+    APPROVED = "approved"
+    CHANGES_REQUESTED = "changes_requested"
+
+
+class ReviewAction(StrEnum):
+    """What a reviewer does to a version's review state (KILN-11)."""
+
+    APPROVE = "approve"
+    REQUEST_CHANGES = "request_changes"
+    REOPEN = "reopen"

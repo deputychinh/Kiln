@@ -3,10 +3,10 @@
 from http import HTTPStatus
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kiln_api.constants import PROBLEM_JSON
-from kiln_api.enums import ErrorCode
+from kiln_api.enums import ErrorCode, ReviewState
 
 
 class FieldError(BaseModel):
@@ -26,6 +26,13 @@ class Problem(BaseModel):
     instance: str
     code: ErrorCode
     errors: list[FieldError] | None = None
+    current_state: ReviewState | None = Field(
+        default=None,
+        description=(
+            "On `REVIEW_STATE_CONFLICT` and `INVALID_REVIEW_TRANSITION`: the version's review"
+            " state now (KILN-11)."
+        ),
+    )
 
 
 _DESCRIPTIONS = {
@@ -42,7 +49,8 @@ _DESCRIPTIONS = {
     404: "The resource does not exist.",
     409: (
         "Conflict with the current state: upload missing or different, the Idempotency-Key"
-        " is still in use, or too many active access tokens."
+        " is still in use, too many active access tokens, or a review decision that no longer"
+        " applies (`REVIEW_STATE_CONFLICT`, `INVALID_REVIEW_TRANSITION`, `VERSION_NOT_READY`)."
     ),
     413: "Request body larger than 1 MB.",
     422: "Validation failed: a field or a domain rule (see `code`).",

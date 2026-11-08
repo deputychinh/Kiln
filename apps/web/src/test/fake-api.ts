@@ -79,6 +79,7 @@ export const anAsset = (overrides: Partial<Asset> = {}): Asset => ({
   created_at: STAMP,
   updated_at: STAMP,
   thumbnail_url: 'http://s3.test/thumbs/rock.webp?sig=1',
+  review_state: 'in_review',
   ...overrides,
 });
 
@@ -94,6 +95,8 @@ export const aVersion = (overrides: Partial<AssetVersion> = {}): AssetVersion =>
   updated_at: STAMP,
   failure_reason: null,
   thumbnail_url: 'http://s3.test/thumbs/rock.webp?sig=1',
+  review_state: 'in_review',
+  review_revision: 0,
   ...overrides,
 });
 

@@ -164,3 +164,9 @@ REGION_MAX = 1.0
 # A rectangle is at least 1 % of the image on each side (5 px on a 512 px preview), so it is
 # always drawn; the web app's smallest drag is 2 %.
 REGION_MIN_SIZE = 0.01
+
+# --- review states and history (KILN-11) ----------------------------------------------------------
+REVIEW_NOTE_MAX_LENGTH = 1_000
+REVIEW_PAGE_LIMIT_MIN = 1
+REVIEW_PAGE_LIMIT_MAX = 100
+REVIEW_PAGE_LIMIT_DEFAULT = 50

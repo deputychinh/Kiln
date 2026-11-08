@@ -60,6 +60,8 @@ def engine(database_url: str) -> Iterator[Engine]:
     engine = create_engine(database_url)
     yield engine
     with engine.begin() as connection:
+        # The review history is append-only: a trigger refuses DELETE, TRUNCATE skips row triggers.
+        connection.execute(text("TRUNCATE review_events"))
         for table in reversed(metadata.sorted_tables):
             connection.execute(table.delete())
     engine.dispose()

@@ -11,7 +11,7 @@ from kiln_api.constants import (
     MAX_NAME_FIELD_LENGTH,
 )
 from kiln_api.domain.assets import Asset, AssetVersion, UploadSpec
-from kiln_api.enums import AssetKind, FailureReason, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, ReviewState, VersionStatus
 from kiln_api.services.assets import AssetDetail, PendingUpload
 
 
@@ -51,10 +51,18 @@ class AssetOut(BaseModel):
     owner_id: UUID | None = Field(
         default=None, description="The user who created the asset; null for assets before sign-in."
     )
+    review_state: ReviewState = Field(
+        description="The review state of the newest version: a new version is back in review."
+    )
 
     @classmethod
-    def of(cls, asset: Asset, thumbnail_url: str | None = None) -> "AssetOut":
-        """Build from the domain object."""
+    def of(
+        cls,
+        asset: Asset,
+        thumbnail_url: str | None = None,
+        review_state: ReviewState = ReviewState.IN_REVIEW,
+    ) -> "AssetOut":
+        """Build from the domain object (a new asset or version is in review)."""
         return cls(
             id=asset.id,
             name=asset.name,
@@ -63,6 +71,7 @@ class AssetOut(BaseModel):
             updated_at=asset.updated_at,
             thumbnail_url=thumbnail_url,
             owner_id=asset.owner_id,
+            review_state=review_state,
         )
 
 
@@ -91,6 +100,10 @@ class VersionOut(BaseModel):
     uploaded_by: UUID | None = Field(
         default=None, description="The user who uploaded it; null for versions before sign-in."
     )
+    review_state: ReviewState = Field(description="Where the version stands in review (KILN-11).")
+    review_revision: int = Field(
+        description="How many review transitions it has had; the sequence of its newest event."
+    )
 
     @classmethod
     def of(
@@ -114,6 +127,8 @@ class VersionOut(BaseModel):
             thumbnail_url=thumbnail_url,
             download_url=download_url,
             uploaded_by=version.uploaded_by,
+            review_state=version.review_state,
+            review_revision=version.review_revision,
         )
 
 
@@ -162,7 +177,7 @@ class AssetDetailOut(AssetOut):
     def of_detail(cls, detail: AssetDetail) -> "AssetDetailOut":
         """Build from the service result."""
         return cls(
-            **AssetOut.of(detail.asset, detail.thumbnail_url).model_dump(),
+            **AssetOut.of(detail.asset, detail.thumbnail_url, detail.review_state).model_dump(),
             versions=[
                 VersionOut.of(view.version, view.thumbnail_url, view.download_url)
                 for view in detail.versions

@@ -10,6 +10,7 @@ from kiln_api.repositories.assets import SqlAssetRepository
 from kiln_api.repositories.comments import SqlCommentStore
 from kiln_api.repositories.idempotency import SqlIdempotencyStore
 from kiln_api.repositories.jobs import SqlJobQueue
+from kiln_api.repositories.reviews import SqlReviewStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +21,7 @@ class SqlTransaction:
     idempotency: SqlIdempotencyStore
     jobs: SqlJobQueue
     comments: SqlCommentStore
+    reviews: SqlReviewStore
 
 
 class SqlUnitOfWork:
@@ -38,4 +40,5 @@ class SqlUnitOfWork:
                 idempotency=SqlIdempotencyStore(connection),
                 jobs=SqlJobQueue(connection),
                 comments=SqlCommentStore(connection),
+                reviews=SqlReviewStore(connection),
             )

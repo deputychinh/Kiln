@@ -1,6 +1,7 @@
 """Request and response bodies for comment threads, comments and regions (KILN-10)."""
 
 import unicodedata
+from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
 
@@ -9,22 +10,27 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from kiln_api.constants import MAX_COMMENT_BODY_FIELD_LENGTH
 from kiln_api.domain.comments import Author, Region
 from kiln_api.enums import RegionShape
-from kiln_api.errors import InvalidCommentBodyError
+from kiln_api.errors import DomainError, InvalidCommentBodyError
 from kiln_api.ports import CommentView, Page, ThreadView
 
 _NORMALISED = "Normalised to the image: 0 is the left (top) edge, 1 the right (bottom) edge."
 
 
-def _refuse_lone_surrogates(value: object) -> object:
-    """Answer a lone surrogate in a body as the body rule does (KILN-10 AC3).
+def refuse_lone_surrogates(error: type[DomainError]) -> Callable[[object], object]:
+    """A `before` validator that answers a lone surrogate with the field's own domain error.
 
     A JSON surrogate escape without its pair decodes to a lone surrogate (Unicode category Cs),
     which pydantic would refuse as an invalid string (VALIDATION_FAILED) before the domain sees
-    it. It is raised as a domain error, which pydantic does not wrap: 422 INVALID_COMMENT_BODY.
+    it. It is raised as a domain error, which pydantic does not wrap: 422 with the field's code
+    (KILN-10 AC3, KILN-11 notes).
     """
-    if isinstance(value, str) and any(unicodedata.category(char) == "Cs" for char in value):
-        raise InvalidCommentBodyError
-    return value
+
+    def check(value: object) -> object:
+        if isinstance(value, str) and any(unicodedata.category(char) == "Cs" for char in value):
+            raise error
+        return value
+
+    return check
 
 
 class RegionIn(BaseModel):
@@ -76,7 +82,9 @@ class StartThreadRequest(BaseModel):
     body: str = Field(max_length=MAX_COMMENT_BODY_FIELD_LENGTH)
     region: RegionIn | None = None
 
-    _surrogates = field_validator("body", mode="before")(_refuse_lone_surrogates)
+    _surrogates = field_validator("body", mode="before")(
+        refuse_lone_surrogates(InvalidCommentBodyError)
+    )
 
 
 class CommentRequest(BaseModel):
@@ -86,7 +94,9 @@ class CommentRequest(BaseModel):
 
     body: str = Field(max_length=MAX_COMMENT_BODY_FIELD_LENGTH)
 
-    _surrogates = field_validator("body", mode="before")(_refuse_lone_surrogates)
+    _surrogates = field_validator("body", mode="before")(
+        refuse_lone_surrogates(InvalidCommentBodyError)
+    )
 
 
 class ResolveRequest(BaseModel):

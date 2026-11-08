@@ -25,6 +25,10 @@ _REQUIRED_SCOPE: dict[Action, Scope] = {
     Action.READ_COMMENTS: Scope.READ,
     Action.WRITE_COMMENTS: Scope.WRITE,
     Action.CHANGE_OWN_COMMENT: Scope.WRITE,
+    # Reviews (KILN-11): in one studio any writer may approve, request changes or reopen, their
+    # own uploads included (ADR 0015); required reviewers and approval chains come later.
+    Action.READ_REVIEWS: Scope.READ,
+    Action.REVIEW_VERSIONS: Scope.WRITE,
 }
 _SESSION_ONLY = frozenset({Action.MANAGE_TOKENS})
 # Actions on something one person wrote: only that person, whatever the workspace allows.

@@ -11,7 +11,8 @@ from kiln_api.domain.assets import Asset, AssetVersion
 from kiln_api.domain.comments import Author, Comment, CommentThread
 from kiln_api.domain.identity import AccessToken, Session, User
 from kiln_api.domain.jobs import Job
-from kiln_api.enums import PromotionResult, VersionStatus
+from kiln_api.domain.reviews import ReviewEvent, ReviewEventView
+from kiln_api.enums import PromotionResult, ReviewState, VersionStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +143,10 @@ class AssetRepository(Protocol):
 
     def versions_of(self, asset_id: UUID) -> list[AssetVersion]:
         """Return an asset's versions by number, at most `MAX_VERSIONS_PER_READ` (500)."""
+        ...
+
+    def newest_review_states(self, asset_ids: Sequence[UUID]) -> dict[UUID, ReviewState]:
+        """The review state of each asset's newest version (KILN-11), for the given assets."""
         ...
 
     def save_version(self, version: AssetVersion, *, expected: VersionStatus) -> None:
@@ -295,6 +300,33 @@ class CommentStore(Protocol):
         ...
 
 
+class ReviewStore(Protocol):
+    """Review states of versions and their append-only history (KILN-11)."""
+
+    def record(self, read: AssetVersion, decided: AssetVersion, event: ReviewEvent) -> None:
+        """Write `decided`'s review state and append `event`, if `read` is still current.
+
+        Compare-and-set on the state and revision of `read` (and, for a decision, on the version
+        still being ready); the event goes in the same transaction.
+
+        Raises:
+            ReviewStateConflictError: Another reviewer changed the state or revision meanwhile.
+            VersionNotReadyError: A decision on a version that stopped being ready meanwhile.
+            AssetVersionNotFoundError: The version is gone.
+        """
+        ...
+
+    def event_view(self, event_id: UUID) -> ReviewEventView:
+        """One event with its actor, or raise `ReviewEventNotFoundError`."""
+        ...
+
+    def history_page(
+        self, version_id: UUID, *, cursor: str | None, limit: int
+    ) -> Page[ReviewEventView]:
+        """A version's events newest first, after `cursor`."""
+        ...
+
+
 class Transaction(Protocol):
     """Repositories that share one database transaction."""
 
@@ -316,6 +348,11 @@ class Transaction(Protocol):
     @property
     def comments(self) -> CommentStore:
         """Comment threads and comments in this transaction."""
+        ...
+
+    @property
+    def reviews(self) -> ReviewStore:
+        """Review states and history in this transaction."""
         ...
 
 

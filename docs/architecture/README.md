@@ -35,25 +35,32 @@ People sign in at `/sign-in` (no public sign-up: the operator runs `make create-
 
 A comment thread belongs to one asset version and may mark a region of its image: a rectangle or a point in coordinates normalised to the image (0 to 1, origin top left — Frame.io's model), so it survives any display size and the 512 px previews, which keep the image's aspect ratio. A thread is numbered per version (under a per-version advisory lock), has a first comment and replies, and can be resolved and reopened by anyone who can write; only a comment's author edits or (soft-)deletes it. Reading an asset is what lets a person read and write its comments: `domain/authorization.py` decides with `READ_COMMENTS`, `WRITE_COMMENTS` and the author-only `CHANGE_OWN_COMMENT`. Layers: `routes/comments.py` → `services/comments.py` (`CommentService`, one transaction per use case) → `domain/comments.py` (body and region rules) → `repositories/comments.py` (`SqlCommentStore`, `comment_threads` and `comments`, migration 0009). The web app shows the threads in the inspector's Comments tab and draws the regions over the preview; it refetches on window focus (no realtime).
 
+## Review states and history (v0.2, KILN-11)
+
+Every asset version has a review state: `in_review` (the default), `approved` or `changes_requested`; an asset shows its newest version's, so a new version puts it back in review. The state machine (`domain/reviews.py`, ADR 0015) allows approve and request changes from `in_review` on a ready version, and reopen from either decision back to `in_review`. A reviewer sends the state they saw; the write is a compare-and-set on the state and the version's `review_revision`, so of two reviewers acting at once one wins and the other gets `409 REVIEW_STATE_CONFLICT` with the current state. Each transition appends a `review_events` row (who, when, from, to, an optional note), numbered per version; a trigger keeps the history append-only.
+
 ## Endpoints
 
-| Method and path                                                   | Result                                                                                                                     |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/v1/sessions`                                           | `201` signed in, session cookie set; `401 INVALID_CREDENTIALS`, `429 SIGN_IN_THROTTLED`, `403 CSRF_CHECK_FAILED`           |
-| `DELETE /api/v1/sessions/current`                                 | `204` signed out, cookie cleared (safe to repeat)                                                                          |
-| `GET /api/v1/me`                                                  | who is calling, how (session or token) and with which scopes                                                               |
-| `GET`, `POST /api/v1/me/tokens`; `DELETE …/{token_id}`            | list (no secrets), create (secret once, `201`), revoke (`204`); browser session only                                       |
-| `POST /api/v1/assets`                                             | `201` asset + version 1 + signed upload, `Location: /api/v1/assets/{id}`                                                   |
-| `GET /api/v1/assets?limit=&cursor=`                               | newest-first page `{items, next_cursor}`                                                                                   |
-| `GET /api/v1/assets/{asset_id}`                                   | asset with `versions` (ready ones with `thumbnail_url` and `download_url`)                                                 |
-| `POST /api/v1/assets/{asset_id}/versions`                         | `201` next version + signed upload, `Location: /api/v1/asset-versions/{id}`                                                |
-| `GET /api/v1/asset-versions/{version_id}`                         | one version                                                                                                                |
-| `POST /api/v1/asset-versions/{version_id}/completions`            | `200` version in `processing` (idempotent); `409 UPLOAD_NOT_FOUND / UPLOAD_MISMATCH`                                       |
-| `GET`, `POST /api/v1/asset-versions/{version_id}/comment-threads` | threads by number `{items, next_cursor}`; start one (`201`, optional `region`, `Idempotency-Key`)                          |
-| `GET`, `PATCH /api/v1/comment-threads/{thread_id}`                | one thread; `{"resolved": true}` resolves it, `false` reopens it                                                           |
-| `GET`, `POST /api/v1/comment-threads/{thread_id}/comments`        | replies oldest first `{items, next_cursor}`; reply (`201`, `Idempotency-Key`)                                              |
-| `GET`, `PATCH`, `DELETE /api/v1/comments/{comment_id}`            | one comment; edit (author only, `403 NOT_COMMENT_AUTHOR`); soft delete (author only, `204`, safe to repeat)                |
-| `GET /health`, `GET /ready`                                       | liveness; readiness of Postgres (`SELECT 1`) and storage (1 s `HeadBucket`, one attempt) (`503` problem details otherwise) |
+| Method and path                                                   | Result                                                                                                                           |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/sessions`                                           | `201` signed in, session cookie set; `401 INVALID_CREDENTIALS`, `429 SIGN_IN_THROTTLED`, `403 CSRF_CHECK_FAILED`                 |
+| `DELETE /api/v1/sessions/current`                                 | `204` signed out, cookie cleared (safe to repeat)                                                                                |
+| `GET /api/v1/me`                                                  | who is calling, how (session or token) and with which scopes                                                                     |
+| `GET`, `POST /api/v1/me/tokens`; `DELETE …/{token_id}`            | list (no secrets), create (secret once, `201`), revoke (`204`); browser session only                                             |
+| `POST /api/v1/assets`                                             | `201` asset + version 1 + signed upload, `Location: /api/v1/assets/{id}`                                                         |
+| `GET /api/v1/assets?limit=&cursor=`                               | newest-first page `{items, next_cursor}`                                                                                         |
+| `GET /api/v1/assets/{asset_id}`                                   | asset with `versions` (ready ones with `thumbnail_url` and `download_url`)                                                       |
+| `POST /api/v1/assets/{asset_id}/versions`                         | `201` next version + signed upload, `Location: /api/v1/asset-versions/{id}`                                                      |
+| `GET /api/v1/asset-versions/{version_id}`                         | one version                                                                                                                      |
+| `POST /api/v1/asset-versions/{version_id}/completions`            | `200` version in `processing` (idempotent); `409 UPLOAD_NOT_FOUND / UPLOAD_MISMATCH`                                             |
+| `GET`, `POST /api/v1/asset-versions/{version_id}/comment-threads` | threads by number `{items, next_cursor}`; start one (`201`, optional `region`, `Idempotency-Key`)                                |
+| `GET`, `PATCH /api/v1/comment-threads/{thread_id}`                | one thread; `{"resolved": true}` resolves it, `false` reopens it                                                                 |
+| `GET`, `POST /api/v1/comment-threads/{thread_id}/comments`        | replies oldest first `{items, next_cursor}`; reply (`201`, `Idempotency-Key`)                                                    |
+| `GET`, `PATCH`, `DELETE /api/v1/comments/{comment_id}`            | one comment; edit (author only, `403 NOT_COMMENT_AUTHOR`); soft delete (author only, `204`, safe to repeat)                      |
+| `POST /api/v1/asset-versions/{version_id}/review-transitions`     | `{action, expected_state, note?}` → `201` event, `Location: /api/v1/review-events/{id}`; `409` conflict, transition or not ready |
+| `GET /api/v1/asset-versions/{version_id}/review-history`          | events newest first `{items, next_cursor}` (`limit` 1–100)                                                                       |
+| `GET /api/v1/review-events/{event_id}`                            | one event                                                                                                                        |
+| `GET /health`, `GET /ready`                                       | liveness; readiness of Postgres (`SELECT 1`) and storage (1 s `HeadBucket`, one attempt) (`503` problem details otherwise)       |
 
 Every endpoint above `/health` and `/ready` except sign-in and sign-out needs a session or a token (`401 UNAUTHENTICATED` otherwise; `403 INSUFFICIENT_SCOPE` for a token without the scope).
 

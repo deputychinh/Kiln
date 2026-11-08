@@ -25,7 +25,7 @@ from kiln_api.problems import (
     install_problem_schema,
     unexpected_problem,
 )
-from kiln_api.routes import assets, comments, health, identity
+from kiln_api.routes import assets, comments, health, identity, reviews
 
 logger = logging.getLogger("kiln_api")
 
@@ -81,6 +81,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(identity.router)
     app.include_router(assets.router)
     app.include_router(comments.router)
+    app.include_router(reviews.router)
     return app
 
 

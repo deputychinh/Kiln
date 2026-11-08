@@ -14,8 +14,9 @@ from kiln_api.constants import (
     MEDIA_TYPES,
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
+    REVIEW_NOTE_MAX_LENGTH,
 )
-from kiln_api.enums import ErrorCode, VersionStatus
+from kiln_api.enums import ErrorCode, ReviewAction, ReviewState, VersionStatus
 
 
 class DomainError(Exception):
@@ -33,6 +34,11 @@ class DomainError(Exception):
         self.detail = detail or self.default_detail
         self.cause_code = cause_code
         super().__init__(self.detail)
+
+    @property
+    def extensions(self) -> dict[str, object]:
+        """Extension members of the problem details (RFC 9457 section 3.2); none by default."""
+        return {}
 
 
 class NotFoundError(DomainError):
@@ -376,3 +382,69 @@ class CommentDeletedError(DomainError):
     status = HTTPStatus.CONFLICT
     code = ErrorCode.COMMENT_DELETED
     default_detail = "This comment was deleted."
+
+
+class ReviewEventNotFoundError(NotFoundError):
+    """No review event with that id (KILN-11)."""
+
+    code = ErrorCode.REVIEW_EVENT_NOT_FOUND
+
+    def __init__(self, event_id: UUID) -> None:
+        """Name the missing id."""
+        super().__init__(f"Review event {event_id} does not exist.")
+
+
+class InvalidReviewNoteError(DomainError):
+    """A review note is too long or hides characters."""
+
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
+    code = ErrorCode.INVALID_REVIEW_NOTE
+    default_detail = (
+        f"A review note is optional and holds up to {REVIEW_NOTE_MAX_LENGTH} characters,"
+        " without hidden or control characters (line breaks are fine)."
+    )
+
+
+class InvalidReviewTransitionError(DomainError):
+    """The action does not apply to the version's review state (the transition table)."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.INVALID_REVIEW_TRANSITION
+
+    def __init__(self, state: ReviewState, action: ReviewAction) -> None:
+        """Name the state and the refused action."""
+        self.state = state
+        super().__init__(f"A version that is {state.value} cannot take {action.value}.")
+
+    @property
+    def extensions(self) -> dict[str, object]:
+        """The state the version is in."""
+        return {"current_state": self.state.value}
+
+
+class ReviewStateConflictError(DomainError):
+    """Someone changed the version's review state since the caller read it (compare-and-set)."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.REVIEW_STATE_CONFLICT
+
+    def __init__(self, current: ReviewState) -> None:
+        """Name the state the version is in now."""
+        self.current = current
+        super().__init__(
+            f"The version is {current.value} now; someone changed it since you looked."
+            " Read it again before deciding."
+        )
+
+    @property
+    def extensions(self) -> dict[str, object]:
+        """The state the version is in now, so the client can show it."""
+        return {"current_state": self.current.value}
+
+
+class VersionNotReadyError(DomainError):
+    """Only a ready version (one that was processed and can be looked at) is approved or refused."""
+
+    status = HTTPStatus.CONFLICT
+    code = ErrorCode.VERSION_NOT_READY
+    default_detail = "Only a ready version can be approved or sent back for changes."

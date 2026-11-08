@@ -26,7 +26,14 @@ from kiln_api.domain.authorization import authorize, visible_owner
 from kiln_api.domain.idempotency import request_fingerprint
 from kiln_api.domain.identity import Principal
 from kiln_api.domain.jobs import new_job
-from kiln_api.enums import Action, FailureReason, JobKind, PromotionResult, VersionStatus
+from kiln_api.enums import (
+    Action,
+    FailureReason,
+    JobKind,
+    PromotionResult,
+    ReviewState,
+    VersionStatus,
+)
 from kiln_api.errors import (
     IdempotencyKeyInUseError,
     InvalidStatusTransitionError,
@@ -79,6 +86,7 @@ class AssetCard:
 
     asset: Asset
     thumbnail_url: str | None
+    review_state: ReviewState = ReviewState.IN_REVIEW  # its newest version's (KILN-11)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +96,7 @@ class AssetDetail:
     asset: Asset
     thumbnail_url: str | None
     versions: list[VersionView]
+    review_state: ReviewState = ReviewState.IN_REVIEW  # its newest version's (KILN-11)
 
 
 class AssetService:
@@ -281,7 +290,13 @@ class AssetService:
         asset = self._repository.get(asset_id)
         authorize(principal, Action.READ_ASSETS, asset)
         versions = [self._view(v) for v in self._repository.versions_of(asset_id)]
-        return AssetDetail(asset=asset, thumbnail_url=self._cover(asset), versions=versions)
+        states = self._repository.newest_review_states([asset_id])
+        return AssetDetail(
+            asset=asset,
+            thumbnail_url=self._cover(asset),
+            versions=versions,
+            review_state=states.get(asset_id, ReviewState.IN_REVIEW),
+        )
 
     def get_version(self, principal: Principal, version_id: UUID) -> VersionView:
         """Return one version with its preview and file URLs."""
@@ -296,7 +311,15 @@ class AssetService:
         page = self._repository.list_page(
             cursor=cursor, limit=limit, owner_id=visible_owner(principal)
         )
-        cards = tuple(AssetCard(asset=a, thumbnail_url=self._cover(a)) for a in page.items)
+        states = self._repository.newest_review_states([a.id for a in page.items])
+        cards = tuple(
+            AssetCard(
+                asset=a,
+                thumbnail_url=self._cover(a),
+                review_state=states.get(a.id, ReviewState.IN_REVIEW),
+            )
+            for a in page.items
+        )
         return Page(items=cards, next_cursor=page.next_cursor)
 
     def _view(self, version: AssetVersion) -> VersionView:

@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Connection, Engine, Row, func, insert, or_, select, tuple_, update
+from sqlalchemy.dialects.postgresql import distinct_on
 
 from kiln_api.constants import (
     ALLOWED_TRANSITIONS,
@@ -16,7 +17,7 @@ from kiln_api.constants import (
 from kiln_api.db.schema import asset_versions, assets
 from kiln_api.domain.assets import Asset, AssetVersion
 from kiln_api.domain.cursor import decode_cursor, encode_cursor
-from kiln_api.enums import AssetKind, FailureReason, VersionStatus
+from kiln_api.enums import AssetKind, FailureReason, ReviewState, VersionStatus
 from kiln_api.errors import (
     AssetNotFoundError,
     AssetVersionNotFoundError,
@@ -52,6 +53,8 @@ def _version(row: Row[Any]) -> AssetVersion:
         etag=row.etag,
         failure_reason=None if row.failure_reason is None else FailureReason(row.failure_reason),
         uploaded_by=row.uploaded_by,
+        review_state=ReviewState(row.review_state),
+        review_revision=row.review_revision,
     )
 
 
@@ -70,6 +73,8 @@ def _version_values(version: AssetVersion) -> dict[str, object]:
         "etag": version.etag,
         "failure_reason": None if version.failure_reason is None else version.failure_reason.value,
         "uploaded_by": version.uploaded_by,
+        "review_state": version.review_state.value,
+        "review_revision": version.review_revision,
     }
 
 
@@ -196,6 +201,22 @@ class SqlAssetRepository:
                 .limit(MAX_VERSIONS_PER_READ)
             ).all()
         return [_version(row) for row in rows]
+
+    def newest_review_states(self, asset_ids: Sequence[UUID]) -> dict[UUID, ReviewState]:
+        """Each asset's review state: its newest version's (KILN-11), in one query.
+
+        `DISTINCT ON` walks `uq_asset_versions_asset_id_number` backwards per asset.
+        """
+        if not asset_ids:
+            return {}
+        with self._read() as connection:
+            rows = connection.execute(
+                select(asset_versions.c.asset_id, asset_versions.c.review_state)
+                .where(asset_versions.c.asset_id.in_(asset_ids))
+                .ext(distinct_on(asset_versions.c.asset_id))
+                .order_by(asset_versions.c.asset_id, asset_versions.c.number.desc())
+            ).all()
+        return {row.asset_id: ReviewState(row.review_state) for row in rows}
 
     def save_version(self, version: AssetVersion, *, expected: VersionStatus) -> None:
         """Write the new status only if the stored one is still `expected` (compare-and-set)."""
