@@ -100,3 +100,53 @@ export const seedImageVersion = async (
   if (!created.ok()) throw new Error(`version failed: ${String(created.status())}`);
   await uploadAndComplete(request, (await created.json()) as PendingUpload, SWATCH);
 };
+
+type AssetDetailOut = components['schemas']['AssetDetailOut'];
+type ThreadOut = components['schemas']['ThreadOut'];
+type RegionIn = components['schemas']['RegionIn'];
+
+/** The ids of an asset's versions, by number. */
+export const versionIdsOf = async (
+  request: APIRequestContext,
+  assetId: string,
+): Promise<string[]> => {
+  const response = await request.get(`${API_URL}/api/v1/assets/${assetId}`, { headers: asCli() });
+  if (!response.ok()) throw new Error(`asset failed: ${String(response.status())}`);
+  return ((await response.json()) as AssetDetailOut).versions.map((version) => version.id);
+};
+
+/** Starts a comment thread on a version (KILN-10), on a region or on the whole version. */
+export const seedThread = async (
+  request: APIRequestContext,
+  versionId: string,
+  data: { body: string; region?: RegionIn | null },
+): Promise<ThreadOut> => {
+  const response = await request.post(
+    `${API_URL}/api/v1/asset-versions/${versionId}/comment-threads`,
+    { headers: asCli(), data: { body: data.body, region: data.region ?? null } },
+  );
+  if (!response.ok()) throw new Error(`thread failed: ${String(response.status())}`);
+  return (await response.json()) as ThreadOut;
+};
+
+/** Replies to a thread. */
+export const seedReply = async (
+  request: APIRequestContext,
+  threadId: string,
+  body: string,
+): Promise<void> => {
+  const response = await request.post(`${API_URL}/api/v1/comment-threads/${threadId}/comments`, {
+    headers: asCli(),
+    data: { body },
+  });
+  if (!response.ok()) throw new Error(`reply failed: ${String(response.status())}`);
+};
+
+/** Resolves a thread. */
+export const seedResolved = async (request: APIRequestContext, threadId: string): Promise<void> => {
+  const response = await request.patch(`${API_URL}/api/v1/comment-threads/${threadId}`, {
+    headers: asCli(),
+    data: { resolved: true },
+  });
+  if (!response.ok()) throw new Error(`resolve failed: ${String(response.status())}`);
+};
