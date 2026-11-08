@@ -46,6 +46,7 @@ INVEST: Independent ☑ (KILN-39 and KILN-51 are done) · Negotiable ☑ (lone C
 ## Design
 
 - **KILN-60, CLI** (`kiln_api/cli.py`): `_without_line_ending(line)` removes the first matching suffix of `CLI_PASSWORD_LINE_ENDINGS = ("\r\n", "\n", "\r")` (`constants.py`) and nothing else. `_read_password` applies it to `stdin.readline()` and to both prompt answers before comparing them. ADR 0024 records the change to ADR 0021's "the hash still includes the character".
+- **KILN-61, test** (`tests/db/test_migrations.py`): `_search_path_fault(proconfig)` returns the reason a pin is unsafe or `None`; `_unsafe_functions(connection)` applies it to every function of the `public` schema. `test_every_function_in_the_schema_pins_a_safe_search_path` (renamed from `…_pins_its_search_path_with_pg_temp_last`) asserts none, and `test_the_search_path_check_refuses_an_unsafe_pin_on_a_real_function` creates `public.kiln_probe()` with each of 16 pins in a rolled-back transaction. ADR 0025 records the rule; no migration (today's pin already passes).
 - **API contract, data, UI**: none.
 
 ## QA
@@ -56,29 +57,36 @@ INVEST: Independent ☑ (KILN-39 and KILN-51 are done) · Negotiable ☑ (lone C
 | AC2 | cli, api | same test (`\r\r\n`, `\r\r`, `\n\n`)                                                                                                                                                                         | pass   |
 | AC3 | cli, api | same test (spaces + CRLF, leading tab + CRLF)                                                                                                                                                                | pass   |
 | AC4 | cli, api | `test_the_installed_prompt_without_a_terminal_drops_the_carriage_return_too` (subprocess in a new session, no terminal); `test_the_prompt_drops_one_line_ending_from_each_answer_and_keeps_spaces` (4 cases) | pass   |
-| AC5 | db       | not built yet (next commit)                                                                                                                                                                                  | —      |
+| AC5 | db       | `test_migrations.py::test_the_search_path_check_refuses_an_unsafe_pin_on_a_real_function` (13 unsafe, 3 safe pins); `test_every_function_in_the_schema_pins_a_safe_search_path`                              | pass   |
 | AC6 | db       | not built yet                                                                                                                                                                                                | —      |
 | AC7 | db       | not built yet                                                                                                                                                                                                | —      |
 
-KILN-60 adds 14 tests (`pytest --collect-only services/api/tests/db/test_cli.py`: 25, was 11). Each subprocess case also tries to sign in with the raw input, its `strip()`ped form and the password plus `\r`, and expects 401 for each that differs from the password.
+KILN-61 adds 16 tests (`pytest --collect-only services/api/tests/db/test_migrations.py`: 41, was 25; the generic test is renamed, not added). KILN-60 adds 14 tests (`pytest --collect-only services/api/tests/db/test_cli.py`: 25, was 11). Each subprocess case also tries to sign in with the raw input, its `strip()`ped form and the password plus `\r`, and expects 401 for each that differs from the password.
 
 Exploratory checks: Python's `sys.stdin.readline()` keeps `\r\n` and a lone `\r` (no newline translation on stdin), checked with `printf 'abc\r\n' | python3 -c …`; the subprocess tests feed bytes, so `subprocess.run(text=True)` cannot translate them.
 
 ### Mutation testing (by hand, in a git worktree, its own `kiln_k60m_test` database)
 
-| Mutant                                              | Result            |
-| --------------------------------------------------- | ----------------- |
-| 60-M1 stdin: `rstrip("\n")` only (the original bug) | killed (6 failed) |
-| 60-M2 stdin: `rstrip("\r\n")` (every terminator)    | killed (2 failed) |
-| 60-M3 stdin: `strip()`                              | killed (4 failed) |
-| 60-M4 LF tried before CRLF                          | killed (4 failed) |
-| 60-M5 a lone CR not a terminator                    | killed (6 failed) |
-| 60-M6 the strip loops past one ending               | killed (3 failed) |
-| 60-M7 the first prompt answer not stripped          | killed (4 failed) |
-| 60-M8 the repeated prompt answer not stripped       | killed (3 failed) |
+| Mutant                                                                    | Result                                                                                     |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 60-M1 stdin: `rstrip("\n")` only (the original bug)                       | killed (6 failed)                                                                          |
+| 60-M2 stdin: `rstrip("\r\n")` (every terminator)                          | killed (2 failed)                                                                          |
+| 60-M3 stdin: `strip()`                                                    | killed (4 failed)                                                                          |
+| 60-M4 LF tried before CRLF                                                | killed (4 failed)                                                                          |
+| 60-M5 a lone CR not a terminator                                          | killed (6 failed)                                                                          |
+| 60-M6 the strip loops past one ending                                     | killed (3 failed)                                                                          |
+| 60-M7 the first prompt answer not stripped                                | killed (4 failed)                                                                          |
+| 60-M8 the repeated prompt answer not stripped                             | killed (3 failed)                                                                          |
+| 61-M1 checker without the `pg_catalog`-first rule                         | killed (1 failed)                                                                          |
+| 61-M2 checker without the `pg_temp`-last rule                             | killed (4 failed)                                                                          |
+| 61-M3 checker without the each-once rule                                  | killed (2 failed)                                                                          |
+| 61-M4 checker without the trusted-schema rule                             | killed (4 failed)                                                                          |
+| 61-M5 checker accepts a function with no pin                              | killed (2 failed)                                                                          |
+| 61-M6 migration 0016 and `db/schema.py` pin `public, pg_catalog, pg_temp` | killed by the generic test (1 failed); the old check (from `b2c68c4`) passed it (1 passed) |
 
 ## Decisions for the reviewer
 
 - A lone CR counts as a terminator (ADR 0024 §1): it is a real line ending, and an account whose password ends in CR could never sign in from the web anyway.
 - The prompt path is fixed too: without a terminal, getpass reads stdin and keeps the CR of a CRLF. With a terminal, ICRNL turns Enter into LF and getpass drops it, so nothing changes there.
+- KILN-61 trusts exactly `pg_catalog`, `public` and `pg_temp`, and allows `pg_catalog` to be left out (PostgreSQL then searches it first). A bare `pg_temp` passes the order rule; table names must still be qualified (ADR 0023).
 - No `Score:` line: the independent review comes after this builder's commits.

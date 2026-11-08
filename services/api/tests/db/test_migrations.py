@@ -7,7 +7,7 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
-from sqlalchemy import Engine, create_engine, inspect, make_url, text
+from sqlalchemy import Connection, Engine, create_engine, inspect, make_url, text
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from kiln_api.db.schema import metadata
@@ -729,29 +729,98 @@ def test_migration_0016_pins_the_search_path_and_qualifies_the_table_and_downgra
     assert config_after == "search_path=pg_catalog, public, pg_temp"
 
 
-def test_every_function_in_the_schema_pins_its_search_path_with_pg_temp_last(
-    database_url: str,
-) -> None:
-    """Generic, so a function added later fails CI until it is pinned (ADR 0023). Leaving pg_temp
-    out is not enough: PostgreSQL then searches it first for tables."""
+# Schemas a function may search (ADR 0023): the catalogue, the app's own schema, and the session's
+# temporary schema, which must come last. Anything else (a quoted "$user", another schema) could be
+# created or filled by someone other than the owner (KILN-61).
+_TRUSTED_SEARCH_PATH_SCHEMAS = frozenset({"pg_catalog", "public", "pg_temp"})
+
+
+def _search_path_fault(proconfig: list[str] | None) -> str | None:
+    """Why a function's pinned search_path is unsafe, or None when it is safe: pinned, only trusted
+    schemas, each once, `pg_catalog` first when named (otherwise PostgreSQL searches it first
+    anyway), and `pg_temp` last (otherwise PostgreSQL searches it first for tables)."""
+    values = [
+        setting.removeprefix("search_path=")
+        for setting in proconfig or []
+        if setting.startswith("search_path=")
+    ]
+    if not values:
+        return "search_path not pinned"
+    schemas = [schema.strip() for schema in values[0].split(",")]
+    untrusted = [schema for schema in schemas if schema not in _TRUSTED_SEARCH_PATH_SCHEMAS]
+    if untrusted:
+        return f"untrusted schemas {untrusted}"
+    if len(set(schemas)) != len(schemas):
+        return "a schema named twice"
+    if schemas[-1] != "pg_temp":
+        return "pg_temp not last"
+    if "pg_catalog" in schemas and schemas[0] != "pg_catalog":
+        return "pg_catalog not first"
+    return None
+
+
+def _unsafe_functions(connection: Connection) -> dict[str, str]:
+    rows = connection.execute(
+        text(
+            "SELECT p.proname, p.proconfig FROM pg_proc p"
+            " JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public'"
+        )
+    ).all()
+    assert rows  # the append-only function at least
+    faults = {name: _search_path_fault(config) for name, config in rows}
+    return {name: fault for name, fault in faults.items() if fault is not None}
+
+
+def test_every_function_in_the_schema_pins_a_safe_search_path(database_url: str) -> None:
+    """Generic, so a function added later fails CI until it is pinned safely (ADR 0023, KILN-61).
+    Leaving pg_temp out is not enough: PostgreSQL then searches it first for tables."""
     engine = create_engine(database_url)
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                "SELECT p.proname, coalesce(array_to_string(p.proconfig, ';'), '')"
-                " FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace"
-                " WHERE ns.nspname = 'public'"
-            )
-        ).all()
+        unsafe = _unsafe_functions(connection)
     engine.dispose()
 
-    assert rows  # the append-only function at least
-    unpinned = [
-        name
-        for name, config in rows
-        if not any(
-            setting.startswith("search_path=") and setting.endswith(", pg_temp")
-            for setting in config.split(";")
+    assert unsafe == {}
+
+
+@pytest.mark.parametrize(
+    ("pin", "fault"),
+    [
+        ("SET search_path = public, pg_catalog, pg_temp", "pg_catalog not first"),
+        ("SET search_path = pg_catalog, pg_temp, public", "pg_temp not last"),
+        ("SET search_path = pg_temp, pg_catalog, public", "pg_temp not last"),
+        ("SET search_path = pg_catalog, public", "pg_temp not last"),
+        ("SET search_path = public", "pg_temp not last"),
+        ("SET search_path = pg_catalog, public, pg_temp, pg_temp", "a schema named twice"),
+        ("SET search_path = pg_catalog, pg_temp, public, pg_temp", "a schema named twice"),
+        ("SET search_path = pg_catalog, public, kiln_scratch, pg_temp", "untrusted schemas"),
+        ('SET search_path = pg_catalog, "$user", public, pg_temp', "untrusted schemas"),
+        ('SET search_path = pg_catalog, "Public", pg_temp', "untrusted schemas"),
+        ("SET search_path = ''", "untrusted schemas"),
+        ("SET work_mem = '4MB'", "search_path not pinned"),
+        ("", "search_path not pinned"),
+        ("SET search_path = pg_catalog, public, pg_temp", None),
+        ("SET search_path TO public, pg_temp", None),  # pg_catalog left out: searched first
+        ("SET search_path = pg_catalog, pg_temp", None),
+    ],
+)
+def test_the_search_path_check_refuses_an_unsafe_pin_on_a_real_function(
+    database_url: str, pin: str, fault: str | None
+) -> None:
+    """KILN-61: the generic check used to pass `public, pg_catalog, pg_temp`. Each pin is set on a
+    real function, so the check reads `proconfig` exactly as PostgreSQL stores it."""
+    engine = create_engine(database_url)
+    with engine.connect() as connection, connection.begin() as transaction:
+        connection.execute(
+            text(
+                f"CREATE FUNCTION public.kiln_probe() RETURNS int LANGUAGE sql {pin} AS 'SELECT 1'"
+            )
         )
-    ]
-    assert unpinned == []
+        found = _unsafe_functions(connection).get("kiln_probe")
+        transaction.rollback()
+    engine.dispose()
+
+    if fault is None:
+        assert found is None
+    else:
+        assert found is not None
+        assert found.startswith(fault)

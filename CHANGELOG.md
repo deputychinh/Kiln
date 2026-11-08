@@ -13,6 +13,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 - `create-user` drops exactly one trailing line terminator — CRLF, LF or a lone CR — from a password read with `--password-stdin` or at the prompt, and nothing else (KILN-60, ADR 0024). A CRLF used to leave a `\r` in the hash, so that account could never sign in from the web. Spaces, tabs and a second terminator stay part of the password; tests pipe raw bytes into the installed command and sign in through the API.
 
+### Tests
+
+- The generic search_path test now refuses an unsafe pin such as `public, pg_catalog, pg_temp` (KILN-61, ADR 0025): a function's pin may name only `pg_catalog`, `public` and `pg_temp`, each once, with `pg_catalog` first when named and `pg_temp` last. Each unsafe and safe pin is set on a real probe function, so the check reads `proconfig` as PostgreSQL stores it.
+
 ## [0.2.0] - 2026-11-08
 
 Phase 2, review: sign-in and personal access tokens, new versions from the asset detail, side-by-side compare, a 3D viewer for glTF binaries, region annotations and comment threads, approval states with history, and a dark-first visual redesign; a hung job no longer blocks its worker. Review debt carried to v0.3 is listed in `docs/backlog.md`.
