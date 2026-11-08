@@ -151,7 +151,7 @@ const DOCUMENTED_PROPS: Record<string, { own: string[]; native?: string[] }> = {
   },
   // TextArea passes its stories' native textarea attributes through, like TextField.
   'components-textarea--docs': {
-    own: ['label', 'isLabelHidden', 'hint', 'error', 'showCount', 'ref'],
+    own: ['label', 'isLabelHidden', 'hint', 'error', 'showCount', 'maxLength', 'ref'],
     native: ['placeholder', 'disabled'],
   },
   'components-toolbar--docs': { own: ['label', 'children', 'end'] },

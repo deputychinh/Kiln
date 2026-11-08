@@ -44,6 +44,26 @@ describe('TextArea', () => {
     expect(screen.getByText('5 / 5')).toHaveAttribute('aria-hidden', 'true');
   });
 
+  it('stops at the limit in characters (code points), not UTF-16 units, as the API counts', async () => {
+    render(<Controlled maxLength={3} />);
+
+    await userEvent.type(screen.getByRole('textbox'), '🎨🎨🎨🎨');
+
+    expect(screen.getByRole('textbox')).toHaveValue('🎨🎨🎨');
+    expect(screen.getByText('3 / 3')).toBeInTheDocument();
+  });
+
+  it('cuts pasted text at the limit in characters', async () => {
+    render(<Controlled maxLength={4} />);
+    const field = screen.getByRole('textbox');
+
+    field.focus();
+    await userEvent.paste('ab🎨cd🎨');
+
+    expect(field).toHaveValue('ab🎨c');
+    expect(field).not.toHaveAttribute('maxlength');
+  });
+
   it('counts an emoji as one character', async () => {
     render(<Controlled />);
 

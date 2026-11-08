@@ -14,8 +14,14 @@ interface TextAreaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>
   hint?: string | undefined;
   /** What is wrong with the value; marks the field invalid and is read with it. */
   error?: string | undefined;
-  /** With `maxLength`, shows "used / max" under the field (visual; the limit itself is native). */
+  /** With `maxLength`, shows "used / max" under the field. */
   showCount?: boolean;
+  /**
+   * The most characters (Unicode code points, as a server counts them) the field takes; typing
+   * or pasting stops there. The native attribute counts UTF-16 units, so an emoji would count
+   * twice; it is not used.
+   */
+  maxLength?: number | undefined;
   /** The DOM textarea, e.g. to move focus into it. */
   ref?: Ref<HTMLTextAreaElement> | undefined;
 }
@@ -31,6 +37,7 @@ export const TextArea = ({
   ref,
   maxLength,
   value,
+  onChange,
   ...rest
 }: TextAreaProps): ReactElement => {
   const id = useId();
@@ -58,7 +65,13 @@ export const TextArea = ({
         ref={ref}
         id={id}
         value={value}
-        maxLength={maxLength}
+        onChange={(event) => {
+          const field = event.currentTarget;
+          if (maxLength !== undefined && [...field.value].length > maxLength) {
+            field.value = [...field.value].slice(0, maxLength).join('');
+          }
+          onChange?.(event);
+        }}
         className="text-area__input"
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
