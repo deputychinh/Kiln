@@ -110,10 +110,15 @@ export const serveReviews = (
       const request = body as {
         action: ReviewAction;
         expected_state: ReviewState;
+        expected_revision?: number;
         note: string | null;
       };
       if (!version) return json({ code: 'ASSET_VERSION_NOT_FOUND' }, 404);
-      if (version.review_state !== request.expected_state) {
+      if (
+        version.review_state !== request.expected_state ||
+        (request.expected_revision !== undefined &&
+          request.expected_revision !== version.review_revision)
+      ) {
         return conflict('REVIEW_STATE_CONFLICT', version.review_state);
       }
       if (!REVIEW_ACTIONS[version.review_state].includes(request.action)) {

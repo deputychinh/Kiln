@@ -82,6 +82,7 @@ describe('Review tab', () => {
     expect(request?.body).toEqual({
       action: 'approve',
       expected_state: 'in_review',
+      expected_revision: 0,
       note: 'Rim fixed.',
     });
     expect(request?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
@@ -130,6 +131,44 @@ describe('Review tab', () => {
     expect(await screen.findByText('Bo Lead approved')).toBeVisible();
   });
 
+  it('refuses a decision on an older revision of the same state (approve, then reopen)', async () => {
+    server = serveReviews(detail);
+    await openReview();
+    server.decideAsSomeoneElse('v-2', 'approve');
+    server.decideAsSomeoneElse('v-2', 'reopen');
+
+    await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('this version is now “In review”');
+    expect(server.requests('POST', TRANSITIONS)[0]?.body).toMatchObject({ expected_revision: 0 });
+    // The refetched version carries the new revision: the next approve goes through.
+    expect(await screen.findByText('Bo Lead reopened')).toBeVisible();
+    await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('Version 2 approved')).toBeInTheDocument();
+    expect(server.requests('POST', TRANSITIONS)[1]?.body).toMatchObject({ expected_revision: 2 });
+  });
+
+  it('starts each version with an empty form, and a new key, after a lost answer', async () => {
+    server = serveReviews(aDetail({ versions: [aVersion({ id: 'v-1', number: 1 }), V2] }));
+    server.failNext('POST', TRANSITIONS, new TypeError('Failed to fetch'));
+    await openReview();
+    await userEvent.type(within(form()).getByRole('textbox', { name: /Note/ }), 'Looks right.');
+    await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('alert')).toBeVisible();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Review of' }), 'v-1');
+
+    expect(screen.getByRole('combobox', { name: 'Review of' })).toHaveFocus();
+    expect(within(form(1)).getByRole('textbox', { name: /Note/ })).toHaveValue('');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.type(within(form(1)).getByRole('textbox', { name: /Note/ }), 'Looks right.');
+    await userEvent.click(within(form(1)).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('Version 1 approved')).toBeInTheDocument();
+    const [onV2] = server.requests('POST', TRANSITIONS);
+    const [onV1] = server.requests('POST', '/api/v1/asset-versions/v-1/review-transitions');
+    expect(onV1?.idempotencyKey).not.toBe(onV2?.idempotencyKey);
+  });
+
   it('retries a lost answer with the same key, so a decision is never made twice', async () => {
     server = serveReviews(detail);
     server.failNext('POST', TRANSITIONS, new TypeError('Failed to fetch'));
@@ -170,7 +209,7 @@ describe('Review tab', () => {
     expect(await screen.findByText('Version 1 is back in review')).toBeInTheDocument();
     expect(
       server.requests('POST', '/api/v1/asset-versions/v-1/review-transitions')[0]?.body,
-    ).toEqual({ action: 'reopen', expected_state: 'approved', note: null });
+    ).toEqual({ action: 'reopen', expected_state: 'approved', expected_revision: 1, note: null });
   });
 
   it('says a version still processing cannot be decided yet, and offers no decision', async () => {

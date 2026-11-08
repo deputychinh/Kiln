@@ -24,6 +24,8 @@ export interface ReviewsCopy {
     readOnly: string;
     transition: string;
     gone: string;
+    /** The key of an earlier, different decision came back (should not happen; try again). */
+    retry: string;
   };
   historyTitle: string;
   historyLabel: (number: number) => string;

@@ -46,6 +46,7 @@ describe('review error message', () => {
     ['INVALID_REVIEW_TRANSITION', en.reviews.errors.transition],
     ['INSUFFICIENT_SCOPE', en.reviews.errors.readOnly],
     ['ASSET_VERSION_NOT_FOUND', en.reviews.errors.gone],
+    ['IDEMPOTENCY_KEY_REUSED', en.reviews.errors.retry],
   ])('explains %s', (code, message) => {
     expect(reviewErrorMessage(apiError(409, 'x', code), en)).toBe(message);
   });

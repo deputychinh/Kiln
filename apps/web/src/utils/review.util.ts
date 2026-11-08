@@ -27,6 +27,7 @@ export const reviewErrorMessage = (error: unknown, copy: Copy): string => {
     INVALID_REVIEW_TRANSITION: errors.transition,
     REVIEW_STATE_CONFLICT: errors.transition,
     INSUFFICIENT_SCOPE: errors.readOnly,
+    IDEMPOTENCY_KEY_REUSED: errors.retry,
     ASSET_VERSION_NOT_FOUND: errors.gone,
   };
   return (error.code !== null ? byCode[error.code] : undefined) ?? describeError(error, copy);

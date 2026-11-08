@@ -29,6 +29,7 @@ export const viReviews: ReviewsCopy = {
     transition:
       'Quyết định đó không còn áp dụng cho phiên bản này. Hãy xem trạng thái rồi thử lại.',
     gone: 'Phiên bản này không còn tồn tại.',
+    retry: 'Không khớp được quyết định này với lần thử trước. Hãy xem trạng thái rồi thử lại.',
   },
   historyTitle: 'Lịch sử',
   historyLabel: (number) => `Lịch sử duyệt của phiên bản ${String(number)}`,

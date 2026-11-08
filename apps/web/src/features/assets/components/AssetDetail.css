@@ -250,3 +250,13 @@
     box-shadow: var(--kiln-shadow-2);
   }
 }
+
+/*
+ * Review (KILN-11), in the inspector: a smaller preview, so the state, the decision and the start
+ * of the history fit the window without scrolling the pane.
+ */
+@media (min-width: 840px) {
+  .asset-detail__preview--compact {
+    max-inline-size: 12rem;
+  }
+}

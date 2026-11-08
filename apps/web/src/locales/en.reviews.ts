@@ -29,6 +29,8 @@ export const enReviews: ReviewsCopy = {
     readOnly: 'Your access is read-only, so you cannot review.',
     transition: 'That decision no longer applies to this version. Check its state and try again.',
     gone: 'This version no longer exists.',
+    retry:
+      'That decision could not be matched to your last attempt. Check the state and try again.',
   },
   historyTitle: 'History',
   historyLabel: (number) => `Review history of version ${String(number)}`,

@@ -21,10 +21,15 @@ export const listReviewHistory = (
 /** Approves, requests changes on or reopens a version, if it is still in the expected state. */
 export const transitionReview = (
   versionId: string,
-  { action, expectedState, note, idempotencyKey }: TransitionInput,
+  { action, expectedState, expectedRevision, note, idempotencyKey }: TransitionInput,
 ): Promise<ReviewEvent> =>
   apiPost<ReviewEvent>(
     `${API}/asset-versions/${id(versionId)}/review-transitions`,
-    { action, expected_state: expectedState, note: note.trim() ? note : null },
+    {
+      action,
+      expected_state: expectedState,
+      expected_revision: expectedRevision,
+      note: note.trim() ? note : null,
+    },
     { idempotencyKey },
   );

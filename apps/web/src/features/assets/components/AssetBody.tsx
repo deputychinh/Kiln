@@ -154,7 +154,9 @@ export const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): Rea
       {/* While commenting on a wide screen, the image stays in view above the threads. */}
       <div
         ref={previewRef}
-        className={`asset-detail__preview${isCommenting ? ' asset-detail__preview--pinned' : ''}`}
+        className={`asset-detail__preview${isCommenting ? ' asset-detail__preview--pinned' : ''}${
+          tab === 'review' ? ' asset-detail__preview--compact' : ''
+        }`}
       >
         <AssetThumb
           src={previewSrc}
