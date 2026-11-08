@@ -71,7 +71,8 @@ _DEFINITIONS = text(
     SELECT 'function ' || p.proname, pg_get_functiondef(p.oid) FROM pg_proc p
     JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public'
     UNION ALL
-    SELECT 'trigger ' || t.tgname, pg_get_triggerdef(t.oid) FROM pg_trigger t
+    SELECT 'trigger ' || t.tgname, pg_get_triggerdef(t.oid) || ' -- enabled ' || t.tgenabled::text
+    FROM pg_trigger t
     JOIN pg_class rel ON rel.oid = t.tgrelid JOIN pg_namespace ns ON ns.oid = rel.relnamespace
     WHERE ns.nspname = 'public' AND NOT t.tgisinternal
     """
@@ -653,3 +654,29 @@ def test_migration_0013_gives_up_while_a_writer_holds_review_events(
         engine.dispose()
 
     assert waited < 5
+
+
+def test_migration_0014_makes_the_history_triggers_fire_always_and_downgrades(
+    database_url: str, alembic_config: Config
+) -> None:
+    """KILN-51 review: replica mode skipped the triggers; after 0014 they are enabled ALWAYS
+    ('A'), the table keeps its file, and the downgrade restores the default ('O')."""
+    engine = create_engine(database_url)
+    states = text(
+        "SELECT tgname, tgenabled FROM pg_trigger"
+        " WHERE tgrelid = 'review_events'::regclass AND NOT tgisinternal ORDER BY tgname"
+    )
+    filenode = text("SELECT pg_relation_filenode('review_events')")
+    command.downgrade(alembic_config, "0013_review_events_no_truncate")
+    with engine.connect() as connection:
+        before = [tuple(row) for row in connection.execute(states)]
+        file_before = connection.execute(filenode).scalar_one()
+    command.upgrade(alembic_config, "head")
+    with engine.connect() as connection:
+        after = [tuple(row) for row in connection.execute(states)]
+        file_after = connection.execute(filenode).scalar_one()
+    engine.dispose()
+
+    assert before == [("review_events_append_only", "O"), ("review_events_no_truncate", "O")]
+    assert after == [("review_events_append_only", "A"), ("review_events_no_truncate", "A")]
+    assert file_after == file_before

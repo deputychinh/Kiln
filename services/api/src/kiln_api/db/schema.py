@@ -363,6 +363,12 @@ REVIEW_EVENTS_NO_TRUNCATE_TRIGGER = (
     "CREATE TRIGGER review_events_no_truncate BEFORE TRUNCATE ON review_events"
     " FOR EACH STATEMENT EXECUTE FUNCTION review_events_append_only()"
 )
+# Both fire even under `SET session_replication_role = replica`, which skips ordinary triggers
+# (migration 0014, ADR 0020).
+REVIEW_EVENTS_TRIGGERS_ALWAYS = tuple(
+    f"ALTER TABLE review_events ENABLE ALWAYS TRIGGER {name}"
+    for name in ("review_events_append_only", "review_events_no_truncate")
+)
 
 
 def _create_append_only(_target: object, connection: Connection, **_kw: object) -> None:
@@ -370,6 +376,8 @@ def _create_append_only(_target: object, connection: Connection, **_kw: object) 
     connection.execute(text(REVIEW_EVENTS_APPEND_ONLY_FUNCTION))
     connection.execute(text(REVIEW_EVENTS_APPEND_ONLY_TRIGGER))
     connection.execute(text(REVIEW_EVENTS_NO_TRUNCATE_TRIGGER))
+    for statement in REVIEW_EVENTS_TRIGGERS_ALWAYS:
+        connection.execute(text(statement))
 
 
 def _drop_append_only(_target: object, connection: Connection, **_kw: object) -> None:

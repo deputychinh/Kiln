@@ -331,6 +331,28 @@ def test_the_database_refuses_to_truncate_the_history(
     assert _state(engine, version_id) == ("approved", 1, 1)
 
 
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "UPDATE review_events SET note = 'rewritten'",
+        "DELETE FROM review_events",
+        "TRUNCATE review_events",
+    ],
+)
+def test_replica_mode_does_not_turn_the_history_guards_off(
+    engine: Engine, user: User, statement: str
+) -> None:
+    """`session_replication_role = replica` skips ordinary triggers; ours fire ALWAYS (0014)."""
+    version_id = _one_event(engine, user)
+
+    with engine.begin() as connection:
+        connection.execute(text("SET LOCAL session_replication_role = replica"))
+        with pytest.raises(DBAPIError, match="append-only"):
+            connection.execute(text(statement))
+
+    assert _state(engine, version_id) == ("approved", 1, 1)
+
+
 def test_the_truncate_guard_is_a_statement_level_before_trigger(engine: Engine) -> None:
     with engine.connect() as connection:
         definition = connection.execute(
