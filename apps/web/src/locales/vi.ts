@@ -1,5 +1,6 @@
 import { ViewerError } from '@/enums/viewer-error.enum';
 import type { Copy } from '@/interfaces/copy.interface';
+import { viComments } from '@/locales/vi.comments';
 
 export const vi: Copy = {
   locale: 'vi',
@@ -141,6 +142,7 @@ export const vi: Copy = {
     selectPrompt: 'Chọn một asset để xem các phiên bản.',
     back: 'Tất cả asset',
     previewAlt: (name) => `Ảnh xem trước của ${name}`,
+    versionPreviewAlt: (name, number) => `Ảnh xem trước của ${name}, phiên bản ${String(number)}`,
     kindLabel: 'Loại',
     created: 'Tạo lúc',
     updated: 'Cập nhật',
@@ -157,6 +159,7 @@ export const vi: Copy = {
     notFoundTitle: 'Không tìm thấy asset',
     notFoundBody: 'Asset có thể đã bị xoá, hoặc đường dẫn bị sai.',
   },
+  comments: viComments,
   compare: {
     link: 'So sánh phiên bản',
     linkShort: 'So sánh',

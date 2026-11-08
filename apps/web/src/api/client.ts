@@ -75,6 +75,22 @@ export const apiPost = <T>(
     options.signal,
   );
 
+/** PATCH JSON onto a resource of the Kiln API (comment edits, thread resolution; KILN-10). */
+export const apiPatch = <T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> =>
+  send<T>(
+    path,
+    {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...CSRF_HEADERS,
+      },
+      body: JSON.stringify(body),
+    },
+    signal,
+  );
+
 /** DELETE a resource of the Kiln API (204 No Content). */
 export const apiDelete = (path: string, signal?: AbortSignal): Promise<void> =>
   send<undefined>(path, { method: 'DELETE', headers: { ...CSRF_HEADERS } }, signal);

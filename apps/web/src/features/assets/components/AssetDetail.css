@@ -230,3 +230,22 @@
 .asset-detail__value--file {
   overflow-wrap: anywhere;
 }
+
+/*
+ * Comments (KILN-10), expanded and tall enough: the preview stays pinned at the top of the
+ * inspector while the threads scroll under it, and a thread brought into view stops below it.
+ * The preview is square and as wide as the article (at most 30rem), so its height is known.
+ */
+@media (min-width: 840px) and (min-height: 720px) {
+  /* The threads' scroll margin measures the pinned preview against this width (ThreadItem.css). */
+  .asset-detail--commenting {
+    container-type: inline-size;
+  }
+
+  .asset-detail__preview--pinned {
+    position: sticky;
+    top: 0;
+    z-index: var(--kiln-z-raised);
+    box-shadow: var(--kiln-shadow-2);
+  }
+}

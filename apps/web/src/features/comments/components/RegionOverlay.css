@@ -1,0 +1,136 @@
+/*
+ * Marks over the preview (KILN-10). The overlay covers the image's own box (AssetThumb's frame),
+ * so left/top/width/height in percent are the region's coordinates normalised to the image.
+ * Marks use the theme-independent annotation colours with a dark halo, so they read on any picture.
+ */
+.region-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+/* While marking, the whole image takes the drag and page scrolling stops under the finger. */
+.region-overlay--marking {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.region-overlay__marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.region-overlay--marking .region-overlay__marks {
+  visibility: hidden;
+}
+
+.region-overlay__rect {
+  position: absolute;
+}
+
+.region-overlay__box {
+  position: absolute;
+  inset: 0;
+  border: var(--kiln-border-focus) solid var(--kiln-color-annotation);
+  border-radius: var(--kiln-radius-sm);
+  outline: var(--kiln-border-hairline) solid var(--kiln-color-annotation-halo);
+}
+
+.region-overlay__rect--resolved .region-overlay__box {
+  border-style: dashed;
+}
+
+.region-overlay__rect--selected .region-overlay__box {
+  border-color: var(--kiln-color-annotation-selected);
+}
+
+/* A numbered target (≥ 24 px): in a rectangle's top-left corner, or centred on a pin's point. */
+.region-overlay__badge,
+.region-overlay__pin {
+  display: grid;
+  place-items: center;
+  min-inline-size: var(--kiln-target-min);
+  block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-1);
+  font: inherit;
+  font-size: var(--kiln-text-xs);
+  font-weight: var(--kiln-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--kiln-color-on-annotation);
+  background-color: var(--kiln-color-annotation);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-annotation-halo);
+  border-radius: var(--kiln-radius-full);
+  box-shadow: var(--kiln-shadow-1);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.region-overlay__badge {
+  position: absolute;
+  inset: 0 auto auto 0;
+}
+
+.region-overlay__pin {
+  position: absolute;
+  translate: -50% -50%;
+}
+
+.region-overlay__rect--resolved .region-overlay__badge,
+.region-overlay__pin--resolved {
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-raised);
+}
+
+.region-overlay__rect--selected .region-overlay__badge,
+.region-overlay__pin--selected {
+  color: var(--kiln-color-on-annotation-selected);
+  background-color: var(--kiln-color-annotation-selected);
+}
+
+.region-overlay__badge:focus-visible,
+.region-overlay__pin:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
+}
+
+/* The region being marked: dashed and tinted, with a focus ring while the keyboard moves it. */
+.region-overlay__draft {
+  position: absolute;
+  background-color: var(--kiln-color-annotation-fill);
+  border: var(--kiln-border-focus) dashed var(--kiln-color-annotation-selected);
+  border-radius: var(--kiln-radius-sm);
+  outline: var(--kiln-border-hairline) solid var(--kiln-color-annotation-halo);
+}
+
+.region-overlay__draft--point {
+  inline-size: var(--kiln-space-4);
+  block-size: var(--kiln-space-4);
+  border-radius: var(--kiln-radius-full);
+  border-style: solid;
+  translate: -50% -50%;
+}
+
+.region-overlay__draft:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-focus);
+}
+
+@media (hover: hover) {
+  .region-overlay__badge:hover,
+  .region-overlay__pin:hover {
+    color: var(--kiln-color-on-annotation-selected);
+    background-color: var(--kiln-color-annotation-selected);
+  }
+}
+
+@media (forced-colors: active) {
+  .region-overlay__box,
+  .region-overlay__draft {
+    border: var(--kiln-border-focus) solid Highlight;
+  }
+
+  .region-overlay__badge,
+  .region-overlay__pin {
+    border: var(--kiln-border-hairline) solid ButtonText;
+  }
+}

@@ -1,0 +1,154 @@
+.thread-item {
+  min-inline-size: 0;
+}
+
+/* A card per thread; the chosen one carries the accent edge, a resolved one steps back. */
+.thread-item__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+  padding: var(--kiln-space-3);
+  background-color: var(--kiln-color-surface-raised);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-lg);
+  scroll-margin-block: var(--kiln-space-6);
+}
+
+.thread-item__card--selected {
+  background-color: var(--kiln-color-surface-selected);
+  border-color: var(--kiln-color-primary);
+}
+
+.thread-item__card--resolved {
+  background-color: var(--kiln-color-surface);
+}
+
+.thread-item__card:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+.thread-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+  align-items: center;
+}
+
+/* The thread's number in the mark's colours, so list and image read as one. */
+.thread-item__number {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: var(--kiln-target-min);
+  block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-1);
+  font: inherit;
+  font-size: var(--kiln-text-xs);
+  font-weight: var(--kiln-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--kiln-color-on-annotation);
+  background-color: var(--kiln-color-annotation);
+  border: 0;
+  border-radius: var(--kiln-radius-full);
+  cursor: pointer;
+}
+
+.thread-item__number[aria-pressed='true'] {
+  color: var(--kiln-color-on-annotation-selected);
+  background-color: var(--kiln-color-annotation-selected);
+  box-shadow: 0 0 0 var(--kiln-border-hairline) var(--kiln-color-outline);
+}
+
+.thread-item__number--plain {
+  color: var(--kiln-color-on-surface-muted);
+  background-color: var(--kiln-color-surface-hover);
+  cursor: default;
+}
+
+.thread-item__toggle,
+.thread-item__link {
+  display: inline-flex;
+  gap: var(--kiln-space-1);
+  align-items: center;
+  align-self: flex-start;
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-1);
+  font: inherit;
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+  background: none;
+  border: 0;
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+}
+
+.thread-item__replies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  margin: 0;
+  padding: 0 0 0 var(--kiln-space-3);
+  list-style: none;
+  border-inline-start: var(--kiln-border-focus) solid var(--kiln-color-outline-variant);
+}
+
+.thread-item__reply {
+  min-inline-size: 0;
+}
+
+.thread-item__note {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.thread-item__error {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-danger);
+}
+
+.thread-item__reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+}
+
+.thread-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-1);
+  margin-inline-start: calc(-1 * var(--kiln-space-2));
+}
+
+.thread-item__number:focus-visible,
+.thread-item__toggle:focus-visible,
+.thread-item__link:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+/*
+ * Where the inspector pins the square preview above the threads (AssetDetail.css: expanded and
+ * tall enough), a thread brought into view stops below it: the preview is as wide as the
+ * inspector's article (its container), at most 30rem.
+ */
+@media (min-width: 840px) and (min-height: 720px) {
+  .thread-item__card {
+    scroll-margin-block-start: calc(min(30rem, 100cqi) + var(--kiln-space-3));
+  }
+}
+
+@media (hover: hover) {
+  .thread-item__toggle:hover,
+  .thread-item__link:hover {
+    background-color: var(--kiln-color-surface-hover);
+  }
+}
+
+@media (forced-colors: active) {
+  .thread-item__card--selected {
+    border: var(--kiln-border-focus) solid Highlight;
+  }
+}

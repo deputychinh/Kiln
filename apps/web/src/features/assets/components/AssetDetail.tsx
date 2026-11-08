@@ -13,21 +13,27 @@ import {
 } from '@kiln/ui';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, Box, Columns2, Image, Rotate3d, Upload } from 'lucide-react';
-import { type ReactElement, useCallback, useEffect, useRef } from 'react';
+import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 
 import { RelativeTime } from '@/components/RelativeTime/RelativeTime';
 import { EXPANDED_MEDIA_QUERY } from '@/constants/layout.constant';
 import { VERSION_ACCEPT } from '@/constants/upload.constant';
+import { AssetFacts } from '@/features/assets/components/AssetFacts';
 import { VersionTimeline } from '@/features/assets/components/VersionTimeline';
 import { useAsset } from '@/features/assets/hooks/useAsset';
+import { CommentsPanel, visibleThreads } from '@/features/comments/components/CommentsPanel';
+import { RegionOverlay } from '@/features/comments/components/RegionOverlay';
+import { useAnnotation } from '@/features/comments/hooks/useAnnotation';
+import { useThreads } from '@/features/comments/hooks/useComments';
 import { UploadList } from '@/features/uploads/components/UploadList';
 import { useUploadQueue } from '@/features/uploads/context/UploadsContext';
 import { useCopy } from '@/hooks/useCopy';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useUncoveredFocus } from '@/hooks/useUncoveredFocus';
 import type { AssetDetail as AssetDetailData } from '@/interfaces/asset.interface';
+import { defaultCommentVersion } from '@/utils/comment.util';
 import { withBreaks } from '@/utils/ellipsis.util';
 import { describeError, isNotFound } from '@/utils/error.util';
-import { formatBytes, formatDateTime } from '@/utils/format.util';
 import { pickViewable } from '@/utils/viewer.util';
 
 import './AssetDetail.css';
@@ -76,10 +82,38 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
   const KindIcon = asset.kind === 'model' ? Box : Image;
   const target = { assetId: asset.id, kind: asset.kind };
   const newestViewable = pickViewable(asset, undefined)?.version;
-  const latest = asset.versions.at(-1);
   const Heading = isExpanded ? 'h2' : 'h1';
+
+  // Comments (KILN-10): while the tab is open, the preview shows the version being discussed,
+  // with its regions over it. The tab and the version are view state, like the open tab was.
+  const [tab, setTab] = useState('versions');
+  const [chosenVersionId, setChosenVersionId] = useState<string | null>(null);
+  const [showResolved, setShowResolved] = useState(false);
+  const annotation = useAnnotation();
+  const previewRef = useRef<HTMLDivElement>(null);
+  const keepFocusUncovered = useUncoveredFocus(previewRef);
+  const isCommenting = tab === 'comments';
+  const commentVersion =
+    asset.versions.find((version) => version.id === chosenVersionId) ??
+    defaultCommentVersion(asset.versions);
+  const threads = useThreads(isCommenting ? commentVersion?.id : undefined);
+  const loadedThreads = threads.data?.pages.flatMap((page) => page.items) ?? [];
+  const markedThreads = visibleThreads(loadedThreads, showResolved).shown.filter(
+    (thread) => thread.region !== null,
+  );
+  const previewSrc = isCommenting
+    ? (commentVersion?.thumbnail_url ?? null)
+    : (asset.thumbnail_url ?? null);
+  const canMark = isCommenting && asset.kind === 'image' && Boolean(commentVersion?.thumbnail_url);
+  let markHint: string | null = null;
+  if (asset.kind === 'model') markHint = copy.comments.modelHint;
+  else if (!commentVersion?.thumbnail_url) markHint = copy.comments.noPreviewHint;
   return (
-    <article className="asset-detail" aria-labelledby="asset-detail-title">
+    <article
+      className={`asset-detail${isCommenting ? ' asset-detail--commenting' : ''}`}
+      aria-labelledby="asset-detail-title"
+      onFocus={isCommenting ? keepFocusUncovered : undefined}
+    >
       <BackLink isCompactOnly />
       <header className="asset-detail__header">
         {/* The page's main heading when the detail replaces the list; below the list's h1 otherwise. */}
@@ -134,10 +168,18 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
           {copy.uploads.version.upload}
         </FilePickerButton>
       </div>
-      <div className="asset-detail__preview">
+      {/* While commenting on a wide screen, the image stays in view above the threads. */}
+      <div
+        ref={previewRef}
+        className={`asset-detail__preview${isCommenting ? ' asset-detail__preview--pinned' : ''}`}
+      >
         <AssetThumb
-          src={asset.thumbnail_url ?? null}
-          alt={copy.assets.previewAlt(asset.name)}
+          src={previewSrc}
+          alt={
+            isCommenting && commentVersion
+              ? copy.assets.versionPreviewAlt(asset.name, commentVersion.number)
+              : copy.assets.previewAlt(asset.name)
+          }
           placeholder={
             <>
               <KindIcon size={ICON_SIZE.lg} aria-hidden="true" />
@@ -146,6 +188,9 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
           }
           onError={onThumbError}
           isEager
+          overlay={
+            canMark ? <RegionOverlay threads={markedThreads} annotation={annotation} /> : undefined
+          }
         />
       </div>
       {isStale ? (
@@ -155,6 +200,11 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
       ) : null}
       <Tabs
         label={copy.assets.sectionsLabel}
+        selectedId={tab}
+        onSelect={(id) => {
+          setTab(id);
+          if (id !== 'comments') annotation.reset();
+        }}
         tabs={[
           {
             id: 'versions',
@@ -173,35 +223,30 @@ const AssetBody = ({ asset, onThumbError, isStale }: AssetBodyProps): ReactEleme
             ),
           },
           {
+            id: 'comments',
+            label: copy.comments.tab,
+            panel:
+              commentVersion && isCommenting ? (
+                <CommentsPanel
+                  versions={asset.versions}
+                  version={commentVersion}
+                  onVersionChange={(versionId) => {
+                    setChosenVersionId(versionId);
+                    annotation.reset();
+                  }}
+                  threads={threads}
+                  showResolved={showResolved}
+                  onShowResolvedChange={setShowResolved}
+                  annotation={annotation}
+                  canMark={canMark}
+                  markHint={markHint}
+                />
+              ) : null,
+          },
+          {
             id: 'info',
             label: copy.assets.infoTab,
-            panel: (
-              <dl className="asset-detail__facts">
-                <dt className="asset-detail__term">{copy.assets.kindLabel}</dt>
-                <dd className="asset-detail__value">{kind}</dd>
-                <dt className="asset-detail__term">{copy.assets.versionCount}</dt>
-                <dd className="asset-detail__value">{asset.versions.length}</dd>
-                {latest ? (
-                  <>
-                    <dt className="asset-detail__term">{copy.assets.latestFile}</dt>
-                    <dd className="asset-detail__value asset-detail__value--file">
-                      {copy.assets.fileSummary(
-                        latest.file_name,
-                        formatBytes(latest.size_bytes, copy.locale),
-                      )}
-                    </dd>
-                  </>
-                ) : null}
-                <dt className="asset-detail__term">{copy.assets.created}</dt>
-                <dd className="asset-detail__value">
-                  {formatDateTime(asset.created_at, copy.locale)}
-                </dd>
-                <dt className="asset-detail__term">{copy.assets.updated}</dt>
-                <dd className="asset-detail__value">
-                  <RelativeTime iso={asset.updated_at} />
-                </dd>
-              </dl>
-            ),
+            panel: <AssetFacts asset={asset} />,
           },
         ]}
       />

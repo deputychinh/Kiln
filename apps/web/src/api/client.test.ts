@@ -1,4 +1,4 @@
-import { apiDelete, apiError, apiGet, apiPost, isApiError } from '@/api/client';
+import { apiDelete, apiError, apiGet, apiPatch, apiPost, isApiError } from '@/api/client';
 import { json, problem } from '@/test/fake-api';
 
 describe('apiGet', () => {
@@ -162,6 +162,40 @@ describe('apiDelete', () => {
     await expect(apiDelete('/x')).rejects.toMatchObject({
       status: 404,
       code: 'ACCESS_TOKEN_NOT_FOUND',
+    });
+  });
+});
+
+describe('apiPatch', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('sends JSON with the CSRF header and returns the JSON reply', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ resolved: true }));
+
+    await expect(apiPatch('/api/v1/comment-threads/t1', { resolved: true })).resolves.toEqual({
+      resolved: true,
+    });
+    expect(fetchMock).toHaveBeenCalledWith('http://api.test/api/v1/comment-threads/t1', {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Kiln-Csrf': '1',
+      },
+      body: '{"resolved":true}',
+      credentials: 'same-origin',
+      signal: null,
+    });
+  });
+
+  it('maps a problem to an ApiError like the other verbs', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      problem(403, 'Forbidden', 'NOT_COMMENT_AUTHOR'),
+    );
+
+    await expect(apiPatch('/x', {})).rejects.toMatchObject({
+      status: 403,
+      code: 'NOT_COMMENT_AUTHOR',
     });
   });
 });

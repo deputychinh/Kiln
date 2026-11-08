@@ -1,0 +1,106 @@
+.comments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-4);
+  min-inline-size: 0;
+}
+
+.comments-panel__version {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+  align-items: center;
+}
+
+.comments-panel__label {
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.comments-panel__select {
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-2);
+  font: inherit;
+  font-size: var(--kiln-text-ui);
+  color: var(--kiln-color-on-surface);
+  background-color: var(--kiln-color-surface-sunken);
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline);
+  border-radius: var(--kiln-radius-md);
+}
+
+.comments-panel__filter {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  align-self: flex-start;
+  min-block-size: var(--kiln-target-min);
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+  cursor: pointer;
+}
+
+.comments-panel__checkbox {
+  inline-size: var(--kiln-space-4);
+  block-size: var(--kiln-space-4);
+  margin: 0;
+  accent-color: var(--kiln-color-primary);
+}
+
+.comments-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  min-inline-size: 0;
+}
+
+/* Focused by the app (tabindex -1) after a resolved thread leaves the list: no ring. */
+.comments-panel__list:focus {
+  outline: none;
+}
+
+.comments-panel__loading {
+  display: grid;
+  gap: var(--kiln-space-3);
+}
+
+.comments-panel__threads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comments-panel__note {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+.comments-panel__more {
+  align-self: flex-start;
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-2);
+  font: inherit;
+  font-size: var(--kiln-text-sm);
+  font-weight: var(--kiln-weight-medium);
+  color: var(--kiln-color-on-surface);
+  background: none;
+  border: var(--kiln-border-hairline) solid var(--kiln-color-outline-variant);
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+}
+
+.comments-panel__select:focus-visible,
+.comments-panel__checkbox:focus-visible,
+.comments-panel__more:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+@media (hover: hover) {
+  .comments-panel__more:hover {
+    background-color: var(--kiln-color-surface-hover);
+  }
+}

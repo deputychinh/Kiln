@@ -1,0 +1,98 @@
+.comment-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-1);
+  min-inline-size: 0;
+}
+
+.comment-entry__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--kiln-space-2);
+  align-items: baseline;
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+}
+
+.comment-entry__author {
+  font-weight: var(--kiln-weight-semibold);
+  color: var(--kiln-color-on-surface);
+}
+
+.comment-entry__time {
+  color: var(--kiln-color-on-surface-muted);
+}
+
+/* Text as written: line breaks kept, long words broken, never HTML. */
+.comment-entry__body {
+  margin: 0;
+  font-size: var(--kiln-text-ui);
+  line-height: var(--kiln-leading-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--kiln-color-on-surface);
+}
+
+.comment-entry__body--deleted {
+  color: var(--kiln-color-on-surface-muted);
+  font-style: italic;
+}
+
+.comment-entry__form,
+.comment-entry__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+}
+
+.comment-entry__confirm-text {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface);
+}
+
+.comment-entry__actions,
+.comment-entry__own {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-1);
+}
+
+.comment-entry__own {
+  margin-inline-start: calc(-1 * var(--kiln-space-1));
+}
+
+.comment-entry__link {
+  min-block-size: var(--kiln-target-min);
+  padding: 0 var(--kiln-space-1);
+  font: inherit;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--kiln-radius-md);
+  cursor: pointer;
+}
+
+.comment-entry__link:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
+.comment-entry__danger {
+  color: var(--kiln-color-danger);
+  border-color: var(--kiln-color-danger);
+}
+
+.comment-entry__error {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-danger);
+}
+
+@media (hover: hover) {
+  .comment-entry__link:hover {
+    color: var(--kiln-color-on-surface);
+    background-color: var(--kiln-color-surface-hover);
+  }
+}

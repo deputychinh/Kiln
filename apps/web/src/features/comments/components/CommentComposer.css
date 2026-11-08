@@ -1,0 +1,56 @@
+.comment-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kiln-space-2);
+}
+
+.comment-composer__hint {
+  margin: 0;
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-surface-muted);
+}
+
+/* The marked region as a chip, with a way to drop it. */
+.comment-composer__region {
+  display: inline-flex;
+  gap: var(--kiln-space-2);
+  align-items: center;
+  align-self: flex-start;
+  margin: 0;
+  padding: 0 0 0 var(--kiln-space-2);
+  font-size: var(--kiln-text-sm);
+  color: var(--kiln-color-on-selected);
+  background-color: var(--kiln-color-surface-selected);
+  border-radius: var(--kiln-radius-full);
+}
+
+.comment-composer__remove {
+  display: grid;
+  place-items: center;
+  inline-size: var(--kiln-target-min);
+  block-size: var(--kiln-target-min);
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--kiln-radius-full);
+  cursor: pointer;
+}
+
+.comment-composer__remove:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: calc(-1 * var(--kiln-border-focus));
+}
+
+.comment-composer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kiln-space-2);
+  justify-content: flex-end;
+}
+
+@media (hover: hover) {
+  .comment-composer__remove:hover {
+    background-color: var(--kiln-color-surface-hover);
+  }
+}

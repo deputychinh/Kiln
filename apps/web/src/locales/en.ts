@@ -1,5 +1,6 @@
 import { ViewerError } from '@/enums/viewer-error.enum';
 import type { Copy } from '@/interfaces/copy.interface';
+import { enComments } from '@/locales/en.comments';
 
 export const en: Copy = {
   locale: 'en',
@@ -142,6 +143,7 @@ export const en: Copy = {
     selectPrompt: 'Select an asset to see its versions.',
     back: 'All assets',
     previewAlt: (name) => `Preview of ${name}`,
+    versionPreviewAlt: (name, number) => `Preview of ${name}, version ${String(number)}`,
     kindLabel: 'Kind',
     created: 'Created',
     updated: 'Updated',
@@ -158,6 +160,7 @@ export const en: Copy = {
     notFoundTitle: 'Asset not found',
     notFoundBody: 'It may have been removed, or the link is wrong.',
   },
+  comments: enComments,
   compare: {
     link: 'Compare versions',
     linkShort: 'Compare',
