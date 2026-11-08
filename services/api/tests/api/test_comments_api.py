@@ -552,13 +552,19 @@ def test_a_refused_comment_does_not_use_up_its_key(client: TestClient) -> None:
         (RECT, {**RECT, "width": 0.4}),
         (RECT, {**RECT, "height": 0.2}),
         (POINT, {**POINT, "x": 0.2}),
+        (RECT, {**RECT, "shape": "point"}),
     ],
-    ids=["region-left-out", "x", "y", "width", "height", "point-x"],
+    ids=["region-left-out", "x", "y", "width", "height", "point-x", "shape"],
 )
 def test_a_thread_key_reused_with_one_other_region_field_is_refused(
     client: TestClient, engine: Engine, first: dict[str, Any], second: dict[str, Any] | None
 ) -> None:
-    """KILN-49: the body is the same, so only the region field can tell the requests apart."""
+    """KILN-49: the body is the same, so only the region field can tell the requests apart.
+
+    The key is claimed before the region is checked, so a rectangle's key reused with only its
+    shape changed (a point with a size, which the checks would refuse) must still be refused as
+    a reused key, not replayed.
+    """
     version_id = _version(client)
     key = {"Idempotency-Key": "thread-one-field"}
     created = client.post(
