@@ -1,6 +1,6 @@
 # KILN-10: Region annotations on images and comment threads
 
-- Release: v0.2 · Status: doing (built and verified; waiting for the independent review) · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done (score 9.5/10 after one improve round) · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -128,3 +128,28 @@ Round 1 gates: `make lint` 0; `make test` 1121 Python + 2 CLI + 154 UI + 550 web
 ## Known gaps (follow-ups)
 
 3D model annotations; freehand drawing, arrows and colours; @mentions and notifications; realtime updates (refetch on focus only); deep links to a thread; carrying threads to a newer version; comment counts on gallery cards and on the Comments tab; the region overlay on the compare page; no cap on threads per version or replies per thread (pages bound reads, a cap would bound growth); a VoiceOver pass. Users with comments cannot be deleted (the author and resolver foreign keys are `NO ACTION`, like asset owners in ADR 0012): user deletion or deactivation must decide what happens to their comments.
+
+## Review rounds
+
+| Round      | Reviewer          | Score                         | Outcome                                                                                                                                                                                                                                                                  |
+| ---------- | ----------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1          | independent       | 7.0/10 (requirements fit 0.5) | edge drags refused (AC12), crafted cursor → 503 (AC5), lone surrogate code (AC3), crowded marks failing axe `target-size` and clipped corner pins, no minimum rectangle, `TextArea` UTF-16 count, a wrong index in the story — all fixed (table above)                   |
+| Final gate | fresh independent | 9.5/10                        | shipped; every mutation killed except two equivalent ones in the `fitTo` shrink loop; e2e 81 passed, 8 skipped, 0 failed on the first run. Debt filed as KILN-44 (marks UX), KILN-45 (problem codes, code points), KILN-46 (invalid UTF-8 bodies), KILN-47 (small items) |
+
+## Score
+
+| #   | Criterion        | Score   |
+| --- | ---------------- | ------- |
+| 1   | Requirements fit | 1       |
+| 2   | Test depth       | 1       |
+| 3   | Reliability      | 1       |
+| 4   | Security         | 1       |
+| 5   | Maintainability  | 1       |
+| 6   | UX               | 0.5     |
+| 7   | Accessibility    | 1       |
+| 8   | Performance      | 1       |
+| 9   | Docs             | 1       |
+| 10  | Delivery         | 1       |
+|     | **Total**        | **9.5** |
+
+Retro: clamp client-side geometry with the same arithmetic the server validates, and property-test drags ending on every edge after JSON; bound every decoded integer in a cursor before it reaches the database, or an overflow surfaces as a fake outage; overlay targets need a crowded-marks axe test.
