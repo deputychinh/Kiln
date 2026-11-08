@@ -67,6 +67,13 @@ _DEFINITIONS = text(
     UNION ALL
     SELECT tablename || '.' || indexname, indexdef FROM pg_indexes
     WHERE schemaname = 'public' AND tablename <> 'alembic_version'
+    UNION ALL
+    SELECT 'function ' || p.proname, pg_get_functiondef(p.oid) FROM pg_proc p
+    JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public'
+    UNION ALL
+    SELECT 'trigger ' || t.tgname, pg_get_triggerdef(t.oid) FROM pg_trigger t
+    JOIN pg_class rel ON rel.oid = t.tgrelid JOIN pg_namespace ns ON ns.oid = rel.relnamespace
+    WHERE ns.nspname = 'public' AND NOT t.tgisinternal
     """
 )
 
@@ -77,7 +84,8 @@ def _definitions(engine: Engine) -> dict[str, str]:
 
 
 def test_constraint_and_index_definitions_match_the_schema_module(database_url: str) -> None:
-    """Alembic does not compare CHECK texts, so compare what Postgres stores for both."""
+    """Alembic compares neither CHECK texts nor functions and triggers (the append-only trigger of
+    KILN-11): compare what Postgres stores for both."""
     url = make_url(database_url)
     reference_name = f"kiln_schema_{uuid.uuid4().hex[:8]}_test"
     admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
@@ -576,3 +584,20 @@ def test_migration_0011_gives_up_while_a_writer_holds_asset_versions(
         engine.dispose()
 
     assert waited < 5
+
+
+def test_migration_0012_lets_only_the_cascade_delete_events_and_downgrades(
+    database_url: str, alembic_config: Config
+) -> None:
+    engine = create_engine(database_url)
+    body = text("SELECT pg_get_functiondef('review_events_append_only'::regproc)")
+    command.downgrade(alembic_config, "0011_review_states")
+    with engine.connect() as connection:
+        before = connection.execute(body).scalar_one()
+    command.upgrade(alembic_config, "head")
+    with engine.connect() as connection:
+        after = connection.execute(body).scalar_one()
+    engine.dispose()
+
+    assert "NOT EXISTS" not in before
+    assert "NOT EXISTS (SELECT 1 FROM asset_versions WHERE id = OLD.version_id)" in after

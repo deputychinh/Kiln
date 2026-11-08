@@ -30,6 +30,15 @@ class ReviewTransitionRequest(BaseModel):
             " 409 `REVIEW_STATE_CONFLICT` with `current_state`."
         )
     )
+    expected_revision: int | None = Field(
+        default=None,
+        ge=0,
+        strict=True,
+        description=(
+            "The `review_revision` you saw. Recommended: it also refuses a decision when the state"
+            " is the same but someone decided and reopened since (409 `REVIEW_STATE_CONFLICT`)."
+        ),
+    )
     note: str | None = Field(
         default=None,
         max_length=MAX_COMMENT_BODY_FIELD_LENGTH,

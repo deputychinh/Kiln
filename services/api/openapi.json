@@ -2883,7 +2883,7 @@
           "reviews"
         ],
         "summary": "Transition",
-        "description": "Approve, request changes on or reopen a version; the answer is the new history event.\n\nCompare-and-set: nothing changes unless the version is still in `expected_state` (409\n`REVIEW_STATE_CONFLICT` with `current_state`). The state machine is in `domain/reviews.py`.",
+        "description": "Approve, request changes on or reopen a version; the answer is the new history event.\n\nCompare-and-set: nothing changes unless the version is still in `expected_state` and, when\nsent, at `expected_revision` (409 `REVIEW_STATE_CONFLICT` with `current_state` and\n`current_revision`). The state machine is in `domain/reviews.py`.",
         "operationId": "transition_api_v1_asset_versions__version_id__review_transitions_post",
         "security": [
           {
@@ -4125,6 +4125,19 @@
             "$ref": "#/components/schemas/ReviewState",
             "description": "The state you saw. If someone changed it since, nothing happens and the answer is 409 `REVIEW_STATE_CONFLICT` with `current_state`."
           },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision",
+            "description": "The `review_revision` you saw. Recommended: it also refuses a decision when the state is the same but someone decided and reopened since (409 `REVIEW_STATE_CONFLICT`)."
+          },
           "note": {
             "anyOf": [
               {
@@ -4707,6 +4720,19 @@
             ],
             "default": null,
             "description": "On `REVIEW_STATE_CONFLICT` and `INVALID_REVIEW_TRANSITION`: the version's review state now (KILN-11)."
+          },
+          "current_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On `REVIEW_STATE_CONFLICT`: the version's review revision now (KILN-11).",
+            "title": "Current Revision"
           }
         },
         "required": [

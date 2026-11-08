@@ -95,24 +95,29 @@ def decide(  # noqa: PLR0913 - keyword-only facts of one decision
     action: ReviewAction,
     *,
     expected_state: ReviewState,
+    expected_revision: int | None = None,
     actor_id: UUID,
     note: str | None,
     now: datetime,
     new_id: IdFactory,
 ) -> tuple[AssetVersion, ReviewEvent]:
-    """Apply `action` to `version` if it is still in `expected_state`; return both new facts.
+    """Apply `action` to `version` if it is still as the reviewer saw it; return both new facts.
 
-    Checks, in order: the state the reviewer saw is still current (else a conflict: someone else
-    acted first), the table allows the action, a decision is made on a ready version, the note.
+    Checks, in order: the state (and, when given, the revision) the reviewer saw is still current
+    (else a conflict: someone else acted first — the revision also catches approve → reopen, which
+    leaves the same state; ADR 0016), the table allows the action, a decision is made on a ready
+    version, the note.
 
     Raises:
-        ReviewStateConflictError: The version's state is no longer `expected_state`.
+        ReviewStateConflictError: The version's state is no longer `expected_state`, or its
+            revision is no longer `expected_revision`.
         InvalidReviewTransitionError: The table has no such transition.
         VersionNotReadyError: Approve or request changes on a version that is not ready.
         InvalidReviewNoteError: See `clean_review_note`.
     """
-    if version.review_state is not expected_state:
-        raise ReviewStateConflictError(version.review_state)
+    stale_revision = expected_revision is not None and expected_revision != version.review_revision
+    if version.review_state is not expected_state or stale_revision:
+        raise ReviewStateConflictError(version.review_state, version.review_revision)
     target = next_state(version.review_state, action)
     if action in DECISIONS and version.status is not VersionStatus.READY:
         raise VersionNotReadyError

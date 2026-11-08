@@ -428,9 +428,10 @@ class ReviewStateConflictError(DomainError):
     status = HTTPStatus.CONFLICT
     code = ErrorCode.REVIEW_STATE_CONFLICT
 
-    def __init__(self, current: ReviewState) -> None:
-        """Name the state the version is in now."""
+    def __init__(self, current: ReviewState, revision: int) -> None:
+        """Name the state and revision the version is at now."""
         self.current = current
+        self.revision = revision
         super().__init__(
             f"The version is {current.value} now; someone changed it since you looked."
             " Read it again before deciding."
@@ -438,8 +439,8 @@ class ReviewStateConflictError(DomainError):
 
     @property
     def extensions(self) -> dict[str, object]:
-        """The state the version is in now, so the client can show it."""
-        return {"current_state": self.current.value}
+        """The state and revision the version is at now, so the client can show and resend them."""
+        return {"current_state": self.current.value, "current_revision": self.revision}
 
 
 class VersionNotReadyError(DomainError):

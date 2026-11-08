@@ -33,6 +33,10 @@ class Problem(BaseModel):
             " state now (KILN-11)."
         ),
     )
+    current_revision: int | None = Field(
+        default=None,
+        description="On `REVIEW_STATE_CONFLICT`: the version's review revision now (KILN-11).",
+    )
 
 
 _DESCRIPTIONS = {

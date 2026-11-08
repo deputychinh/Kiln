@@ -75,12 +75,14 @@ def _decide(
     action: ReviewAction,
     *,
     expected_state: ReviewState | None = None,
+    expected_revision: int | None = None,
     note: str | None = None,
 ) -> tuple[AssetVersion, ReviewEvent]:
     return decide(
         version,
         action,
         expected_state=version.review_state if expected_state is None else expected_state,
+        expected_revision=expected_revision,
         actor_id=ACTOR,
         note=note,
         now=NOW,
@@ -141,7 +143,7 @@ def test_a_reviewer_who_saw_another_state_is_told_the_current_one(
         _decide(_version(state), action, expected_state=seen)
 
     assert conflict.value.current is state
-    assert conflict.value.extensions == {"current_state": state.value}
+    assert conflict.value.extensions == {"current_state": state.value, "current_revision": 0}
 
 
 @pytest.mark.parametrize(
@@ -238,3 +240,23 @@ def test_the_note_goes_through_the_note_rules_in_a_decision() -> None:
     assert event.note == "Darken the rim."
     with pytest.raises(InvalidReviewNoteError):
         _decide(_version(), REQUEST, note="x\u200b")
+
+
+# --- review round 1: the revision the reviewer saw (ADR 0016) ------------------------------------
+
+
+@pytest.mark.parametrize("seen", [0, 1, 3, 100])
+def test_a_reviewer_who_saw_another_revision_of_the_same_state_is_refused(seen: int) -> None:
+    """Approve then reopen leaves the state as it was: only the revision tells them apart."""
+    with pytest.raises(ReviewStateConflictError) as conflict:
+        _decide(_version(IN_REVIEW, revision=2), APPROVE, expected_revision=seen)
+
+    assert conflict.value.extensions == {"current_state": "in_review", "current_revision": 2}
+
+
+def test_the_current_revision_or_none_lets_the_decision_through() -> None:
+    for expected in (2, None):
+        decided, event = _decide(
+            _version(IN_REVIEW, revision=2), APPROVE, expected_revision=expected
+        )
+        assert (decided.review_revision, event.sequence) == (3, 3)

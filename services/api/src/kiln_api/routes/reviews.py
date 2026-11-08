@@ -51,14 +51,16 @@ def transition(  # noqa: PLR0913, PLR0917 - FastAPI injects each parameter
 ) -> ReviewEventOut:
     """Approve, request changes on or reopen a version; the answer is the new history event.
 
-    Compare-and-set: nothing changes unless the version is still in `expected_state` (409
-    `REVIEW_STATE_CONFLICT` with `current_state`). The state machine is in `domain/reviews.py`.
+    Compare-and-set: nothing changes unless the version is still in `expected_state` and, when
+    sent, at `expected_revision` (409 `REVIEW_STATE_CONFLICT` with `current_state` and
+    `current_revision`). The state machine is in `domain/reviews.py`.
     """
     created = service.transition(
         principal,
         version_id,
         action=body.action,
         expected_state=body.expected_state,
+        expected_revision=body.expected_revision,
         note=body.note,
         idempotency_key=key,
     )

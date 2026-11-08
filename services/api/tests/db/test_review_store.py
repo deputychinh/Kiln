@@ -283,6 +283,34 @@ def test_the_database_refuses_to_change_or_delete_an_event(
     assert _state(engine, version_id) == ("approved", 1, 1)
 
 
+def test_a_delete_from_another_trigger_is_refused_while_the_version_exists(
+    engine: Engine, user: User
+) -> None:
+    """Only the cascade of a deleted version may remove events, not any nested trigger (0012)."""
+    version_id = _one_event(engine, user)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE FUNCTION pg_temp.sneaky_delete() RETURNS trigger LANGUAGE plpgsql AS $$"
+                " BEGIN DELETE FROM review_events; RETURN NEW; END $$"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TRIGGER sneaky_delete AFTER INSERT ON maintenance_runs"
+                " FOR EACH ROW EXECUTE FUNCTION pg_temp.sneaky_delete()"
+            )
+        )
+    try:
+        with engine.begin() as connection, pytest.raises(DBAPIError, match="append-only"):
+            connection.execute(text("INSERT INTO maintenance_runs VALUES ('sneaky', now())"))
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("DROP TRIGGER sneaky_delete ON maintenance_runs"))
+
+    assert _state(engine, version_id) == ("approved", 1, 1)
+
+
 def test_deleting_a_version_deletes_its_history_with_it(engine: Engine, user: User) -> None:
     version_id = _one_event(engine, user)
 

@@ -523,3 +523,68 @@ def test_the_event_id_is_a_uuid_v7(client: TestClient, engine: Engine) -> None:
     event = _act(client, _version(client, engine), APPROVE)
 
     assert UUID(event["id"]).version == 7
+
+
+# --- review round 1: the client's revision is part of the compare-and-set (ADR 0016) ----------
+
+
+def test_a_client_that_read_an_older_revision_is_refused_even_in_the_same_state(
+    client: TestClient, engine: Engine
+) -> None:
+    """ABA: A reads rev 0; B approves and reopens (rev 2, in review again); A's approve is stale."""
+    version_id = _version(client, engine)
+    seen = _version_state(client, version_id)  # ("in_review", 0)
+    _act(client, version_id, APPROVE)
+    _act(client, version_id, {"action": "reopen", "expected_state": "approved"})
+
+    response = client.post(
+        _path(version_id), json={**APPROVE, "expected_revision": seen[1], "note": "Stale"}
+    )
+
+    assert response.status_code == 409
+    problem = response.json()
+    assert (problem["code"], problem["current_state"], problem["current_revision"]) == (
+        "REVIEW_STATE_CONFLICT",
+        "in_review",
+        2,
+    )
+    assert _events(engine) == 2
+    assert _version_state(client, version_id) == ("in_review", 2)
+
+
+def test_the_current_revision_is_accepted_and_a_negative_one_is_malformed(
+    client: TestClient, engine: Engine
+) -> None:
+    version_id = _version(client, engine)
+
+    accepted = client.post(_path(version_id), json={**APPROVE, "expected_revision": 0})
+    malformed = client.post(
+        _path(version_id),
+        json={"action": "reopen", "expected_state": "approved", "expected_revision": -1},
+    )
+
+    assert accepted.status_code == 201
+    assert (malformed.status_code, malformed.json()["code"]) == (422, "VALIDATION_FAILED")
+
+
+def test_a_state_conflict_also_names_the_current_revision(
+    client: TestClient, engine: Engine
+) -> None:
+    version_id = _version(client, engine)
+    _act(client, version_id, APPROVE)
+
+    problem = client.post(_path(version_id), json=REQUEST).json()
+
+    assert (problem["current_state"], problem["current_revision"]) == ("approved", 1)
+
+
+def test_the_same_key_with_another_note_is_refused(client: TestClient, engine: Engine) -> None:
+    """The note is part of the request's fingerprint, like the action and the expected state."""
+    version_id = _version(client, engine)
+    headers = {"Idempotency-Key": "review-note"}
+    client.post(_path(version_id), json={**APPROVE, "note": "First"}, headers=headers)
+
+    again = client.post(_path(version_id), json={**APPROVE, "note": "Second"}, headers=headers)
+
+    assert (again.status_code, again.json()["code"]) == (422, "IDEMPOTENCY_KEY_REUSED")
+    assert _events(engine) == 1

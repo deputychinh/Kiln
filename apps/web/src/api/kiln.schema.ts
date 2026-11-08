@@ -408,8 +408,9 @@ export interface paths {
          * Transition
          * @description Approve, request changes on or reopen a version; the answer is the new history event.
          *
-         *     Compare-and-set: nothing changes unless the version is still in `expected_state` (409
-         *     `REVIEW_STATE_CONFLICT` with `current_state`). The state machine is in `domain/reviews.py`.
+         *     Compare-and-set: nothing changes unless the version is still in `expected_state` and, when
+         *     sent, at `expected_revision` (409 `REVIEW_STATE_CONFLICT` with `current_state` and
+         *     `current_revision`). The state machine is in `domain/reviews.py`.
          */
         post: operations["transition_api_v1_asset_versions__version_id__review_transitions_post"];
         delete?: never;
@@ -846,6 +847,11 @@ export interface components {
             /** @description The state you saw. If someone changed it since, nothing happens and the answer is 409 `REVIEW_STATE_CONFLICT` with `current_state`. */
             expected_state: components["schemas"]["ReviewState"];
             /**
+             * Expected Revision
+             * @description The `review_revision` you saw. Recommended: it also refuses a decision when the state is the same but someone decided and reopened since (409 `REVIEW_STATE_CONFLICT`).
+             */
+            expected_revision?: number | null;
+            /**
              * Note
              * @description Optional, up to 1,000 characters after trimming; blank means none.
              */
@@ -1096,6 +1102,12 @@ export interface components {
              * @default null
              */
             current_state: components["schemas"]["ReviewState"] | null;
+            /**
+             * Current Revision
+             * @description On `REVIEW_STATE_CONFLICT`: the version's review revision now (KILN-11).
+             * @default null
+             */
+            current_revision: number | null;
         };
     };
     responses: never;

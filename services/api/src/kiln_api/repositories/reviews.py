@@ -104,7 +104,7 @@ class SqlReviewStore:
             row.review_state != read.review_state.value
             or row.review_revision != read.review_revision
         ):
-            raise ReviewStateConflictError(ReviewState(row.review_state))
+            raise ReviewStateConflictError(ReviewState(row.review_state), row.review_revision)
         raise VersionNotReadyError
 
     def event_view(self, event_id: UUID) -> ReviewEventView:

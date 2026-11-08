@@ -29,10 +29,11 @@ class ReviewService:
         *,
         action: ReviewAction,
         expected_state: ReviewState,
+        expected_revision: int | None = None,
         note: str | None,
         idempotency_key: str | None = None,
     ) -> Created[ReviewEventView]:
-        """Apply `action` if the version is still in `expected_state`; return the new event.
+        """Apply `action` if the version is still as the reviewer saw it; return the new event.
 
         One transaction: the key's claim, the compare-and-set and the event commit together, so a
         refused decision leaves no event and does not use up its key.
@@ -42,6 +43,7 @@ class ReviewService:
         payload: dict[str, object] = {
             "action": action.value,
             "expected_state": expected_state.value,
+            "expected_revision": expected_revision,
             "note": note,
         }
         with self._unit_of_work() as tx:
@@ -54,6 +56,7 @@ class ReviewService:
                 version,
                 action,
                 expected_state=expected_state,
+                expected_revision=expected_revision,
                 actor_id=principal.user_id,
                 note=note,
                 now=self._clock.now(),
