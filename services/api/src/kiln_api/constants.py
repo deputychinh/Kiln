@@ -131,17 +131,21 @@ COMMON_PASSWORDS_SHA256 = "c2e5696882c603b76bb67a47ee970897e5a76fc4c3f5547abe3d0
 LONG_BREACHED_PASSWORDS_FILE = "resources/long-breached-passwords.txt"
 LONG_BREACHED_PASSWORDS_SHA256 = "977ebd3a68e793459a1f83c6766ccf75152f9268098d624d8dac7c28326d3c37"
 PASSWORD_LIST_FILES = (COMMON_PASSWORDS_FILE, LONG_BREACHED_PASSWORDS_FILE)
-# Words a password must not lean on (NIST 63B-4 "context-specific words"): the service's name and
-# the email's local part with its pieces. Shorter pieces are ignored: "al" or "jo" would cut into
-# ordinary words.
+# Context-specific words (NIST SP 800-63B-4) a password must not lean on: this fixed one, plus
+# what `password_context_words` takes from the user (the email's local part and domain labels but
+# the last, the display name) and their pieces (ADRs 0017 and 0019). Pieces shorter than the
+# minimum below are ignored: "al" or "jo" would cut into ordinary words.
 PASSWORD_CONTEXT_WORDS = ("kiln",)
 PASSWORD_CONTEXT_WORD_MIN_LENGTH = 3
-# Hashed as NFKC: one code point can expand to 18 (U+FDFA), so the normalised form gets its own
-# bound, the same 4x slack the sign-in field allows (ADR 0019).
-PASSWORD_NORMALISED_MAX_LENGTH = PASSWORD_MAX_LENGTH * 4
-# Unicode 16 Default_Ignorable_Code_Point ranges that are not format characters (Cf is checked by
-# category): drawn as nothing, so they neither count toward a password's length nor change how it
-# compares with the blocklist (ADR 0019).
+# One bound for what a password may be as typed and once NFKC-normalised (it is hashed as NFKC,
+# and one code point can expand to 18): sign-in's request field and account creation both use it,
+# so every password that can be created can also be sent at sign-in (ADRs 0019 and 0021).
+PASSWORD_INPUT_MAX_LENGTH = PASSWORD_MAX_LENGTH * 4
+# Unicode 16 Default_Ignorable_Code_Point ranges outside the categories checked directly (Cf
+# format, Cc control, Zl and Zp separators): drawn as nothing, so they neither count toward a
+# password's length nor change how it compares with the blocklist (ADRs 0019 and 0021). Ranges that
+# are entirely Cf (U+1BCA0-1BCA3 shorthand and U+1D173-1D17A musical format controls) are left out:
+# the category check already covers them, and a test samples one of each.
 PASSWORD_IGNORABLE_RANGES = (
     (0x034F, 0x034F),  # combining grapheme joiner
     (0x115F, 0x1160),  # Hangul choseong and jungseong fillers
@@ -152,8 +156,6 @@ PASSWORD_IGNORABLE_RANGES = (
     (0xFE00, 0xFE0F),  # variation selectors
     (0xFFA0, 0xFFA0),  # half-width Hangul filler
     (0xFFF0, 0xFFF8),  # unassigned specials
-    (0x1BCA0, 0x1BCA3),  # shorthand format controls
-    (0x1D173, 0x1D17A),  # musical symbol format controls
     (0xE0000, 0xE0FFF),  # tags and variation selectors supplement
 )
 EMAIL_MAX_LENGTH = 254

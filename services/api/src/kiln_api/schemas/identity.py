@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from kiln_api.constants import (
     ACCESS_TOKEN_NAME_MAX_LENGTH,
     EMAIL_MAX_LENGTH,
-    PASSWORD_MAX_LENGTH,
+    PASSWORD_INPUT_MAX_LENGTH,
 )
 from kiln_api.domain.identity import AccessToken, Principal
 from kiln_api.enums import AuthMethod, Scope
@@ -24,7 +24,7 @@ class SignInRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: str = Field(min_length=1, max_length=EMAIL_MAX_LENGTH * _FIELD_SLACK)
-    password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH * _FIELD_SLACK)
+    password: str = Field(min_length=1, max_length=PASSWORD_INPUT_MAX_LENGTH)
 
 
 class MeOut(BaseModel):

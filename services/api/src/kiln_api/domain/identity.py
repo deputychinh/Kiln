@@ -20,9 +20,9 @@ from kiln_api.constants import (
     PASSWORD_CONTEXT_WORD_MIN_LENGTH,
     PASSWORD_CONTEXT_WORDS,
     PASSWORD_IGNORABLE_RANGES,
+    PASSWORD_INPUT_MAX_LENGTH,
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
-    PASSWORD_NORMALISED_MAX_LENGTH,
     SESSION_ABSOLUTE_HOURS,
     SESSION_ID_BYTES,
     SESSION_IDLE_MINUTES,
@@ -40,9 +40,9 @@ from kiln_api.errors import (
 
 # One `@`, no spaces, a dot in the domain: enough to catch typos; the operator types these.
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-# What an access token looks like on the wire; anything else is refused without a lookup.
 # Where an email's local part splits into the words people reuse ("ada.lovelace" → ada, lovelace).
 _WORD_BREAK = re.compile(r"[\W_]+")
+# What an access token looks like on the wire; anything else is refused without a lookup.
 _TOKEN = re.compile(rf"^{ACCESS_TOKEN_PREFIX}[A-Za-z0-9_-]{{43}}$")
 SESSION_IDLE = timedelta(minutes=SESSION_IDLE_MINUTES)
 SESSION_ABSOLUTE = timedelta(hours=SESSION_ABSOLUTE_HOURS)
@@ -129,10 +129,15 @@ def normalize_password(password: str) -> str:
     return unicodedata.normalize("NFKC", password)
 
 
+# Never drawn as a visible character: format (Cf) and control (Cc) characters, line and
+# paragraph separators (Zl, Zp). Spaces (Zs) and combining marks (Mn, Mc, Me) do count (ADR 0021).
+_UNSEEN_CATEGORIES = frozenset({"Cf", "Cc", "Zl", "Zp"})
+
+
 def _is_ignorable(char: str) -> bool:
-    """Format characters and Unicode's other default-ignorable code points: drawn as nothing."""
+    """Drawn as nothing: the categories above and Unicode's other default-ignorable code points."""
     code = ord(char)
-    return unicodedata.category(char) == "Cf" or any(
+    return unicodedata.category(char) in _UNSEEN_CATEGORIES or any(
         low <= code <= high for low, high in PASSWORD_IGNORABLE_RANGES
     )
 
@@ -143,7 +148,8 @@ def password_length(password: str) -> int:
     NIST SP 800-63B-4 counts each code point once. NFC keeps "é" typed as one or two code points
     at one, unlike a raw count, but never expands a compatibility character such as U+FDFA
     (one code point, 18 after NFKC), unlike the NFKC count used before (ADR 0019). Zero-width
-    and other default-ignorable characters show nothing, so they do not count.
+    and other default-ignorable characters, controls (tab, newline, NUL) and line or paragraph
+    separators show nothing, so they do not count; combining marks do (ADR 0021).
     """
     return sum(not _is_ignorable(char) for char in unicodedata.normalize("NFC", password))
 
@@ -157,7 +163,7 @@ def password_key(password: str) -> str:
     the case and only NFKC (`normalize_password`, KILN-12).
     """
     folded = unicodedata.normalize("NFKC", unicodedata.normalize("NFKC", password).casefold())
-    if folded.isascii():  # ASCII has no ignorable code points; keeps loading the list fast
+    if folded.isascii() and folded.isprintable():  # nothing to strip; keeps loading the list fast
         return folded
     return "".join(char for char in folded if not _is_ignorable(char))
 
@@ -215,15 +221,17 @@ def check_new_password(
     """Refuse a password being chosen (ASVS 5.0 V6.2, NIST SP 800-63B-4 3.1.1.2).
 
     Length only for composition (no character-class rules, never trimmed): 15 to 128 code
-    points (`password_length`), and at most `PASSWORD_NORMALISED_MAX_LENGTH` once NFKC-normalised
-    as it is hashed. Then the bundled list of common and breached passwords (`blocklist` holds
-    `password_key` forms). Then context: what is left without the context words must still hold
-    15 of the password's code points and not be on the list. Never called at sign-in, so
-    passwords chosen under older rules keep working (ADRs 0017 and 0019).
+    points (`password_length`), and at most `PASSWORD_INPUT_MAX_LENGTH` both as typed (what
+    sign-in accepts) and once NFKC-normalised as it is hashed. Then the bundled list of common
+    and breached passwords (`blocklist` holds `password_key` forms). Then context: what is left
+    without the context words must still hold 15 of the password's code points and not be on the
+    list. Never called at sign-in, so passwords chosen under older rules keep working (ADRs 0017,
+    0019 and 0021).
     """
     if not (
         PASSWORD_MIN_LENGTH <= password_length(password) <= PASSWORD_MAX_LENGTH
-        and len(normalize_password(password)) <= PASSWORD_NORMALISED_MAX_LENGTH
+        and len(password) <= PASSWORD_INPUT_MAX_LENGTH
+        and len(normalize_password(password)) <= PASSWORD_INPUT_MAX_LENGTH
     ):
         raise WeakPasswordError
     if password_key(password) in blocklist:

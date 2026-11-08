@@ -1,7 +1,9 @@
+import random
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from kiln_api.domain.identity import (
     AccessToken,
@@ -29,6 +31,7 @@ from kiln_api.errors import (
     InvalidTokenNameError,
     WeakPasswordError,
 )
+from kiln_api.schemas.identity import SignInRequest
 
 NOW = datetime(2026, 11, 8, 9, 0, tzinfo=UTC)
 READ = frozenset({Scope.READ})
@@ -83,6 +86,12 @@ def test_a_password_outside_15_to_128_characters_is_refused(length: int) -> None
         "\u3392" * 5,  # the "MHz" square: 5 code points, 15 after NFKC
         "x" * 14 + "\u200b",  # a zero-width space does not count
         "x" * 14 + "\ufe0f",  # nor a variation selector
+        "abcdefghijklmn\t",  # nor a tab (Cc)
+        "abcdefghijklmn\x00",  # nor NUL
+        "abcdefghijklmn\n",  # nor a newline
+        "abcdefghijklmn\x7f",  # nor DEL
+        "abcdefghijklmn\u2028",  # nor a line separator (Zl)
+        "abcdefghijklmn\u2029",  # nor a paragraph separator (Zp)
     ],
 )
 def test_each_visible_code_point_counts_once_toward_the_minimum(password: str) -> None:
@@ -94,10 +103,89 @@ def test_a_password_of_15_compatibility_characters_counts_15() -> None:
     _check("\ufdfa" * 15)  # 270 characters after NFKC, within the hashed bound of 512
 
 
-def test_the_hashed_form_is_bounded_too() -> None:
-    _check("\ufdfa" * 28)  # 504 after NFKC
+def test_the_hashed_form_is_bounded_at_exactly_512() -> None:
+    _check("\ufdfa" * 28 + "x" * 8)  # 36 code points, 512 after NFKC
 
+    _refused_as_weak("\ufdfa" * 28 + "x" * 9)  # 513 after NFKC
     _refused_as_weak("\ufdfa" * 29)  # 522 after NFKC, although only 29 code points
+
+
+def test_the_typed_form_is_bounded_at_exactly_512_as_sign_in_is() -> None:
+    """Decomposed accents and invisible characters do not count, but they are still sent."""
+    _check("x" * 128 + "\u200b" * 384)  # 128 visible, 512 typed
+
+    _refused_as_weak("x" * 128 + "\u200b" * 385)  # 513 typed
+    _refused_as_weak("e\u0301" * 128 + "\u200b" * 384)  # 128 after NFC, 640 typed
+
+
+# Characters that count once each, whatever they become after NFKC.
+_VISIBLE = [
+    "x",
+    "e\u0301",  # decomposed: two code points typed, one after NFC
+    "\u00e9",
+    "\ufdfa",  # 18 characters after NFKC
+    "\ufb03",
+    "\u0334",  # a combining mark that never composes
+    " ",
+    "\U0001f525",  # an emoji outside the BMP
+    "\u5bc6",  # CJK
+]
+# Typed, sent at sign-in, but never counted.
+_UNSEEN = ["\u200b", "\t", "\u200d", "\ufe0f", "\u2028"]
+
+
+def _generated_passwords(count: int) -> list[str]:
+    """15-128 visible characters padded with 0-600 unseen ones, so many lie near or past the
+    512-character bound; seeded, so a failure names the same passwords on every run."""
+    rng = random.Random(39)  # noqa: S311 - test data, not a secret
+    passwords = []
+    for _ in range(count):
+        parts = [rng.choice(_VISIBLE) for _ in range(rng.randint(15, 128))]
+        parts += [rng.choice(_UNSEEN) for _ in range(rng.randint(0, 600))]
+        rng.shuffle(parts)
+        passwords.append("".join(parts))
+    return passwords
+
+
+_EDGES = [
+    "x" * 128,
+    "x" * 128 + "\u200b" * 384,
+    "\ufdfa" * 28 + "x" * 8,
+    "e\u0301" * 128,
+    "\U0001f525" * 128,
+    "\u5bc6" * 15,
+]
+
+
+def _accepted(password: str) -> bool:
+    try:
+        check_new_password(password, email=EMAIL, blocklist=frozenset())
+    except WeakPasswordError:
+        return False
+    return True
+
+
+@pytest.mark.parametrize("password", _EDGES)
+def test_a_password_at_an_edge_that_can_be_created_can_be_sent_at_sign_in(password: str) -> None:
+    assert _accepted(password)
+
+    SignInRequest(email=EMAIL, password=password)
+
+
+def test_every_password_that_can_be_created_can_be_sent_at_sign_in() -> None:
+    """Property over 3,000 seeded passwords: creation never accepts what `SignInRequest` would
+    refuse (review round 2: a decomposed password was accepted and could never sign in)."""
+    accepted = [password for password in _generated_passwords(3_000) if _accepted(password)]
+    refused_at_sign_in = []
+    for password in accepted:
+        try:
+            SignInRequest(email=EMAIL, password=password)
+        except ValidationError:
+            refused_at_sign_in.append(len(password))
+
+    assert len(accepted) >= 300  # the property is exercised, not vacuous
+    assert max(len(password) for password in accepted) > 400  # near the 512 bound
+    assert refused_at_sign_in == []
 
 
 @pytest.mark.parametrize("length", [15, 128])
@@ -367,3 +455,44 @@ def test_the_domain_display_name_and_underscored_pieces_are_context_words(
 ) -> None:
     with pytest.raises(GuessablePasswordError):
         _check(password, email, display_name)
+
+
+_RANGE_SAMPLES = [
+    "\u3164",  # Hangul filler
+    "\u115f",  # Hangul choseong filler
+    "\u1160",  # Hangul jungseong filler
+    "\uffa0",  # half-width Hangul filler
+    "\U000e0100",  # variation selector supplement
+    "\U000e0001",  # language tag
+    "\U000e007f",  # cancel tag
+    "\u034f",  # combining grapheme joiner
+    "\u17b4",  # Khmer inherent vowel
+    "\u180b",  # Mongolian free variation selector
+    "\u2065",  # unassigned, default-ignorable
+    "\ufff0",  # unassigned special
+    "\U0001bca0",  # shorthand format letter overlap
+    "\U0001d173",  # musical symbol begin beam
+]
+
+
+@pytest.mark.parametrize("char", _RANGE_SAMPLES)
+def test_each_default_ignorable_code_point_neither_counts_nor_changes_the_key(char: str) -> None:
+    """One sample per range of `PASSWORD_IGNORABLE_RANGES` and its ends (review round 2)."""
+    _refused_as_weak("x" * 14 + char)
+    assert password_key("pass" + char + "word") == "password"
+    with pytest.raises(CommonPasswordError):
+        _check("password" + char + "password")
+
+
+def test_a_control_character_does_not_get_a_listed_password_through() -> None:
+    for char in ("\t", "\n", "\x00", "\u2028"):
+        with pytest.raises(CommonPasswordError):
+            _check("passwordpassword" + char)
+
+
+def test_combining_marks_count_as_code_points_as_nist_says() -> None:
+    """NIST SP 800-63B-4: each code point counts; marks are drawn and carry meaning (ADR 0021)."""
+    _check("a" + "\u0334" * 14)  # 15 code points after NFC (U+0334 composes with nothing)
+    _check("\u0915\u094d\u0937" * 5)  # Devanagari "ksha" (with a virama) five times
+
+    _refused_as_weak("a" + "\u0334" * 13)
