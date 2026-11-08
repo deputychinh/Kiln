@@ -11,6 +11,9 @@ const uniqueName = (prefix: string, testInfo: TestInfo): string =>
   `e2e_${prefix}_${testInfo.project.name}_${randomUUID().slice(0, 8)}`;
 
 const seriousViolations = async (page: Page): Promise<string[]> => {
+  // From the top of the page: axe counts a target scrolled under the sticky top bar as obscured,
+  // so the verdict would otherwise depend on where the last click left the scroll (KILN-11).
+  await page.evaluate(() => window.scrollTo(0, 0));
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
     .analyze();

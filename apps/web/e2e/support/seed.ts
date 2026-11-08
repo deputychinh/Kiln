@@ -150,3 +150,22 @@ export const seedResolved = async (request: APIRequestContext, threadId: string)
   });
   if (!response.ok()) throw new Error(`resolve failed: ${String(response.status())}`);
 };
+
+type ReviewAction = components['schemas']['ReviewAction'];
+type ReviewState = components['schemas']['ReviewState'];
+
+/** Decides on a version as another client would (KILN-11): approve, request changes or reopen. */
+export const seedReviewTransition = async (
+  request: APIRequestContext,
+  versionId: string,
+  data: { action: ReviewAction; expectedState: ReviewState; note?: string },
+): Promise<void> => {
+  const response = await request.post(
+    `${API_URL}/api/v1/asset-versions/${versionId}/review-transitions`,
+    {
+      headers: asCli(),
+      data: { action: data.action, expected_state: data.expectedState, note: data.note ?? null },
+    },
+  );
+  if (!response.ok()) throw new Error(`review failed: ${String(response.status())}`);
+};
