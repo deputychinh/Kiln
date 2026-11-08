@@ -303,11 +303,34 @@ class InvalidDisplayNameError(DomainError):
 
 
 class WeakPasswordError(DomainError):
-    """The password is outside the allowed length."""
+    """A new password is refused: outside the allowed length, or one of the subclasses below.
+
+    No detail ever repeats the password.
+    """
 
     status = HTTPStatus.UNPROCESSABLE_ENTITY
     code = ErrorCode.WEAK_PASSWORD
     default_detail = f"A password needs {PASSWORD_MIN_LENGTH} to {PASSWORD_MAX_LENGTH} characters."
+
+
+class CommonPasswordError(WeakPasswordError):
+    """The password is on the bundled list of common and breached passwords (KILN-39)."""
+
+    code = ErrorCode.COMMON_PASSWORD
+    default_detail = (
+        "This password is on a list of common or breached passwords that attackers try first."
+        " Choose another one, for example a few unrelated words."
+    )
+
+
+class GuessablePasswordError(WeakPasswordError):
+    """Without the email's name and "kiln", the password is too short or common (KILN-39)."""
+
+    code = ErrorCode.GUESSABLE_PASSWORD
+    default_detail = (
+        "This password leans on the email address or the name Kiln, which attackers try first:"
+        f" it needs {PASSWORD_MIN_LENGTH} characters besides them. Choose another one."
+    )
 
 
 class EmailTakenError(DomainError):

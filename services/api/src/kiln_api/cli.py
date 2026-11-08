@@ -12,6 +12,7 @@ from collections.abc import Callable, Sequence
 from enum import IntEnum
 from typing import TextIO
 
+from kiln_api.adapters import load_common_passwords
 from kiln_api.clock import SystemClock
 from kiln_api.config import get_settings
 from kiln_api.container import build_engine, build_hasher
@@ -76,10 +77,12 @@ def run(
     return ExitCode.OK
 
 
-def main() -> None:  # pragma: no cover - wiring only; `run` is tested
+def main() -> None:  # pragma: no cover - runs in a subprocess in test_cli.py
     """Entry point: real settings, database and Argon2."""
     engine = build_engine(get_settings())
-    identity = IdentityService(SqlIdentityStore(engine), build_hasher(), SystemClock(), uuid7)
+    identity = IdentityService(
+        SqlIdentityStore(engine), build_hasher(), SystemClock(), uuid7, load_common_passwords()
+    )
     try:
         code = run(sys.argv[1:], identity)
     finally:

@@ -4,6 +4,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 
 ## [Unreleased]
 
+### Security
+
+- Password policy (KILN-39, ADR 0017): `make create-user` refuses a new password under 15 characters (was 12; NIST SP 800-63B-4 for a single-factor password), one on the bundled NCSC list of the 100,000 most common breached passwords (`COMMON_PASSWORD`), or one that is a derivative of "kiln" or the email's local part (`GUESSABLE_PASSWORD`), compared after NFKC and case-folding; the message says why without repeating the password. The list is offline, checksum-pinned and loaded once at startup; no breach API is called. Existing passwords keep signing in.
+
 ## [0.2.0] - 2026-11-08
 
 Phase 2, review: sign-in and personal access tokens, new versions from the asset detail, side-by-side compare, a 3D viewer for glTF binaries, region annotations and comment threads, approval states with history, and a dark-first visual redesign; a hung job no longer blocks its worker. Review debt carried to v0.3 is listed in `docs/backlog.md`.

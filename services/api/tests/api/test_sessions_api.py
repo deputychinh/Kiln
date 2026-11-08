@@ -9,6 +9,7 @@ from fakes import FakeStorage, FixedClock
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, select
 
+from kiln_api.adapters import load_common_passwords
 from kiln_api.config import Settings
 from kiln_api.container import build_container
 from kiln_api.db.schema import sessions
@@ -406,14 +407,36 @@ def test_fifty_failures_from_one_address_block_it_for_every_account(
 @pytest.mark.parametrize(
     ("created_with", "signed_in_with"),
     [
-        ("cafe\u0301 au lait 42", "caf\u00e9 au lait 42"),
-        ("caf\u00e9 au lait 42", "cafe\u0301 au lait 42"),
+        ("cafe\u0301 au lait at 42", "caf\u00e9 au lait at 42"),
+        ("caf\u00e9 au lait at 42", "cafe\u0301 au lait at 42"),
     ],
 )
 def test_a_password_signs_in_whichever_unicode_form_the_keyboard_sent(
     anonymous_client: TestClient, engine: Engine, created_with: str, signed_in_with: str
 ) -> None:
-    identity = IdentityService(SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7)
+    identity = IdentityService(
+        SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7, load_common_passwords()
+    )
     identity.create_user("zoe@kiln.test", "Zoe", created_with)
 
     assert _sign_in(anonymous_client, "zoe@kiln.test", signed_in_with).status_code == 201
+
+
+@pytest.mark.parametrize("old_password", ["password1234", "kiln-ada-2026"])
+def test_a_password_chosen_before_the_kiln_39_rules_still_signs_in(
+    anonymous_client: TestClient, engine: Engine, old_password: str
+) -> None:
+    """Common, 12-14 characters, a context word: refused for new passwords, never at sign-in."""
+    stamp = FixedClock().now()
+    SqlIdentityStore(engine).add_user(
+        User(
+            id=uuid7(),
+            email="old@kiln.test",
+            display_name="Old Account",
+            password_hash=TEST_HASHER.hash(old_password),
+            created_at=stamp,
+            updated_at=stamp,
+        )
+    )
+
+    assert _sign_in(anonymous_client, "old@kiln.test", old_password).status_code == 201

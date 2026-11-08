@@ -3,6 +3,7 @@
 import logging
 import math
 import secrets
+from collections.abc import Container
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -82,9 +83,14 @@ class IdentityService:
         hasher: PasswordHasher,
         clock: Clock,
         new_id: IdFactory,
+        common_passwords: Container[str],
     ) -> None:
-        """Receive collaborators; hash a random password so unknown emails cost the same."""
+        """Receive collaborators; hash a random password so unknown emails cost the same.
+
+        `common_passwords` holds the blocklist in `password_key` form (ADR 0017).
+        """
         self._store = store
+        self._common_passwords = common_passwords
         self._hasher = hasher
         self._clock = clock
         self._new_id = new_id
@@ -93,12 +99,17 @@ class IdentityService:
     # --- users ------------------------------------------------------------------------------
 
     def create_user(self, email: str, display_name: str, password: str) -> User:
-        """Create a user (the operator's `make create-user`; there is no public sign-up)."""
-        check_new_password(password)
+        """Create a user (the operator's `make create-user`; there is no public sign-up).
+
+        The only place a password is chosen in v0.3, so the only caller of `check_new_password`
+        (a later change or reset must call it too).
+        """
+        normalized_email = normalize_email(email)
+        check_new_password(password, email=normalized_email, blocklist=self._common_passwords)
         now = self._clock.now()
         user = User(
             id=self._new_id(),
-            email=normalize_email(email),
+            email=normalized_email,
             display_name=clean_display_name(display_name),
             password_hash=self._hasher.hash(normalize_password(password)),
             created_at=now,

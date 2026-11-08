@@ -47,6 +47,8 @@ class ErrorCode(StrEnum):
     INVALID_EMAIL = "INVALID_EMAIL"
     INVALID_DISPLAY_NAME = "INVALID_DISPLAY_NAME"
     WEAK_PASSWORD = "WEAK_PASSWORD"  # noqa: S105 - an error code, not a secret
+    COMMON_PASSWORD = "COMMON_PASSWORD"  # noqa: S105 - an error code, not a secret
+    GUESSABLE_PASSWORD = "GUESSABLE_PASSWORD"  # noqa: S105 - an error code, not a secret
     EMAIL_TAKEN = "EMAIL_TAKEN"
     INVALID_TOKEN_NAME = "INVALID_TOKEN_NAME"  # noqa: S105 - an error code, not a secret
     COMMENT_THREAD_NOT_FOUND = "COMMENT_THREAD_NOT_FOUND"

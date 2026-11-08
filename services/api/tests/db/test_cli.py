@@ -1,10 +1,14 @@
 import io
+import os
+import subprocess
+import sys
 
 import pytest
 from db_fixtures import TEST_HASHER, TEST_PASSWORD
 from fakes import FixedClock
 from sqlalchemy import Engine
 
+from kiln_api.adapters import load_common_passwords
 from kiln_api.cli import ExitCode, run
 from kiln_api.domain.ids import uuid7
 from kiln_api.repositories.identity import SqlIdentityStore
@@ -15,7 +19,9 @@ ARGS = ["create-user", "--email", "Ada@Kiln.test", "--name", "Ada Artist"]
 
 @pytest.fixture
 def identity(engine: Engine) -> IdentityService:
-    return IdentityService(SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7)
+    return IdentityService(
+        SqlIdentityStore(engine), TEST_HASHER, FixedClock(), uuid7, load_common_passwords()
+    )
 
 
 def test_create_user_asks_twice_without_echo_and_stores_an_argon2id_hash(
@@ -69,5 +75,46 @@ def test_create_user_refuses_a_short_password_and_a_taken_email(
     taken = run(ARGS, identity, out=out, prompt=lambda _: TEST_PASSWORD)
 
     assert (short, taken) == (ExitCode.INVALID, ExitCode.EMAIL_TAKEN)
-    assert "12 to 128 characters" in out.getvalue()
+    assert "15 to 128 characters" in out.getvalue()
     assert "already exists" in out.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("password", "reason"),
+    [
+        ("1qaz2wsx3edc4rfv", "list of common or breached passwords"),  # on the bundled list
+        ("LinkedInLinkedIn", "list of common or breached passwords"),  # its case variant
+        ("Ada-Artist-at-Kiln-1", "leans on the email address or the name Kiln"),
+    ],
+)
+def test_create_user_refuses_a_common_or_guessable_password_and_says_why(
+    identity: IdentityService, engine: Engine, password: str, reason: str
+) -> None:
+    out = io.StringIO()
+
+    code = run([*ARGS, "--password-stdin"], identity, stdin=io.StringIO(password + "\n"), out=out)
+
+    assert code is ExitCode.INVALID
+    assert reason in out.getvalue()
+    assert password.casefold() not in out.getvalue().casefold()
+    assert SqlIdentityStore(engine).user_by_email("ada@kiln.test") is None
+
+
+def test_the_installed_command_refuses_a_breached_password(
+    database_url: str, engine: Engine
+) -> None:
+    """`make create-user` as the operator runs it: a new process, its own wiring and list."""
+    result = subprocess.run(  # noqa: S603 - our own interpreter and module
+        [sys.executable, "-m", "kiln_api.cli", *ARGS, "--password-stdin"],
+        input="passwordpassword\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env={**os.environ, "KILN_DATABASE_URL": database_url},
+    )
+
+    assert result.returncode == ExitCode.INVALID
+    assert "list of common or breached passwords" in result.stdout
+    assert "passwordpassword" not in result.stdout + result.stderr
+    assert SqlIdentityStore(engine).user_by_email("ada@kiln.test") is None

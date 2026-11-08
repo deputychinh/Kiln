@@ -1,13 +1,17 @@
 """Adapters for ports that talk to external systems (object storage) or wrap a library (Argon2)."""
 
+import functools
 from collections.abc import Iterator
 from datetime import datetime
 from http import HTTPStatus
+from importlib import resources
 from typing import IO, TYPE_CHECKING
 
 import argon2
 from botocore.exceptions import BotoCoreError, ClientError
 
+from kiln_api.constants import COMMON_PASSWORDS_FILE
+from kiln_api.domain.identity import password_key
 from kiln_api.enums import PromotionResult
 from kiln_api.errors import StorageUnavailableError
 from kiln_api.ports import SignedPost, StoredObject
@@ -225,3 +229,14 @@ class Argon2PasswordHasher:
     def needs_rehash(self, password_hash: str) -> bool:
         """True when the stored parameters differ from the configured ones."""
         return self._hasher.check_needs_rehash(password_hash)
+
+
+@functools.cache
+def load_common_passwords() -> frozenset[str]:
+    """The bundled common and breached passwords in `password_key` form (KILN-39, ADR 0017).
+
+    Read from the package once per process (about 0.1 s, a few MB); a frozenset, so each check is
+    one hash lookup. Offline: no breach API is called.
+    """
+    text = (resources.files("kiln_api") / COMMON_PASSWORDS_FILE).read_text(encoding="utf-8")
+    return frozenset(password_key(line) for line in text.splitlines() if line)

@@ -43,7 +43,7 @@ def test_thirty_parallel_wrong_passwords_check_exactly_ten(
     # Every caller gets its own connection, so only the advisory locks can serialise them.
     pooled = create_engine(database_url, pool_size=CALLERS, max_overflow=0)
     hasher = _SlowCountingHasher()
-    identity = IdentityService(SqlIdentityStore(pooled), hasher, FixedClock(), uuid7)
+    identity = IdentityService(SqlIdentityStore(pooled), hasher, FixedClock(), uuid7, frozenset())
     start = threading.Barrier(CALLERS)
     outcomes: list[str] = []
 
@@ -72,7 +72,7 @@ def test_thirty_parallel_wrong_passwords_check_exactly_ten(
 def test_parallel_attempts_from_one_address_respect_its_limit(database_url: str) -> None:
     pooled = create_engine(database_url, pool_size=CALLERS, max_overflow=0)
     hasher = _SlowCountingHasher()
-    identity = IdentityService(SqlIdentityStore(pooled), hasher, FixedClock(), uuid7)
+    identity = IdentityService(SqlIdentityStore(pooled), hasher, FixedClock(), uuid7, frozenset())
     # Pre-fill 40 failures from one address (each for its own account), then race 30 more.
     for number in range(40):
         with suppress(InvalidCredentialsError):

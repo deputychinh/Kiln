@@ -4620,6 +4620,8 @@
           "INVALID_EMAIL",
           "INVALID_DISPLAY_NAME",
           "WEAK_PASSWORD",
+          "COMMON_PASSWORD",
+          "GUESSABLE_PASSWORD",
           "EMAIL_TAKEN",
           "INVALID_TOKEN_NAME",
           "COMMENT_THREAD_NOT_FOUND",

@@ -117,8 +117,20 @@ MAX_VERSIONS_PER_READ = 500
 ARGON2_MEMORY_KIB = 19_456
 ARGON2_TIME_COST = 2
 ARGON2_PARALLELISM = 1
-PASSWORD_MIN_LENGTH = 12  # ASVS 5.0 V6.2.1 (at least 8; 15 recommended without MFA in NIST 63B)
+# NIST SP 800-63B-4 3.1.1.2: 15 when a password is the only factor, as in Kiln (ADR 0017). Checked
+# only when a password is chosen; passwords set under the old 12-character rule still sign in.
+PASSWORD_MIN_LENGTH = 15
 PASSWORD_MAX_LENGTH = 128  # ASVS V6.2.9: at least 64 must be allowed; bounds the hash work
+# Common and breached passwords refused at creation (ASVS 5.0 V6.2.4, KILN-39, ADR 0017): the NCSC
+# top 100,000 from Have I Been Pwned (2019), bundled as SecLists ships it at commit 231fffb; the
+# checksum pins the file (a test compares them). Read once per process, offline.
+COMMON_PASSWORDS_FILE = "resources/common-passwords.txt"
+COMMON_PASSWORDS_SHA256 = "c2e5696882c603b76bb67a47ee970897e5a76fc4c3f5547abe3d0ca340c576e0"
+# Words a password must not lean on (NIST 63B-4 "context-specific words"): the service's name and
+# the email's local part with its pieces. Shorter pieces are ignored: "al" or "jo" would cut into
+# ordinary words.
+PASSWORD_CONTEXT_WORDS = ("kiln",)
+PASSWORD_CONTEXT_WORD_MIN_LENGTH = 3
 EMAIL_MAX_LENGTH = 254
 DISPLAY_NAME_MAX_LENGTH = 80
 # Sessions: opaque 256-bit ids stored only as SHA-256; OWASP Session Management Cheat Sheet:

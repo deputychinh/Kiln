@@ -1,0 +1,78 @@
+# KILN-39 + KILN-51: A password policy against common and breached passwords; a review history nobody can truncate
+
+- Release: v0.3 · Status: doing · Owner: Claude (deliver-loop) · Security debt from the KILN-12 and KILN-11 reviews (one story for both items)
+
+## Story
+
+As a **studio's Kiln admin**, I want `make create-user` to refuse a password that attackers try first — short, common, breached, or built on the service's name or the person's email — and to tell me why, so that no account starts with a password that a short online guessing run would find (KILN-39).
+
+As a **lead or producer**, I want the review history to stay append-only even against a `TRUNCATE`, so that who approved what can never be wiped by a mistaken cleanup or a statement sent through the app's database login (KILN-51).
+
+INVEST: Independent ☑ (KILN-12 and KILN-11 are done) · Negotiable ☑ (minimum length, list, context rule and the role split are choices, recorded in ADRs 0017 and 0018) · Valuable ☑ (`password1234` was accepted; the history could be emptied in one statement) · Estimable ☑ · Small ☑ (one rule in the domain plus a list; one trigger) · Testable ☑
+
+## Acceptance criteria
+
+| Id   | Platform | Given                                                                                                                                             | When                                                                                  | Then                                                                                                                                                                                                        |
+| ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1  | api, cli | an operator creating an account                                                                                                                   | the password has 14 or 129 characters (after NFKC)                                    | refused with `WEAK_PASSWORD` "A password needs 15 to 128 characters."; 15 and 128 are accepted; spaces count, nothing is trimmed                                                                            |
+| AC2  | api, cli | a password on the bundled NCSC top-100k list (`passwordpassword`)                                                                                 | it is chosen                                                                          | refused with `COMMON_PASSWORD`; the message says it is common or breached and suggests unrelated words                                                                                                      |
+| AC3  | api, cli | a case or width variant of a listed password (`PassWordPassWord`, full-width)                                                                     | it is chosen                                                                          | refused the same way: compared after NFKC, case-folding and NFKC; a longer password that only contains a listed one (`passwordpassword!`) is accepted                                                       |
+| AC4  | api, cli | a password that is a derivative of "kiln" or the email's local part or its pieces (`Ada.Lovelace.2026!` for `ada.lovelace@…`, `kilnkilnkilnkiln`) | it is chosen                                                                          | refused with `GUESSABLE_PASSWORD` when fewer than 15 characters are left without them, or what is left is on the list; 15 left is accepted; containing them is fine (`kiln-glaze-recipes-for-spring`)       |
+| AC5  | api, cli | any refusal                                                                                                                                       | the message is shown                                                                  | it says why, never repeats the password, and the CLI exits 1 creating nothing — also when run as `python -m kiln_api.cli` in a new process                                                                  |
+| AC6  | api      | an account whose password predates these rules (12 characters, listed, or with "kiln")                                                            | that person signs in                                                                  | 201: rules apply only when a password is chosen; nobody is forced to change it                                                                                                                              |
+| AC7  | api      | the bundled list                                                                                                                                  | the API or the CLI starts                                                             | the file matches its recorded SHA-256, holds ≥ 10,000 entries in comparison form, loads once per process in under 1 s (about 0.05 s measured), and a lookup is one frozenset probe; no network call is made |
+| AC8  | db       | the review history has events                                                                                                                     | anyone runs `TRUNCATE review_events` (or `TRUNCATE assets CASCADE`)                   | refused by a statement-level `BEFORE TRUNCATE` trigger; the events stay                                                                                                                                     |
+| AC9  | db       | a version with review events                                                                                                                      | the version (or its asset) is deleted                                                 | its events go with it through the cascade, as before; direct `DELETE` and `UPDATE` stay refused                                                                                                             |
+| AC10 | db       | the migrated database and one built from `db/schema.py`                                                                                           | their functions and triggers are compared (`pg_get_functiondef`, `pg_get_triggerdef`) | identical; migration 0013 adds the trigger without rewriting or long-locking the table and downgrades cleanly                                                                                               |
+
+## Non-functional
+
+- Security: OWASP ASVS 5.0 V6.2.1, V6.2.4, V6.2.9; NIST SP 800-63B-4 §3.1.1.2; Top 10:2025 A07 (authentication failures) and A08/A09 for the history's integrity. No password in logs, messages or test output.
+- Performance: the list costs one load per process (about 0.05 s, a few MB) and O(1) per check.
+- Migrations: `lock_timeout` applies; `CREATE TRIGGER` takes a brief `SHARE ROW EXCLUSIVE` lock and rewrites nothing.
+
+## Out of scope
+
+- An online breach check (Have I Been Pwned k-anonymity): not added (ADR 0017 §6).
+- Password change, reset, MFA: not built yet; a later change must call `check_new_password`.
+- A non-owner runtime database role (KILN-51's second option): filed as KILN-58 with the accepted risk in ADR 0018.
+
+## References
+
+- NIST SP 800-63B-4 §3.1.1.2 Password Verifiers (15 characters single-factor; a blocklist with breach corpuses, dictionary words and context-specific words; the entire password compared), read 2026-11-08: https://pages.nist.gov/800-63-4/sp800-63b.html
+- OWASP ASVS 5.0 V6.2 Password Security (V6.2.4: check new passwords against at least the top 3,000 that match the policy).
+- NCSC, "Passwords, passwords everywhere" (April 2019) and its PwnedPasswordsTop100k list, Open Government Licence v3.0 (NCSC terms, read 2026-11-08); SecLists `Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt` at `231fffb` (MIT).
+- PostgreSQL 17, CREATE TRIGGER: `TRUNCATE` fires only statement-level triggers; row triggers never see it.
+
+## Design
+
+- **Domain** (`domain/identity.py`): `check_new_password(password, *, email, blocklist)` checks length (NFKC code points), then `password_key(password) in blocklist`, then context: `password_context_words(email)` ("kiln", the local part, its pieces ≥ 3 characters, longest first) are removed until none is left, and the rest must be ≥ 15 and not listed. Errors `WeakPasswordError` (`WEAK_PASSWORD`) and its subclasses `CommonPasswordError` (`COMMON_PASSWORD`) and `GuessablePasswordError` (`GUESSABLE_PASSWORD`), all 422, in `errors.py`.
+- **Adapter**: `adapters.load_common_passwords()` reads `kiln_api/resources/common-passwords.txt` (unchanged upstream file; provenance and licences in `common-passwords.LICENSE.txt`) into a frozenset of `password_key` forms, cached per process. `build_container` and the CLI's `main` load it at startup and inject it into `IdentityService`.
+- **Service**: `IdentityService.create_user` normalises the email, then checks the password against it and the list; it is the only place a password is chosen.
+- **API contract**: `ErrorCode` gains `COMMON_PASSWORD` and `GUESSABLE_PASSWORD` (`openapi.json`, web types regenerated); no route changes.
+- **Decisions**: ADR 0017 (15 characters, the list, NFKC_Casefold, context words, no breach API, existing passwords keep working).
+- **KILN-51**: see the second commit (migration 0013, ADR 0018).
+
+## QA
+
+| AC  | Platform | Test(s)                                                                                                                                                                                                                                                                                                                                                            | Result |
+| --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| AC1 | api, cli | `test_identity_domain.py` `test_a_password_outside_15_to_128_characters_is_refused` (14, 129), `test_a_password_of_15_or_128_characters_is_accepted` (15, 128), `test_a_password_is_never_trimmed_so_spaces_count`, `test_the_length_rule_counts_the_normalised_password`; `test_cli.py` `test_create_user_refuses_a_short_password_and_a_taken_email`             | pass   |
+| AC2 | api, cli | `test_a_password_on_the_blocklist_is_refused_as_common`; `test_cli.py` `test_create_user_refuses_a_common_or_guessable_password_and_says_why[1qaz2wsx3edc4rfv-…]`; `test_container.py` `test_the_built_identity_service_refuses_a_password_from_the_bundled_list`                                                                                                  | pass   |
+| AC3 | api, cli | `test_a_case_or_width_variant_of_a_blocklisted_password_is_refused` (4 cases), `test_only_the_whole_password_is_compared_with_the_blocklist`, `test_the_comparison_key_is_nfkc_case_folded`; `test_cli.py` `…[LinkedInLinkedIn-…]`                                                                                                                                 | pass   |
+| AC4 | api, cli | `test_the_context_words_are_kiln_the_local_part_and_its_pieces`, `test_a_password_that_leans_on_context_words_is_refused` (7 cases), `test_a_password_with_enough_besides_the_context_words_is_accepted` (3 cases, the e2e user's password among them); `test_cli.py` `…[Ada-Artist-at-Kiln-1-…]`                                                                  | pass   |
+| AC5 | api, cli | `test_a_refusal_says_why_without_repeating_the_password` (3 cases), `test_create_user_refuses_a_common_or_guessable_password_and_says_why` (3 cases, no user created), `test_the_installed_command_refuses_a_breached_password` (a `python -m kiln_api.cli` subprocess); e2e `auth.setup.ts` still creates the e2e user through the same command                   | pass   |
+| AC6 | api      | `test_sessions_api.py` `test_a_password_chosen_before_the_kiln_39_rules_still_signs_in` (`password1234`, `kiln-ada-2026`), `test_a_password_signs_in_whichever_unicode_form_the_keyboard_sent` (lengthened to 18 characters)                                                                                                                                       | pass   |
+| AC7 | api      | `test_common_passwords.py` `test_the_bundled_file_is_the_one_recorded_by_its_checksum`, `test_the_list_holds_the_top_passwords_in_their_comparison_form`, `test_the_list_is_read_once_per_process`, `test_a_lookup_is_one_hash_probe_whatever_the_list_size` (100,000 lookups < 0.5 s), `test_the_list_loads_fast_in_a_fresh_process` (< 1 s in a new interpreter) | pass   |
+
+Mutations (KILN-39, run by hand in a git worktree with `PYTHONDONTWRITEBYTECODE=1`, each file restored in `finally`; tests: the identity domain, common-password, CLI, container and sessions suites): **20 of 20 killed** — blocklist check removed; raw password compared (no key); no case-folding; no NFKC in the key; minimum 14; minimum 16; `<` instead of `<=` at 128; context words not removed; remainder not checked against the list; remainder length dropped; "kiln" not a context word; local-part pieces dropped; the local part itself dropped; a single removal pass (survived at first: the nested case `kikilnlnkikilnlnkikilnln` was short enough after one pass, so it became `"kikilnln" * 4`, then killed); context-word minimum 4; context-word minimum 1; loader keeps raw lines; the container wires an empty list; the CLI's `main` wires an empty list; `create_user` skips the check.
+
+Gates, first commit (KILN-39): `make lint` 0; `make test` 1333 Python (`KILN_TEST_DATABASE_URL=…/kiln_k39_test`, coverage 99.67 %) + 2 CLI + 154 UI + 608 web; `KILN_API_PORT=8030 make e2e` 102 passed, 9 skipped, 0 failed (the setup still creates the e2e user through `create-user` when it is missing). The dev API on :8010 reloaded the change and answers `/ready` 200.
+
+## Decisions for the reviewer
+
+- **15, not 12** (ADR 0017): a Kiln password is the only factor, which is NIST's 15-character case. At 15, only 329 of the 97,746 distinct list entries can be reached; the list mostly guards a later, lower minimum and the long classics (`passwordpassword`, `1qaz2wsx3edc4rfv`).
+- **The NCSC 100k list** rather than SecLists' 10k: it is drawn from Have I Been Pwned's breach corpus (breached, not only common), published by a national authority under the OGL, and still loads in about 0.05 s. The file is byte-for-byte upstream so its checksum can be compared with SecLists at `231fffb`.
+- **Context words as derivatives, not substrings**: NIST says the entire password is compared, not words inside it, so containing "kiln" is fine; a password is refused only when too little is left without the context words.
+- **No HIBP opt-in**: the CLI runs a few times a year; an outbound call per account adds a third party and a failure mode for little gain over the offline list.
+- **Existing passwords are not forced to change**; the README's quick start and the e2e user's password (33 characters) already pass.

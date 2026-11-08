@@ -2,14 +2,16 @@ from datetime import UTC, datetime, tzinfo
 from typing import Any
 
 import pytest
+from fakes import FakeStorage
 from sqlalchemy import Engine, text
 
 from kiln_api import clock as kiln_clock
 from kiln_api.clock import DatabaseClock
 from kiln_api.config import Settings
 from kiln_api.constants import DB_CONNECT_TIMEOUT_SECONDS
-from kiln_api.container import build_engine, build_storage
+from kiln_api.container import build_container, build_engine, build_storage
 from kiln_api.enums import Environment
+from kiln_api.errors import CommonPasswordError
 
 
 def test_database_sessions_carry_lock_and_statement_timeouts(database_url: str) -> None:
@@ -95,3 +97,14 @@ def test_the_engine_gives_up_connecting_after_a_few_seconds(
     build_engine(Settings(env=Environment.TEST, database_url=database_url))
 
     assert captured["connect_args"]["connect_timeout"] == DB_CONNECT_TIMEOUT_SECONDS
+
+
+def test_the_built_identity_service_refuses_a_password_from_the_bundled_list(
+    database_url: str, engine: Engine
+) -> None:
+    """The real wiring loads the list (KILN-39); a new user cannot pick a breached password."""
+    settings = Settings(env=Environment.TEST, database_url=database_url)
+    container = build_container(settings, engine=engine, storage=FakeStorage())
+
+    with pytest.raises(CommonPasswordError):
+        container.identity.create_user("zoe@kiln.test", "Zoe", "000000000000000")

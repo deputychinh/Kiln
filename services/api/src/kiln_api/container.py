@@ -8,7 +8,7 @@ from botocore.config import Config
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from kiln_api.adapters import Argon2PasswordHasher, S3ObjectStorage
+from kiln_api.adapters import Argon2PasswordHasher, S3ObjectStorage, load_common_passwords
 from kiln_api.clock import SystemClock
 from kiln_api.config import Settings
 from kiln_api.constants import (
@@ -158,7 +158,11 @@ def build_container(
         SqlUnitOfWork(engine),
     )
     identity = IdentityService(
-        SqlIdentityStore(engine), hasher or build_hasher(), resolved_clock, uuid7
+        SqlIdentityStore(engine),
+        hasher or build_hasher(),
+        resolved_clock,
+        uuid7,
+        load_common_passwords(),  # at startup: a missing list fails here, not at the first user
     )
     comments = CommentService(resolved_clock, uuid7, SqlUnitOfWork(engine))
     return Container(
