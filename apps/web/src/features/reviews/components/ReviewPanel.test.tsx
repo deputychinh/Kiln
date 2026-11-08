@@ -24,6 +24,15 @@ const openReview = async (): Promise<HTMLElement> => {
 };
 const form = (number = 2): HTMLElement =>
   screen.getByRole('form', { name: `Decide on version ${String(number)}` });
+/** A refused decision's message: it takes focus and is no alert, so it is read once (KILN-48). */
+const queryRefusal = (): HTMLElement | null =>
+  document.querySelector<HTMLElement>('.review-panel__problem');
+const findRefusal = (): Promise<HTMLElement> =>
+  waitFor(() => {
+    const refusal = queryRefusal();
+    if (!refusal) throw new Error('no refusal is shown');
+    return refusal;
+  });
 
 describe('Review tab', () => {
   let server: ReturnType<typeof serveReviews>;
@@ -119,11 +128,15 @@ describe('Review tab', () => {
     await userEvent.type(within(form()).getByRole('textbox', { name: /Note/ }), 'Too dark.');
     await userEvent.click(within(form()).getByRole('button', { name: 'Request changes' }));
 
-    const alert = await screen.findByRole('alert');
+    const alert = await findRefusal();
     expect(alert).toHaveTextContent(
       'Someone else decided first: this version is now “Approved”. Check it, then decide again. Your note is kept.',
     );
     await waitFor(() => expect(alert).toHaveFocus());
+    // Focus is the one channel: no alert role, or NVDA and JAWS read it twice.
+    expect(alert).not.toHaveAttribute('role');
+    expect(alert).toHaveAttribute('tabindex', '-1');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await waitFor(() =>
       expect(within(form()).getByRole('button', { name: 'Reopen' })).toBeVisible(),
     );
@@ -140,7 +153,7 @@ describe('Review tab', () => {
 
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('this version is now “In review”');
+    expect(await findRefusal()).toHaveTextContent('this version is now “In review”');
     expect(server.requests('POST', TRANSITIONS)[0]?.body).toMatchObject({ expected_revision: 0 });
     // The refetched version carries the new revision: the next approve goes through.
     expect(await screen.findByText('Bo Lead reopened')).toBeVisible();
@@ -158,13 +171,13 @@ describe('Review tab', () => {
     await openReview();
     await userEvent.type(within(form()).getByRole('textbox', { name: /Note/ }), 'Looks right.');
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
-    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(await findRefusal()).toBeVisible();
 
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Review of' }), 'v-1');
 
     expect(screen.getByRole('combobox', { name: 'Review of' })).toHaveFocus();
     expect(within(form(1)).getByRole('textbox', { name: /Note/ })).toHaveValue('');
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(queryRefusal()).not.toBeInTheDocument();
     await userEvent.type(within(form(1)).getByRole('textbox', { name: /Note/ }), 'Looks right.');
     await userEvent.click(within(form(1)).getByRole('button', { name: 'Approve' }));
     expect(await screen.findByText('Version 1 approved')).toBeInTheDocument();
@@ -179,7 +192,7 @@ describe('Review tab', () => {
     await openReview();
 
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
-    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(await findRefusal()).toBeVisible();
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
 
     expect(await screen.findByText('Version 2 approved')).toBeInTheDocument();
@@ -200,7 +213,7 @@ describe('Review tab', () => {
       const field = (): HTMLElement => within(form()).getByRole('textbox', { name: /Note/ });
       await userEvent.type(field(), 'Rim fixed.');
       await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
-      const alert = await screen.findByRole('alert');
+      const alert = await findRefusal();
       await waitFor(() => expect(alert).toHaveFocus());
 
       await userEvent.clear(field());
@@ -227,7 +240,7 @@ describe('Review tab', () => {
 
     await userEvent.click(within(form()).getByRole('button', { name: 'Approve' }));
 
-    const alert = await screen.findByRole('alert');
+    const alert = await findRefusal();
     expect(alert).toHaveTextContent(message);
     // Approve is still offered, but focus goes to the message so it is read first (KILN-48).
     await waitFor(() => expect(alert).toHaveFocus());
@@ -264,7 +277,7 @@ describe('Review tab', () => {
       await waitFor(() => expect(document.activeElement).toBe(reopen));
     });
 
-    it('moves to the state line when the new state offers no action', async () => {
+    it('moves to the hint when the new state offers no action, and says the state once', async () => {
       const failed = aVersion({
         id: 'v-2',
         number: 1,
@@ -277,11 +290,15 @@ describe('Review tab', () => {
 
       await userEvent.click(within(form(1)).getByRole('button', { name: 'Reopen' }));
 
-      expect(await screen.findByText('Version 1 is back in review')).toBeInTheDocument();
-      const stateLine = screen.getByText('Version 1 is').parentElement;
-      await waitFor(() => expect(document.activeElement).toBe(stateLine));
-      expect(stateLine).toHaveAttribute('tabindex', '-1');
-      expect(stateLine).toHaveTextContent('In review');
+      const hint = await screen.findByText(
+        'This version can be approved or sent back once it has finished processing.',
+      );
+      await waitFor(() => expect(document.activeElement).toBe(hint));
+      expect(hint).toHaveAttribute('tabindex', '-1');
+      // The status says the new state; the focused hint says why nothing is offered, not the state.
+      expect(status()).toHaveTextContent(/^Version 1 is back in review$/);
+      expect(hint).not.toHaveTextContent(/in review/i);
+      expect(screen.getByText('Version 1 is').parentElement).not.toHaveAttribute('tabindex');
     });
 
     it('moves focus once per decision, never again when someone else decides later', async () => {

@@ -93,7 +93,11 @@ export const ThreadItem = ({
           announce(copy.comments.announce.replied);
           closeReply();
         },
-        onError: (failure) => setReplyError(commentErrorMessage(failure, copy)),
+        onError: (failure) => {
+          // The field describes its error: focusing it is the one way it is read (KILN-48).
+          setReplyError(commentErrorMessage(failure, copy));
+          replyFieldRef.current?.focus();
+        },
       },
     );
   };

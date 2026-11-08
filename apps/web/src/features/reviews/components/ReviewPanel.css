@@ -43,12 +43,6 @@
   font-weight: var(--kiln-weight-medium);
 }
 
-/* Focus lands here after a decision that leaves no action (KILN-48). */
-.review-panel__state:focus-visible {
-  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
-  outline-offset: var(--kiln-border-hairline);
-}
-
 .review-panel__form {
   display: flex;
   flex-direction: column;
@@ -65,6 +59,12 @@
   color: var(--kiln-color-on-surface-muted);
 }
 
+/* Focus lands on the hint, or on a refusal, after a decision (KILN-48): the usual ring. */
+.review-panel__hint:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
+}
+
 /* The outcome of a refused decision: an icon-free sentence with a bar, not colour alone. */
 .review-panel__problem {
   margin: 0;
@@ -76,8 +76,9 @@
   border-inline-start: var(--kiln-border-focus) solid var(--kiln-color-warning);
 }
 
-.review-panel__problem:focus {
-  outline: none;
+.review-panel__problem:focus-visible {
+  outline: var(--kiln-border-focus) solid var(--kiln-color-focus);
+  outline-offset: var(--kiln-border-hairline);
 }
 
 .review-panel__actions {

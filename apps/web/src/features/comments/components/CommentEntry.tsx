@@ -72,7 +72,11 @@ export const CommentEntry = ({
           announce(copy.comments.announce.saved);
           close('edit');
         },
-        onError: (failure) => setError(commentErrorMessage(failure, copy)),
+        onError: (failure) => {
+          // The field describes its error: focusing it is the one way it is read (KILN-48).
+          setError(commentErrorMessage(failure, copy));
+          editRef.current?.focus();
+        },
       },
     );
   };

@@ -206,6 +206,35 @@ describe('Comments tab', () => {
     }
   });
 
+  it('puts focus on the field that describes a failed reply or edit, read once', async () => {
+    server = serveComments(detail, { threads: { 'v-2': [aThread({ id: 't-1', body: 'Mine' })] } });
+    server.failNext(
+      'POST',
+      '/api/v1/comment-threads/t-1/comments',
+      new TypeError('Failed to fetch'),
+    );
+    await openComments();
+    const thread = await screen.findByRole('article', { name: 'Comment 1 by Ada Artist' });
+    await userEvent.click(within(thread).getByRole('button', { name: 'Reply to comment 1' }));
+    const reply = within(thread).getByRole('textbox', { name: 'Reply to comment 1' });
+    await userEvent.type(reply, 'Lost');
+    await userEvent.click(within(thread).getByRole('button', { name: 'Post reply' }));
+
+    await waitFor(() => expect(reply).toHaveFocus());
+    expect(reply).toHaveAccessibleDescription(/Kiln cannot reach its server/);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await userEvent.keyboard('{Escape}');
+    server.failNext('PATCH', '/api/v1/comments/', new TypeError('Failed to fetch'));
+    await userEvent.click(within(thread).getByRole('button', { name: 'Edit' }));
+    const edit = within(thread).getByRole('textbox', { name: 'Edit comment' });
+    await userEvent.type(edit, ' again');
+    await userEvent.click(within(thread).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(edit).toHaveAccessibleDescription(/Kiln cannot reach its server/));
+    expect(edit).toHaveFocus();
+  });
+
   it('explains a refusal from the API in words', async () => {
     server = serveComments(detail);
     server.failNext('POST', THREADS, problem(403, 'Forbidden', 'INSUFFICIENT_SCOPE'));

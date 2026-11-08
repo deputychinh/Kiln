@@ -38,7 +38,7 @@ export const ReviewDecision = ({
   const [note, setNote] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const problemRef = useRef<HTMLParagraphElement>(null);
-  const stateRef = useRef<HTMLParagraphElement>(null);
+  const hintRef = useRef<HTMLParagraphElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const keyRef = useRef<DraftKey | null>(null);
   // The revision this form's last decision made: once the page shows it, focus moves (KILN-48,
@@ -51,15 +51,22 @@ export const ReviewDecision = ({
 
   // The pressed button unmounts once the new state is shown (Approve → Reopen), so focus goes on
   // purpose to the first action the new state offers, as a toggle button keeps it; with none
-  // (a reopened version that is not ready), to the state line. The polite status still announces
-  // the outcome, so the focused control adds its own name only.
+  // (a reopened version that is not ready), to the hint that says why. The polite status alone
+  // announces the outcome; the focused element adds only its name or the reason, never the state.
   useEffect(() => {
     if (decidedRevision === null || movedForRef.current === decidedRevision) return;
     if (version.review_revision < decidedRevision) return;
     movedForRef.current = decidedRevision;
     const next = actionsRef.current?.querySelector('button');
-    (next ?? stateRef.current)?.focus();
+    (next ?? hintRef.current)?.focus();
   }, [decidedRevision, version.review_revision]);
+
+  // A refusal takes focus once it has rendered (an effect, not a timer that can run before the
+  // commit), so a screen reader and the eye land on it. Focus is the one channel: the message is
+  // no alert, or it would be read twice (KILN-48).
+  useEffect(() => {
+    if (problem !== null) problemRef.current?.focus();
+  }, [problem]);
 
   const decide = (action: ReviewAction): void => {
     if (transition.isPending) return;
@@ -83,8 +90,6 @@ export const ReviewDecision = ({
         },
         onError: (failure) => {
           setProblem(reviewErrorMessage(failure, copy));
-          // After the message renders, so a screen reader and the eye land on it.
-          requestAnimationFrame(() => problemRef.current?.focus());
         },
       },
     );
@@ -96,7 +101,7 @@ export const ReviewDecision = ({
 
   return (
     <>
-      <p ref={stateRef} className="review-panel__state" tabIndex={-1}>
+      <p className="review-panel__state">
         <span>{copy.reviews.currentLabel(version.number)}</span>
         <ReviewBadge state={version.review_state} />
       </p>
@@ -115,9 +120,13 @@ export const ReviewDecision = ({
             onChange={(event) => setNote(event.target.value)}
           />
         ) : null}
-        {hint ? <p className="review-panel__hint">{hint}</p> : null}
+        {hint ? (
+          <p ref={hintRef} className="review-panel__hint" tabIndex={-1}>
+            {hint}
+          </p>
+        ) : null}
         {problem ? (
-          <p ref={problemRef} className="review-panel__problem" role="alert" tabIndex={-1}>
+          <p ref={problemRef} className="review-panel__problem" tabIndex={-1}>
             {problem}
           </p>
         ) : null}
