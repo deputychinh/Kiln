@@ -1,6 +1,6 @@
 # KILN-11: Approval states and history
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop)
+- Release: v0.2 · Status: done (score 9.0/10 after one improve round) · Owner: Claude (deliver-loop)
 
 ## Story
 
@@ -129,3 +129,28 @@ Round 1 gates: `make lint` 0; `make test` 1287 Python (`…/kiln_k11_test`) + 2 
 ## Known gaps (follow-ups)
 
 Required reviewers, approval chains and a self-approval rule; notifications; approvals on comments; server-side filtering and sorting by review state (pages are filtered once loaded); one history across all of an asset's versions; realtime (history refetches on focus); at 390 px the gallery's options take three rows, and at 1280 px the card-size control wraps to a second row; the note's edge limit (10,000 characters) answers `VALIDATION_FAILED` like comment bodies (KILN-45); users who reviewed cannot be deleted (`actor_id` is `NO ACTION`, like comment authors).
+
+## Review rounds
+
+| Round      | Reviewer          | Score  | Outcome                                                                                                                                                                                                                                                                                         |
+| ---------- | ----------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1          | independent       | 8.5/10 | ABA past a stale client revision, the review form leaking between versions, two surviving mutants (note in the fingerprint, the schema trigger), a nested-trigger removal of events, QA rows in the AC table, no 1280 px shots, the decision below the fold — all fixed (table above)           |
+| Final gate | fresh independent | 9.0/10 | shipped; debt filed as KILN-48 (focus after a decision, WCAG 2.4.3), KILN-49 (fingerprint and key-signature tests), KILN-50 (CLI sends `expected_revision`), KILN-51 (owner role can truncate or disable the trigger), KILN-52 (cursor length code, note count in code points, 1280 px toolbar) |
+
+## Score
+
+| #   | Criterion        | Score   |
+| --- | ---------------- | ------- |
+| 1   | Requirements fit | 1       |
+| 2   | Test depth       | 0.5     |
+| 3   | Reliability      | 1       |
+| 4   | Security         | 1       |
+| 5   | Maintainability  | 1       |
+| 6   | UX               | 1       |
+| 7   | Accessibility    | 0.5     |
+| 8   | Performance      | 1       |
+| 9   | Docs             | 1       |
+| 10  | Delivery         | 1       |
+|     | **Total**        | **9.0** |
+
+Retro: a compare-and-set must check the token the client saw (its revision), not only the server's own read, or ABA slips through; key per-entity forms by the entity id and put the id in idempotency-key signatures; when an action unmounts its own button, move focus on purpose and assert it; mutation-test every field of an idempotency fingerprint; axe counts a target under a sticky bar as obscured, so run it from a known scroll position.
