@@ -1,6 +1,6 @@
 # KILN-48 + KILN-49: Focus after a decision; every idempotency fingerprint field pinned
 
-- Release: v0.2 · Status: doing · Owner: Claude (deliver-loop) · Debt from the KILN-11 review (one story for both items)
+- Release: v0.2 · Status: done (score 9.5/10 after three improve rounds) · Owner: Claude (deliver-loop) · Debt from the KILN-11 review (one story for both items)
 
 ## Story
 
@@ -158,6 +158,37 @@ Round 3 gates, run before the commit: `make lint` 0; `make test` 1300 Python (`�
 | No e2e for comment failures; the AC3 hint ring's CSS mutant survived                                                 | yes                                                                                   | e2e "a failed new comment, reply or edit focuses its field once it says why, with no alert" (`page.route` 500s) and "reopening a version that offers no action focuses the hint, with its ring" | e2e mutants above killed on both projects                                                           |
 | Re-run every web mutant, add a round 3 table                                                                         | done                                                                                  | tables above and this one                                                                                                                                                                       | —                                                                                                   |
 
-## Known gaps
+## Known gaps (filed)
 
-- Only Chromium projects run the keyboard journeys; Safari's focus behaviour on `<button>` clicks is not covered.
+- Ring assertions check style only: width ≥ 2 px and colour or contrast are not asserted, nor the ring on the article focused after a delete (KILN-53).
+- The web thread key signature is only shown to change when the region is removed or moved in x; a retry after a resize or a change of y alone is not tested (KILN-54).
+- Focusing a deleted comment's article may read "Comment deleted" a second time after the status (KILN-55).
+- The KILN-11 hint "once it has finished processing" is wrong for a failed version (KILN-56).
+- Only Chromium projects run the keyboard journeys; Safari's focus behaviour is not covered (KILN-57).
+
+## Review rounds
+
+| Round      | Reviewer          | Score  | Outcome                                                                                                                                                                                                                  |
+| ---------- | ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1          | independent       | 8.5/10 | the region-shape mutant was not equivalent; the focused refusal was also `role="alert"` and had no ring; the state-line fallback repeated the status — all fixed (round 1 table)                                         |
+| 2          | fresh independent | 8.0/10 | focus arrived before comment errors rendered; Resolve left focus invisible; three web survivors; a stale out-of-scope line; delivery fixed at 0.5 for `23b5ba5` (pushed with `make e2e` red) — all fixed (round 2 table) |
+| 3          | gate reviewer     | 8.5/10 | traceability: blank edit and blank comment `focusin` records, a repeated refusal, comment-failure and hint-ring e2e — all added (round 3 table)                                                                          |
+| Final gate | independent       | 9.5/10 | shipped; debt filed as KILN-53 to KILN-57                                                                                                                                                                                |
+
+## Score
+
+| #   | Criterion        | Score                                                                                       |
+| --- | ---------------- | ------------------------------------------------------------------------------------------- |
+| 1   | Requirements fit | 1                                                                                           |
+| 2   | Test depth       | 1                                                                                           |
+| 3   | Reliability      | 1                                                                                           |
+| 4   | Security         | 1                                                                                           |
+| 5   | Maintainability  | 1                                                                                           |
+| 6   | UX               | 1                                                                                           |
+| 7   | Accessibility    | 1                                                                                           |
+| 8   | Performance      | 1                                                                                           |
+| 9   | Docs             | 1                                                                                           |
+| 10  | Delivery         | 0.5 (`23b5ba5` pushed with `make e2e` red; two web fixes whose e2e came in the next commit) |
+|     | **Total**        | **9.5**                                                                                     |
+
+Retro: focus from an effect after the error renders, never in the error handler; a focused message must not also be a live region; assert a focus ring's width and colour, not only its style; ship a web behaviour change and its e2e update in the same green commit.

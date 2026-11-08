@@ -30,6 +30,7 @@ Every Python test has a 120 s time limit (`pytest-timeout`, in `pyproject.toml`)
 - Fakes for ports (database, storage, clock, Claude) in `tests/fakes.py`; no network in tests; warnings are errors.
 - Small sample files in `samples/` (CC0 or self-made), never real studio assets.
 - E2E runs against the production build, never the dev server.
+- Focus after an action is tested where it lands: read `document.activeElement` in the e2e, record `aria-invalid` and the described error at `focusin` for a field that shows an error, and check a focus ring's width and colour, not only its style (KILN-48). A web change that moves focus ships in the same green commit as its e2e update.
 - Run axe from a known scroll position (the top of the page): it counts a target under the sticky top bar as obscured, so a check after a click that scrolled can fail or pass by chance (KILN-11).
 - Playwright empties `apps/web/test-results` at the start of every run: copy screenshots to `docs/delivery/<item>/screens/` before rerunning any spec, and screenshot the element under review (an e2e that clicked into a thread captured the list, not the marks).
 
