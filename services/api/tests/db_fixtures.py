@@ -52,7 +52,21 @@ def database_url() -> Iterator[str]:
     rendered = url.render_as_string(hide_password=False)
     command.upgrade(_alembic_config(rendered), "head")
     yield rendered
+    with admin.connect() as connection:  # KILN-62: the DML test role must not outlive the run
+        left = connection.execute(
+            text("SELECT rolname FROM pg_roles WHERE rolname = :role"),
+            {"role": dml_role_name(url.database or "")},
+        ).all()
     admin.dispose()
+    if left:
+        pytest.fail(f"The test role {left[0][0]!r} was left behind; drop it at teardown.")
+
+
+def dml_role_name(database: str) -> str:
+    """The DML-only test role of one test database (`kiln_<…>_test_dml`). Roles belong to the whole
+    cluster, so each test database gets its own and parallel suites never share or drop another's
+    (KILN-62; the fixture is `dml_role` in `tests/db/test_review_store.py`)."""
+    return f"{database}_dml"
 
 
 @pytest.fixture

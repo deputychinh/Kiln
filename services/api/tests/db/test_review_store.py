@@ -3,14 +3,15 @@ an append-only history, and the transition table as a database check."""
 
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import pytest
-from db_fixtures import insert_user
-from sqlalchemy import Engine, create_engine, insert, select, text
+from db_fixtures import dml_role_name, insert_user
+from sqlalchemy import Connection, Engine, create_engine, insert, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from kiln_api.db.schema import review_events
@@ -386,23 +387,81 @@ def test_deleting_an_asset_deletes_its_versions_history_with_them(
     assert left == []
 
 
-@pytest.fixture
-def dml_role(engine: Engine) -> str:
+@contextmanager
+def _dml_role_on(engine: Engine) -> Iterator[str]:
     """A role with only SELECT, INSERT, UPDATE and DELETE on this database's tables, as the app's
     login will have once the owner and runtime roles are split (KILN-58). Roles are shared by the
-    cluster, so the name carries the database's."""
+    cluster, so the name carries the database's (`dml_role_name`): suites running in parallel
+    against their own test databases never share one. Dropped afterwards, also when the test fails
+    (KILN-62): `DROP OWNED BY` revokes its grants here, then `DROP ROLE` removes it."""
     with engine.begin() as connection:
         database = connection.execute(text("SELECT current_database()")).scalar_one()
-        role = f"{database}_dml"
-        exists = connection.execute(
-            text("SELECT 1 FROM pg_roles WHERE rolname = :role"), {"role": role}
-        ).first()
-        if exists is None:
-            connection.execute(text(f'CREATE ROLE "{role}" NOLOGIN'))
+        role = dml_role_name(database)
+        quoted = connection.dialect.identifier_preparer.quote_identifier(role)
+        if not _role_exists(connection, role):  # left by a run that was killed: reuse, then drop
+            connection.execute(text(f"CREATE ROLE {quoted} NOLOGIN"))
         connection.execute(
-            text(f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{role}"')
+            text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {quoted}")
         )
-    return role
+    try:
+        yield role
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f"DROP OWNED BY {quoted}"))
+            connection.execute(text(f"DROP ROLE {quoted}"))
+
+
+def _role_exists(connection: Connection, role: str) -> bool:
+    found = connection.execute(text("SELECT 1 FROM pg_roles WHERE rolname = :role"), {"role": role})
+    return found.first() is not None
+
+
+@pytest.fixture
+def dml_role(engine: Engine) -> Iterator[str]:
+    with _dml_role_on(engine) as role:
+        yield role
+
+
+def test_the_dml_role_is_named_for_its_database_and_dropped_after_use(engine: Engine) -> None:
+    """KILN-62: the fixture used to leave its cluster-wide role behind after every run."""
+    with engine.connect() as connection:
+        database = connection.execute(text("SELECT current_database()")).scalar_one()
+
+    with _dml_role_on(engine) as role, engine.connect() as connection:
+        existed = _role_exists(connection, role)
+    with engine.connect() as connection:
+        left = _role_exists(connection, role)
+
+    assert role == f"{database}_dml"
+    assert (existed, left) == (True, False)
+
+
+def test_the_dml_role_is_dropped_when_the_test_using_it_fails(engine: Engine) -> None:
+    used: list[str] = []
+
+    def failing_test() -> None:
+        with _dml_role_on(engine) as role:
+            used.append(role)
+            raise RuntimeError("the test failed")
+
+    with pytest.raises(RuntimeError, match="the test failed"):
+        failing_test()
+
+    with engine.connect() as connection:
+        assert used
+        assert not _role_exists(connection, used[0])
+
+
+def test_a_dml_role_left_by_a_killed_run_is_reused_and_then_dropped(engine: Engine) -> None:
+    with engine.begin() as connection:
+        database = connection.execute(text("SELECT current_database()")).scalar_one()
+        connection.execute(text(f'CREATE ROLE "{dml_role_name(database)}" NOLOGIN'))
+
+    with _dml_role_on(engine) as role:
+        pass
+
+    with engine.connect() as connection:
+        assert not _role_exists(connection, role)
 
 
 def test_a_dml_role_cannot_shadow_the_versions_table_to_erase_a_live_history(

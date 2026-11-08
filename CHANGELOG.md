@@ -16,6 +16,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [SemVer](ht
 ### Tests
 
 - The generic search_path test now refuses an unsafe pin such as `public, pg_catalog, pg_temp` (KILN-61, ADR 0025): a function's pin may name only `pg_catalog`, `public` and `pg_temp`, each once, with `pg_catalog` first when named and `pg_temp` last. Each unsafe and safe pin is set on a real probe function, so the check reads `proconfig` as PostgreSQL stores it.
+- The `dml_role` test fixture drops its cluster-wide role after every test, also one that fails (`DROP OWNED BY`, then `DROP ROLE`; KILN-62). The role is named after the test database, so suites running in parallel against their own databases never share it, and a run fails if its role is still there at the end.
 
 ## [0.2.0] - 2026-11-08
 
